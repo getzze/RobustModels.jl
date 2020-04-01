@@ -1,0 +1,8 @@
+docs/build
+docs/site
+docs/src/assets/*.svg
+test/scratch.jl
+tune.json
+Manifest.toml
+settings.json
+docs/jmd
