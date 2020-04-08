@@ -1,25 +1,23 @@
 module RobustModels
 
 
-#import Tables
-#import NLopt
-#using MixedModels: OptSummary
-
-using Distributions: ccdf, Normal
+using Distributions: ccdf, Normal, Chisq
 #using StatsModels: @formula, FormulaTerm, coefnames, modelcols, apply_schema, schema
 using SparseArrays: SparseMatrixCSC
-using LinearAlgebra: BlasReal, Diagonal, Hermitian, transpose, mul!, inv, diag
+using LinearAlgebra: diag
 using Printf: @printf, @sprintf
-using GLM: Link, canonicallink, FPVector, cholpred, linpred, linpred!, installbeta!
+using GLM: Link, canonicallink, FPVector, cholpred
 using StatsBase: mean, mad, ConvergenceException
 using IterativeSolvers: lsqr!, cg!
-using Roots: find_zero
+using Roots: find_zero, Order1, ConvergenceFailed
+#using JuMP: Model, @variable, @constraint, @objective, optimize!, value
+#import GLPK
 
 
 import Base: ==, *
-import GLM: dispersion, dispersion_parameter, LinPred, DensePred, ModResp, delbeta!
-import StatsBase: fit, fit!, deviance, nobs
-import StatsModels: RegressionModel, coef, coeftable, CoefTable
+import GLM: dispersion, dispersion_parameter, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
+import StatsBase: fit, fit!, deviance, nobs, weights
+import StatsModels: RegressionModel, coef, coeftable, CoefTable, leverage, TableRegressionModel
 
 ## Reexports
 export coef,
@@ -47,14 +45,16 @@ export coef,
        adjr²,
        dispersion_parameter,
        dispersion,
+       weights,
+       leverage,
        nothing  # stopper
 
 
 export Estimator,
        MEstimator,
        RobustModel,
-       RobustGeneralizedLinearModel,
        RobustLinearModel,
+       QuantileRegression,
        interiormethod,
        nothing  # stopper
        
@@ -91,9 +91,9 @@ abstract type RobustResp{T} <: ModResp end
 
 
 include("MEstimators.jl")
-include("interiorpoint.jl")
+include("robustlinearmodel.jl")
 include("linpred.jl")
 include("pirls.jl")
-include("robustlinearmodel.jl")
+include("interiorpoint.jl")
 
 end # module

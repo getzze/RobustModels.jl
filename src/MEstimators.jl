@@ -29,19 +29,24 @@ The function derived from the estimator for M-estimation of scale.
 It is bounded with lim_{t->∞} χ = 1
 It can be proportional to ρ or t.ψ(t) depending on the estimator.
 """
-function estimator_chi(::M) where M<:Estimator
+function estimator_chi(::M, r) where M<:Estimator
     error("This estimator cannot be used for scale estimation: $(M)")
 end
+
 
 """
 The weight function, w, for the M-estimator, to be used for modifying the normal
 equations of a least-square problem
 """
-estimator_weight(est::MEstimator, r) = estimator_psi(est, r) / r
-isconvex(::MEstimator) = false
+estimator_weight(est::Estimator, r) = estimator_psi(est, r) / r
+isconvex(::Estimator) = false
 
-function SEstimator(::Type{M}) where M<:Estimator
-    error("This estimator cannot be used for scale estimation: $(M)")
+isbounded(::Type{Estimator}) = false
+function MScaleEstimator(::Type{M}) where M<:MEstimator
+    isbounded(M) || error("This estimator cannot be used for scale estimation: $(M)")
+    
+    est = M(estimator_low_breakpoint_constant(M))
+    return r -> estimator_chi(est, r) - 1/2
 end
 
 
@@ -80,8 +85,8 @@ The parameter `c` of χ should be chosen such that δ = 1/2, which
 corresponds to a breakpoint of 50%.
 The function χ can be directly the pseudo-negloglikelihood ρ or `t.ψ(t)`.
 `estimator_chi` returns this function when it is define, but it is better to call
-`SEstimator(::Type{Estimator})` that returns the function r->χ(r)/(1/2) to be called directly to find ŝ by solving:
-1/n Σ SEstimator(ri/ŝ) = 1  with ri = yi - μi
+`MScaleEstimator(::Type{Estimator})` that returns the function r->(χ(r) - 1/2) to be called directly to find ŝ by solving:
+Σ MScaleEstimator(ri/ŝ) = 0  with ri = yi - μi
 
 
 ```
@@ -129,11 +134,11 @@ struct L1Estimator <: MEstimator; end
 L1Estimator(c) = L1Estimator()
 estimator_rho(   ::L1Estimator, r) = abs(r)
 estimator_psi(   ::L1Estimator, r) = sign(r)
-estimator_psider(::L1Estimator, r) = ifelse( abs(r)<DELTA, oftype(r, 1), oftype(r, 0) )
-estimator_weight(::L1Estimator, r) = ifelse( abs(r)<DELTA, L1WDELTA, 1/abs(r) )
+estimator_psider(::L1Estimator, r) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
+estimator_weight(::L1Estimator, r) = if (abs(r)<DELTA); L1WDELTA else 1/abs(r) end
 function estimator_values(est::L1Estimator, r)
     rr = abs(r)
-    return (rr, sign(r), ifelse(rr<DELTA, L1WDELTA, 1/rr))
+    return (rr, sign(r), (if (rr<DELTA); L1WDELTA else 1/rr end) )
 end
 isconvex(::L1Estimator) = true
 
@@ -151,10 +156,10 @@ struct HuberEstimator <: MEstimator
     HuberEstimator() = new(1.345)
 end
 
-estimator_rho(est::HuberEstimator, r)    = ifelse( abs(r)<=est.c , r^2/2        , (est.c*abs(r) - est.c^2/2) )
-estimator_psi(est::HuberEstimator, r)    = ifelse( abs(r)<=est.c , r            , est.c*sign(r) )
-estimator_psider(est::HuberEstimator, r) = ifelse( abs(r)<=est.c , oftype(r, 1) , oftype(r, 0) )
-estimator_weight(est::HuberEstimator, r) = ifelse( abs(r)<=est.c , oftype(r, 1) , est.c/abs(r) )
+estimator_rho(est::HuberEstimator, r)    = if (abs(r)<=est.c); r^2/2        else (est.c*abs(r) - est.c^2/2) end
+estimator_psi(est::HuberEstimator, r)    = if (abs(r)<=est.c); r            else est.c*sign(r) end
+estimator_psider(est::HuberEstimator, r) = if (abs(r)<=est.c); oftype(r, 1) else oftype(r, 0) end
+estimator_weight(est::HuberEstimator, r) = if (abs(r)<=est.c); oftype(r, 1) else est.c/abs(r) end
 function estimator_values(est::HuberEstimator, r)
     rr = abs(r)
     if rr <= est.c
@@ -225,10 +230,10 @@ end
 estimator_rho(est::ArctanEstimator, r)    = est.c * r * atan(r/est.c) - est.c^2/2*log(1 + (r/est.c)^2)
 estimator_psi(est::ArctanEstimator, r)    = est.c * atan(r/est.c)
 estimator_psider(est::ArctanEstimator, r) = 1 / (1 + (r/est.c)^2)
-estimator_weight(est::ArctanEstimator, r) = ifelse( abs(r/est.c)<DELTA, (1 - (r/est.c)^2/3), est.c * atan(r/est.c) / r )
+estimator_weight(est::ArctanEstimator, r) = if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else est.c * atan(r/est.c) / r end
 function estimator_values(est::ArctanEstimator, r)
     ar = est.c * atan(r/est.c)
-    return ( r*ar - est.c^2/2*log(1 + (r/est.c)^2), ar, ifelse( abs(r/est.c)<DELTA, (1 - (r/est.c)^2/3), ar/r) )
+    return ( r*ar - est.c^2/2*log(1 + (r/est.c)^2), ar, (if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else ar/r end) )
 end
 isconvex(::ArctanEstimator) = true
 
@@ -254,12 +259,9 @@ function estimator_values(est::CauchyEstimator, r)
 end
 isconvex(::CauchyEstimator) = false
 
-estimator_chi(est::CauchyEstimator, r) = r*estimator_psi(est, r)/(est.c)^2
+isbounded(::Type{CauchyEstimator}) = true
 estimator_low_breakpoint_constant(::Type{CauchyEstimator}) = 0.61200
-function SEstimator(T::Type{CauchyEstimator})
-    est = T(estimator_low_breakpoint_constant(T))
-    return r -> 2*estimator_chi(est, r)
-end
+estimator_chi(est::CauchyEstimator, r) = r*estimator_psi(est, r)/(est.c)^2
 
 
 
@@ -282,12 +284,9 @@ function estimator_values(est::GemanEstimator, r)
 end
 isconvex(::GemanEstimator) = false
 
-estimator_chi(est::GemanEstimator, r) = estimator_rho(est, r)/((est.c)^2/2)
+isbounded(::Type{GemanEstimator}) = true
 estimator_low_breakpoint_constant(::Type{GemanEstimator}) = 0.61200
-function SEstimator(T::Type{GemanEstimator})
-    est = T(estimator_low_breakpoint_constant(T))
-    return r -> 2*estimator_chi(est, r)
-end
+estimator_chi(est::GemanEstimator, r) = estimator_rho(est, r)/((est.c)^2/2)
 
 
 """
@@ -309,12 +308,9 @@ function estimator_values(est::WelschEstimator, r)
 end
 isconvex(::WelschEstimator) = false
 
-estimator_chi(est::WelschEstimator, r) = estimator_rho(est, r)/((est.c)^2/2)
+isbounded(::Type{WelschEstimator}) = true
 estimator_low_breakpoint_constant(::Type{WelschEstimator}) = 0.8165
-function SEstimator(T::Type{WelschEstimator})
-    est = T(estimator_low_breakpoint_constant(T))
-    return r -> 2*estimator_chi(est, r)
-end
+estimator_chi(est::WelschEstimator, r) = estimator_rho(est, r)/((est.c)^2/2)
 
 
 
@@ -328,22 +324,19 @@ struct TukeyEstimator <: MEstimator
     TukeyEstimator(c::Real) = new(c)
     TukeyEstimator() = new(4.685)
 end
-estimator_rho(est::TukeyEstimator, r) = ifelse( abs(r)<=est.c, (est.c)^2/6 * (1 - ( 1 - (r/est.c)^2 )^3), (est.c)^2/6 )
-estimator_psi(est::TukeyEstimator, r) = ifelse( abs(r)<=est.c, r*(1 - (r/est.c)^2)^2, oftype(r, 0) )
-estimator_psider(est::TukeyEstimator, r) = ifelse( abs(r)<=est.c, 1 - 6*(r/est.c)^2 + 5*(r/est.c)^4, oftype(r, 0) )
-estimator_weight(est::TukeyEstimator, r) = ifelse( abs(r)<=est.c, (1 - (r/est.c)^2)^2, oftype(r, 0) )
+estimator_rho(est::TukeyEstimator, r)    = if (abs(r)<=est.c); (est.c)^2/6 * (1 - ( 1 - (r/est.c)^2 )^3) else (est.c)^2/6  end
+estimator_psi(est::TukeyEstimator, r)    = if (abs(r)<=est.c); r*(1 - (r/est.c)^2)^2                     else oftype(r, 0) end
+estimator_psider(est::TukeyEstimator, r) = if (abs(r)<=est.c); 1 - 6*(r/est.c)^2 + 5*(r/est.c)^4         else oftype(r, 0) end
+estimator_weight(est::TukeyEstimator, r) = if (abs(r)<=est.c); (1 - (r/est.c)^2)^2                       else oftype(r, 0) end
 function estimator_values(est::TukeyEstimator, r)
     pr = (abs(r)<=est.c) * (1 - (r/est.c)^2)
     return ( (est.c)^2/6*(1 - pr^3), r*pr^2, pr^2 )
 end
 isconvex(::TukeyEstimator) = false
 
-estimator_chi(est::TukeyEstimator, r) = estimator_rho(est, r)/((est.c)^2/6)
+isbounded(::Type{TukeyEstimator}) = true
 estimator_low_breakpoint_constant(::Type{TukeyEstimator}) = 1.5476
-function SEstimator(T::Type{TukeyEstimator})
-    est = T(estimator_low_breakpoint_constant(T))
-    return r -> 2*estimator_chi(est, r)
-end
+estimator_chi(est::TukeyEstimator, r) = estimator_rho(est, r)/((est.c)^2/6)
 
 
 """
@@ -409,14 +402,15 @@ isconvex(::StudentEstimator) = false
 estimator_limit_rho(::StudentEstimator) = Inf
 estimator_limit_tpsi(est::StudentEstimator) = (est.c)^2*(est.ν+1)/2
 
-estimator_chi(est::StudentEstimator, r) = r*estimator_psi(est, r)/((est.c)^2*(est.ν+1)/2)
+isbounded(::Type{StudentEstimator}) = true
 estimator_low_breakpoint_constant(::Type{StudentEstimator}, ν) = 0.8165/√ν
-function SEstimator(T::Type{StudentEstimator}, ν)
+estimator_chi(est::StudentEstimator, r) = r*estimator_psi(est, r)/((est.c)^2*(est.ν+1)/2)
+function MScaleEstimator(T::Type{StudentEstimator}, ν)
     est = T(estimator_low_breakpoint_constant(T, ν), ν)
-    return r-> 2*estimator_chi(est, r)
+    return r-> estimator_chi(est, r) - 1/2
 end
 estimator_low_breakpoint_constant(::Type{StudentEstimator}) = error("this function should be called with ν as an extra last argument for StudentEstimator")
-SEstimator(T::Type{StudentEstimator}) = error("this function should be called with ν as an extra last argument for StudentEstimator")
+MScaleEstimator(::Type{StudentEstimator}) = error("this function should be called with ν as an extra last argument for StudentEstimator")
 
 
 """
@@ -438,11 +432,11 @@ end
 _weight(est::QuantileEstimator, r) = oftype(r, ifelse(r>0, est.τ, 1 - est.τ))
 estimator_rho(est::QuantileEstimator, r) = _weight(est, r) * abs(r)
 estimator_psi(est::QuantileEstimator, r) = _weight(est, r) * sign(r)
-estimator_psider(est::QuantileEstimator, r) = ifelse( abs(r)<DELTA, oftype(r, 1), oftype(r, 0) )
-estimator_weight(est::QuantileEstimator, r) = ifelse( abs(r)<DELTA, r*(est.τ - 1/2)*L1WDELTA^2 + L1WDELTA/2, _weight(est, r)/abs(r) )
+estimator_psider(est::QuantileEstimator, r) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
+estimator_weight(est::QuantileEstimator, r) = if (abs(r)<DELTA); r*(est.τ - 1/2)*L1WDELTA^2 + L1WDELTA/2 else _weight(est, r)/abs(r) end
 function estimator_values(est::QuantileEstimator, r)
     w = _weight(est, r)
-    ww = ifelse(abs(r)<DELTA, r*(est.τ - 1/2)*L1WDELTA^2 + L1WDELTA/2, w/abs(r))
+    ww = if (abs(r)<DELTA); r*(est.τ - 1/2)*L1WDELTA^2 + L1WDELTA/2 else w/abs(r) end
     return (w*abs(r), w*sign(r), ww)
 end
 isconvex(::QuantileEstimator) = true
@@ -469,7 +463,7 @@ estimator_psider(est::ExpectileEstimator, r) = 2 * _weight(est, r)
 estimator_weight(est::ExpectileEstimator, r) = 2 * _weight(est, r)
 function estimator_values(est::ExpectileEstimator, r)
     w = _weight(est, r)
-    return (w*r^2, 2*w*r, w)
+    return (w*r^2, 2*w*r, 2*w)
 end
 isconvex(::ExpectileEstimator) = true
 
