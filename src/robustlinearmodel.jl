@@ -48,10 +48,10 @@ function coeftable(m::AbstractRobustModel)
               ["x$i" for i = 1:size(X, 2)], 4)
 end
 
-function confint(m::AbstractRobustModel, level::Real)
+function confint(m::AbstractRobustModel; level::Real=0.95)
     hcat(coef(m),coef(m)) + stderror(m)*quantile(Normal(), (1-level)/2)*[1. -1.]
 end
-confint(m::AbstractRobustModel) = confint(m, 0.95)
+confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
 function show(io::IO, obj::AbstractRobustModel)
     println(io, "$(typeof(obj)):\n\nCoefficients:\n", coeftable(obj))
@@ -139,9 +139,48 @@ The arguments `X` and `y` can be a `Matrix` and a `Vector` or a `Formula` and a 
 """
 rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
 
+"""
+   fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+             y::AbstractVector{T}, est::Estimator;
+             quantile::Union{Nothing, AbstractFloat} = nothing,
+             method::Symbol       = :chol, # :cg
+             scale::AbstractFloat = 1.0,
+             dofit::Bool          = true,
+             weights::FPVector    = similar(y, 0),
+             offset::FPVector     = similar(y, 0),
+             fitdispersion::Bool  = false,
+             fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
 
+Create a robust model with the model matrix X and response vector y (or formula/data),
+using a robust estimator.
+A quantile can be provided to perform MQuantile regression.
+
+
+# Arguments
+
+- `X`: the model matrix (it can be dense or sparse) or a formula
+- `y`: the response vector or a dataframe.
+- `est`: a robust estimator
+
+## Keywords
+
+- `quantile::Union{Nothing, AbstractFloat} = nothing`: optionnaly run a M-quantile regression using the estimator `est`;
+- `method::Symbol = :chol`: the method to use for solving the weighted linear system, `chol` (default) or `cg`;
+- `scale::AbstractFloat = 1.0`: an estimate for the scale;
+- `dofit::Bool = true`: if false, return the model object without fitting;
+- `weights::Vector = []`: a weight vector, should be empty if no weights are used;
+- `offset::Vector = []`: an offset vector, should be empty if no offset is used;
+- `fitdispersion::Bool = false`: keep track of the residual norm in each iteration;
+- `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm (see [`pirls!`](@ref)).
+
+# Output
+
+the RobustLinearModel object.
+
+"""
 function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
              y::AbstractVector{T}, est::Estimator;
+             quantile::Union{Nothing, AbstractFloat} = nothing,
              method::Symbol       = :chol, # :cg
              scale::AbstractFloat = 1.0,
              dofit::Bool          = true,
@@ -155,10 +194,20 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
         throw(DimensionMismatch("number of rows in X and y must match"))
     end
 
-    rr = RobustLinResp(est, y, offset, weights, scale)
+    est2 = if !isnothing(quantile) && (0 < quantile < 1)
+        if isa(est, GeneralQuantileEstimator)
+            GeneralQuantileEstimator(est.est, quantile)
+        else
+            GeneralQuantileEstimator(est, quantile)
+        end
+    else
+        est
+    end
+
+    rr = RobustLinResp(est2, y, offset, weights, scale)
 #    pp = if method == :cg; cgpred(X) elseif method==:chol; cholpred(X) else qrpred(X) end
     pp = if method==:cg; cgpred(X) else cholpred(X) end
-    
+
     m = RobustLinearModel(rr, pp, fitdispersion, false)
     return if dofit; fit!(m; fitargs...) else m end
 end
@@ -171,13 +220,13 @@ end
 
 
 
-function fit!(m::RobustLinearModel{T}, y::FPVector; 
+function fit!(m::RobustLinearModel{T}, y::FPVector;
                 wts::Union{Nothing, FPVector}=nothing,
                 offset::Union{Nothing, FPVector}=nothing,
                 σ::Union{Nothing, AbstractFloat}=nothing,
                 kwargs...) where {T}
     r = m.resp
-    
+
     # Update y, wts and offset in the response
     copy!(r.y, y)
     if !isa(σ, Nothing); r.σ = σ end
@@ -194,7 +243,7 @@ function fit!(m::RobustLinearModel{T}, y::FPVector;
     # Reinitialize the coefficients and the response
     fill!(coef(m), zero(T))
     initresp!(r)
-    
+
     fit!(m; kwargs...)
 end
 
@@ -206,7 +255,8 @@ objective and the parameters are printed on stdout at each function evaluation.
 This function assumes that `m` was correctly initialized.
 """
 function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Symbol, Real}=nothing,
-              correct_leverage::Bool=false, kind::Symbol=:Mestimate, verbose::Bool=false, kwargs...) where {T}
+              correct_leverage::Bool=false, kind::Symbol=:Mestimate,
+              verbose::Bool=false, kwargs...) where {T}
 
     # Return early if model has the fit flag set
     m.fitted && return m
@@ -216,17 +266,21 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
     elseif isa(initial_scale_estimate, Symbol) && initial_scale_estimate == :mad
         mad(m.resp.y; normalize=true)
     end
-    
+
     if correct_leverage
         wts = m.resp.wts
         copy!(wts, leverage_weights(m))
         ## TODO: maybe multiply by the old wts?
     end
-    
+
     if kind in (:Sestimate, :MMestimate)
         # Change estimator
+        ## TODO: Allow mixing Tukey S-Estimator with other M-Estimator
         Mest = Estimator(m)
-        m.resp.est = TukeyEstimator(estimator_low_breakpoint_constant(TukeyEstimator))
+        isa(Mest, TukeyEstimator) || error("Only TukeyEstimator is allowed for S- and MM-Estimation.")
+
+        Sest = TukeyEstimator(estimator_low_breakpoint_constant(TukeyEstimator))
+        m.resp.est = Sest
 
         verbose && println("\nFit with S-estimator: $(Estimator(m))")
         ## Minimize the objective
@@ -238,7 +292,7 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         if kind == :MMestimate
             β0 = coef(m)
             σ0 = scale(m)
-        
+
             verbose && println("\nFit with MM-estimator: $(Estimator(m))")
             ## Minimize the objective
             pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
@@ -301,8 +355,8 @@ end
 
 """
     pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=50,
-           minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6, 
-           beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing, 
+           minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
+           beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing,
            update_scale::Bool=false)
 
 (Penalized) Iteratively Reweighted Least Square procedure.
@@ -310,8 +364,7 @@ The Penalized aspect is not implemented (yet).
 """
 function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=30,
               minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
-              beta0::AbstractVector=[], sigma0::Union{Nothing, T}=nothing, 
-              kwargs...) where {T<:AbstractFloat}
+              beta0::AbstractVector=[], sigma0::Union{Nothing, T}=nothing) where {T<:AbstractFloat}
 
     # Check arguments
     maxiter >= 1       || throw(ArgumentError("maxiter must be positive"))
@@ -354,7 +407,7 @@ function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=3
         @assert dev > -atol
 
         verbose && println("deviance at step $i: $(@sprintf("%.4g", dev)), crit=$((devold - dev)/abs(devold))")
- 
+
         # Line search
         ## If the deviance isn't declining then half the step size
         ## The rtol*abs(devold) term is to avoid failure when deviance
@@ -393,8 +446,8 @@ end
 
 """
     pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=50,
-           minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6, 
-           beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing, 
+           minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
+           beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing,
            update_scale::Bool=false)
 
 (Penalized) Iteratively Reweighted Least Square procedure.
@@ -458,7 +511,7 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
         @assert sig > -atol
 
         verbose && println("scale at step $i: $(@sprintf("%.4g", sig)), crit=$((sigold - sig)/sigold)")
- 
+
         # Line search
         ## If the scale isn't declining then half the step size
         ## The rtol*abs(sigold) term is to avoid failure when scale
@@ -479,7 +532,7 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
         end
         installbeta!(p, f)
         r.σ = sig
-        
+
         # Test for convergence
         Δsig = (sigold - sig)
         verbose && println("Iteration: $i, scale: $sig, Δsig: $(Δsig)")

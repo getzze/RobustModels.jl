@@ -2,7 +2,7 @@
     RobustLinearModel
 
 Robust linear model representation
-    
+
 Structures for response and model of RobustLinearModel
    min ∑ᵢ ½ ρ(rᵢ²)
 
@@ -30,8 +30,8 @@ mutable struct RobustLinResp{T<:AbstractFloat, V<:AbstractVector{T}, M<:Estimato
     "`wrkres`: working residuals for IRLS"
     wrkres::V
     "`wrkscaledres`: scaled residuals for IRLS"
-    wrkscaledres::V 
-     
+    wrkscaledres::V
+
     function RobustLinResp{T, V, M}(est::M, y::V, μ::V, off::V, wts::V, σ::AbstractFloat=1) where {V<:AbstractVector{T}, M<:Estimator} where {T<:AbstractFloat}
         n = length(y)
         length(μ) == n || error("mismatched lengths of μ and y")
@@ -47,7 +47,7 @@ end
 """
     RobustLinResp(est::M, y::V, off::V, wts::V, σ::AbstractFloat=1) where {V<:FP, M<:Estimator}
 Create a response structure by copying the value of y to the mean μ.
-    
+
 """
 function RobustLinResp(est::M, y::V, off::V, wts::V, σ::AbstractFloat=1) where {V<:FPVector, M<:Estimator}
     T = eltype(y)
@@ -94,7 +94,7 @@ end
 
 """
     location_variance(r::RobustLinResp, sqr::Bool = false)
-Compute the variance of the coefficients β.
+Compute the part of the variance of the coefficients β that is due to the encertainty from the location.
 If `sqr` is false, return the standard deviation instead.
 
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
@@ -111,7 +111,7 @@ function location_variance(r::RobustLinResp, dof_residual::Int=nobs(r), sqr::Boo
         v = mean( (psi.(r.wrkscaledres)).^2, wts )
         v /= ( mean(psider.(r.wrkscaledres), wts) )^2
     end
-    
+
     v *= r.σ^2
     v *= (nobs(r)/dof_residual)
     if sqr; v else sqrt(v) end
@@ -223,7 +223,7 @@ function updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVec
         wrkwt[i] = estimator_weight(r.est, wrkscaledres[i])
         devresid[i] = estimator_rho(r.est, wrkscaledres[i])
     end
-    
+
     ## Multiply by the observation weights
     if !isempty(r.wts)
         broadcast!(*, r.devresid, r.devresid, r.wts)
@@ -234,7 +234,7 @@ end
 
 function optimscale(r::RobustLinResp; sigma0::Union{Nothing, AbstractFloat}=nothing, verbose::Bool=false)
     est, res = r.est, r.wrkres
-    if !isbounded(typeof(est))
+    if !isbounded(est)
         @warn "scale/dispersion is not changed because the estimator ($(est)) does not allow scale estimation, a bounded estimator should be used, like TukeyEstimator."
         return r
     end
@@ -270,7 +270,7 @@ function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.
         end
     elseif method == :Sestimate
         est = r.est
-        if isnothing(sestimator) && !isbounded(typeof(est))
+        if isnothing(sestimator) && !isbounded(est)
             @warn "scale/dispersion is not changed because the estimator () does not allow scale estimation. Provide a bounded estimator as argument, e.g. `sestimator=TukeyEstimator` to use another function."
             return r
         end
@@ -279,19 +279,11 @@ function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.
         else
             MScaleEstimator(sestimator)
         end
-        λ = dispersion(r)
-        λ2 = abs(15*mad(res; normalize=true))
-        println("Update scale:\n\told = $(r.σ)\tΣχ(r/σ) = $(sum(σest.(res ./ λ2))/length(r.y))")
-        println("\tdispersion = $(λ)")
-        println("\tmad = $(λ2)")
-        println(r.wrkres)
-        println(r.wrkwt)
         if isempty(r.wts)
             r.σ = 1/find_zero(s->sum(σest.(s .* res)), 1/λ2, Order1())
         else
             r.σ = find_zero(s->sum(r.wts .* σest.(res ./ s)), λ2, Order1())
         end
-        println("\tnew = $(r.σ)")
     elseif method == :largebreakpoint
         K = 4.5
         if isempty(r.wts)

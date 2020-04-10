@@ -14,7 +14,7 @@ using Roots: find_zero, Order1, ConvergenceFailed
 #import GLPK
 
 
-import Base: ==, *
+import Base: ==, show
 import GLM: dispersion, dispersion_parameter, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
 import StatsBase: fit, fit!, deviance, nobs, weights
 import StatsModels: RegressionModel, coef, coeftable, CoefTable, leverage, TableRegressionModel
@@ -51,27 +51,32 @@ export coef,
 
 
 export Estimator,
-       MEstimator,
-       RobustModel,
+       SimpleEstimator,
+       ConvexEstimator,
+       BoundedEstimator,
+       AbstractQuantileEstimator,
+       GeneralQuantileEstimator,
+       RobustResp,
+       AbstractRobustModel,
        RobustLinearModel,
        QuantileRegression,
        interiormethod,
        nothing  # stopper
-       
-       
 
-abstract type Estimator end
+
 
 """
-An m-estimator is a cost/loss function used in modified (weighted) least squares
+An M-estimator is a cost/loss function used in modified (weighted) least squares
 problems of the form:
     min ∑ᵢ ½ ρ(rᵢ²)
 """
-abstract type MEstimator <: Estimator end
+abstract type Estimator end
+
+abstract type SimpleEstimator <: Estimator end
+abstract type BoundedEstimator <: SimpleEstimator end
+abstract type ConvexEstimator <: SimpleEstimator end
 
 abstract type AbstractQuantileEstimator <: Estimator end
-
-abstract type AbstractExpectileEstimator <: Estimator end
 
 
 """
@@ -90,7 +95,7 @@ abstract type RobustResp{T} <: ModResp end
 
 
 
-include("MEstimators.jl")
+include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")
 include("pirls.jl")

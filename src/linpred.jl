@@ -98,9 +98,8 @@ cgpred(X::StridedMatrix) = DensePredCG(X)
 
 function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}, wt::AbstractVector{T}) where T<:BlasReal
     ## Use views, do not create new objects
-#    sqwt = copy!(p.scratchr1, sqrt.(wt))
-#    src = mul!(p.scratchm1, Diagonal(sqwt), p.X)
-#    lsqr!(p.delbeta, src, mul!(p.scratchr1, Diagonal(sqwt), r); log=false)
+#    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
+#    cg!(p.delbeta, Hermitian(mul!(p.scratchm2, scr, p.X), :U), mul!(p.scratchbeta, scr, r))
     sqwt = copyto!(p.scratchr1, sqrt.(wt))
     scr = broadcast!(*, p.scratchm1, sqwt, p.X)
     lsqr!(p.delbeta, scr, broadcast!(*, p.scratchr1, sqwt, r); log=false)
@@ -204,12 +203,12 @@ end
 #    p.dels .= (p.qr.Q' * r)[1:p]
 #    return p
 #end
-    
+
 #function delbeta!(p::DensePredQR{T}, r::AbstractVector{T}, wt::AbstractVector{T}) where T<:BlasReal
 #    valid = copy!(p.scratchv1, wt .>= eps())
 #    ## TODO: make it inplace, but the matrix size is undefined...
 #    wQT = (wt[valid] .* p.qr.Q[valid, :])'
-    
+
 #    C  = cholesky(Hermitian(wQT * p.qr.Q[valid, :]))
 #    ldiv!(C, mul!(p.scratchr1, wQT, r[valid]))
 #    copy!(p.dels, p.scratchr1[1:size(p.qr.R, 1)])

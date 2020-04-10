@@ -59,7 +59,7 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     if size(X, 1) != size(y, 1)
         throw(DimensionMismatch("number of rows in X and y must match"))
     end
-    
+
     # Check quantile is an allowed value
     (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
 
@@ -78,7 +78,7 @@ function fit!(m::QuantileRegression{T}, y::FPVector;
                 quantile::Union{Nothing, AbstractFloat}=nothing,
                 wts::Union{Nothing, FPVector}=nothing,
                 kwargs...) where {T}
-    
+
     # Update y and wts
     copy!(m.y, y)
     n = length(m.y)
@@ -90,7 +90,7 @@ function fit!(m::QuantileRegression{T}, y::FPVector;
         (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
         m.τ = quantile
     end
-    
+
     fit!(m; kwargs...)
 end
 
@@ -101,7 +101,7 @@ Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the 
 objective and the parameters are printed on stdout at each function evaluation.
 This function assumes that `m` was correctly initialized.
 """
-function fit!(m::QuantileRegression{T}; verbose::Bool=false, 
+function fit!(m::QuantileRegression{T}; verbose::Bool=false,
               correct_leverage::Bool=false, kwargs...) where {T}
 
     # Return early if model has the fit flag set
@@ -112,7 +112,7 @@ function fit!(m::QuantileRegression{T}; verbose::Bool=false,
         copy!(wts, leverage_weights(m))
         ## TODO: maybe multiply by the old wts?
     end
-    
+
     interiormethod!(m.β, m.wrkres, m.X, m.y, m.τ; wts=m.wts, verbose=verbose)
 
     m.fitted = true
@@ -129,7 +129,7 @@ end
 
 function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     model = Model(GLPK.Optimizer)
-   
+
     n, p = size(X)
 
     @variable(model, β[1:p])
@@ -139,17 +139,17 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     e = ones(n)
 
     @objective(model, Min, τ*dot(e, u) + (1-τ)*dot(e, v) )
-    
+
     Wy, WX = if isempty(wts)
         y, X
     else
-        (wts .* y), (wts .* X) 
+        (wts .* y), (wts .* X)
     end
-    
+
     @constraint(model, resid, Wy .== WX * β + u - v)
-    
+
     optimize!(model)
-    
+
     copyto!(βout, value.(β))
     copyto!(rout, value.(u) - value.(v))
 
@@ -171,6 +171,7 @@ end
 function location_variance(m::QuantileRegression, sqr::Bool=false)
     v = dispersion(m, true)
     v *= m.τ * (1 - m.τ) * 2*π
+#    v *= (1/2 - m.τ * (1 - m.τ)) * 2*π
     v *= (nobs(m)/dof_residual(m))
     if sqr; v else sqrt(v) end
 end

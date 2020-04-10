@@ -14,12 +14,14 @@ est1 = RobustModels.L2Estimator()
 est2 = RobustModels.TukeyEstimator()
 
 @testset "linear: L2 estimator" begin
+    println("\n\t\u25CF Estimator: L2")
     y = data.Brain
     X = hcat(ones(size(data, 1)), data.Body)
     sX = SparseMatrixCSC(X)
 
     # OLS
     m1 = fit(LinearModel, form, data)
+    println(m1)
     println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
@@ -28,13 +30,14 @@ est2 = RobustModels.TukeyEstimator()
         name *= if method==:cg; ",  cg" else ",chol" end
         m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale_estimate=:mad)
         println("rlm($name): ", coef(m))
+        println(m)
         @test all(isapprox.(coef(m1), coef(m); rtol=1.0e-5))
     end
 end
 
 @testset "linear: Robust estimators" begin
     m1 = fit(LinearModel, form, data)
-    for name in ("L1", "Huber", "L1L2", "Fair", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey")
+    for name in ("L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey")
         println("\n\t\u25CF Estimator: $(name)")
         est = getproperty(RobustModels, Symbol(name * "Estimator"))()
         m2 = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale_estimate=:mad)
@@ -46,37 +49,6 @@ end
         println("rlm(chol): ", coef(m3))
 #        println("rlm(qr)  : ", coef(m4))
         if name != "L1"
-            @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
-#            @test all(isapprox.(coef(m3), coef(m4); rtol=1.0e-5))
-        end
-    end
-end
-
-@testset "linear: Student's-t estimator" begin
-    for ν in range(1, 5, step=1)
-        est = RobustModels.StudentEstimator(ν)
-        m2 = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale_estimate=:mad)
-        m3 = fit(RobustLinearModel, form, data, est; method=:chol, initial_scale_estimate=:mad)
-#        m4 = fit(RobustLinearModel, form, data, est; method=:qr, initial_scale_estimate=:mad)
-        println("rlm(cg)  : ", coef(m2))
-        println("rlm(chol): ", coef(m3))
-#        println("rlm(qr)  : ", coef(m4))
-        @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
-#        @test all(isapprox.(coef(m3), coef(m4); rtol=1.0e-5))
-    end
-end
-
-@testset "linear: Expectile estimators" begin
-    for ν in range(0.1, 0.9, step=0.1), name in ("Expectile", "Quantile")
-        println("\n\t\u25CF Estimator: $name($ν)")
-        est = getproperty(RobustModels, Symbol(name * "Estimator"))(ν)
-        m2 = fit(RobustLinearModel, form, data, est; method=:cg, maxiter=50, verbose=false, initial_scale_estimate=:mad)
-        m3 = fit(RobustLinearModel, form, data, est; method=:chol, maxiter=50, initial_scale_estimate=:mad)
-#        m4 = fit(RobustLinearModel, form, data, est; method=:qr, maxiter=50, initial_scale_estimate=:mad)
-        println("rlm(cg)  : ", coef(m2))
-        println("rlm(chol): ", coef(m3))
-#        println("rlm(qr)  : ", coef(m4))
-        if name != "Quantile"
             @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
 #            @test all(isapprox.(coef(m3), coef(m4); rtol=1.0e-5))
         end
