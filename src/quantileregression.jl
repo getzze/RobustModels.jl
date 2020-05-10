@@ -163,15 +163,137 @@ end
 
 _objective(r::AbstractFloat, τ::AbstractFloat) = (τ - (r < 0)) * r
 
-function dispersion(m::QuantileRegression, sqr::Bool=false)
+function rss(m::QuantileRegression, sqr::Bool=false)
     s = sum(abs2, m.wrkres)
     if sqr; s else sqrt(s) end
 end
 
-function location_variance(m::QuantileRegression, sqr::Bool=false)
-    v = dispersion(m, true)
-    v *= m.τ * (1 - m.τ) * 2*π
-#    v *= (1/2 - m.τ * (1 - m.τ)) * 2*π
+"""
+    hall_sheather_bandwidth()
+Optimal bandwidth for sparsity estimation according to Hall and Sheather (1988)
+"""
+function hall_sheather_bandwidth(q::Real, n::Int, α::Real=0.05)
+    zα = quantile(Normal(), 1-α/2)
+    ## Estimate of r=s/s" from a Normal distribution
+    zq = quantile(Normal(), q)
+    f = pdf(Normal(), zq)
+    r = f^2/(2*zq^2 + 1)
+    (zα^2*1.5*r/n)^(1/5)
+end
+
+
+"""
+    jones_bandwidth()
+Optimal bandwidth for kernel sparsity estimation according to Jones (1992)
+"""
+function jones_bandwidth(q::Real, n::Int; kernel=:epanechnikov)
+    ## From the kernel k(u) with domain [-1, 1]:
+    ## kk = ∫k²(u)du / ( ∫u²k(u)du )^2
+
+    kk = if kernel == :epanechnikov
+        # For Epanechnikov kernel: kk = 3/5 / (1/5)^2
+        15
+    elseif kernel == :triangle
+        # For triangle kernel (k(u) = 1 - |u|): kk = 2/3 / (1/6)^2
+        24
+    elseif kernel == :window
+        # That is the Bofinger estimate of the bandwidth
+        # For window kernel (k(u) = 1/2): kk = 1/2 / (1/3)^2
+        4.5
+    else
+        error("kernel $(kernel) is not defined for sparsity estimation.")
+    end
+
+    ## Estimate of r=s/s" from a Normal distribution
+    zq = quantile(Normal(), q)
+    f = pdf(Normal(), zq)
+    r = f^2/(2*zq^2 + 1)
+    (kk*r^2/n)^(1/5)
+end
+
+"""
+    bofinger_bandwidth()
+Optimal bandwidth for sparsity estimation according to Bofinger (1975)
+"""
+function bofinger_bandwidth(q::Real, n::Int)
+    return jones_bandwidth(q, n; kernel=:window)
+end
+
+
+function epanechnikov_kernel(x::Real)
+    if abs(x) < 1
+        return 3/4*(1-x^2)
+    else
+        return zero(typeof(x))
+    end
+end
+
+function triangle_kernel(x::Real)
+    if abs(x) < 1
+        return 1 - abs(x)
+    else
+        return zero(typeof(x))
+    end
+end
+
+function window_kernel(x::Real)
+    if abs(x) < 1
+        return one(typeof(x)) / 2
+    else
+        return zero(typeof(x))
+    end
+end
+
+"""
+    sparcity(m::QuantileRegression, α::Real=0.05)
+Compute the sparcity or quantile density ŝ(0)
+using formula from Jones (1992) - Estimating densities, quantiles,
+quantile densities and density quantiles.
+
+"""
+function sparcity(m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov)
+    ## Select the optimal bandwidth from different methods
+    h = if bw_method==:jones
+        jones_bandwidth(m.τ, nobs(m); kernel=kernel)
+    elseif bw_method==:bofinger
+        bofinger_bandwidth(m.τ, nobs(m))
+    elseif bw_method==:hall_sheather
+        hall_sheather_bandwidth(m.τ, nobs(m), α)
+    else
+        error("only :jones, :bofinger and :hall_sheather methods for estimating the optimal bandwidth are allowed: $(bw_method)")
+    end
+
+    ## Select kernel for density estimation
+    k = if kernel==:epanechnikov
+        epanechnikov_kernel
+    elseif kernel==:triangle
+        triangle_kernel
+    elseif kernel==:window
+        window_kernel
+    else
+        error("only :epanechnikov, :triangle and :window kernels are allowed: $(kernel)")
+    end
+    u = m.τ
+    n = nobs(m)
+    r = sort(residuals(m))
+
+    s0 = 0
+    for i in eachindex(r)
+        if i == 1
+            s0 += r[i]/h * k(u/h)
+        else
+            s0 += (r[i] - r[i-1])/h * k((u - (i-1)/n)/h)
+            if i == lastindex(r)
+                s0 += r[i]/h * k((u-1)/h)
+            end
+        end
+    end
+    s0
+end
+
+function location_variance(m::QuantileRegression, sqr::Bool=false; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov)
+    v = sparcity(m; bw_method=bw_method, α=α, kernel=kernel)^2
+    v *= m.τ * (1 - m.τ)
     v *= (nobs(m)/dof_residual(m))
     if sqr; v else sqrt(v) end
 end

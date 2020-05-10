@@ -56,17 +56,49 @@ end
 end
 
 
-@testset "linear: S-estimator and MM-estimator" begin
-    println("\n\t\u25CF Estimator type: M-, S- and MM-estimators")
+@testset "linear: S-estimator" begin
+    println("\n\t\u25CF Estimator type: S-estimators")
     m1 = fit(LinearModel, form, data)
     println(" lm             : ", coef(m1))
-    for name in (:Mestimate, :Sestimate, :MMestimate)
-        m = fit(RobustLinearModel, form, data, est2; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=name)
+    for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy")
+        Mest = getproperty(RobustModels, Symbol(name * "Estimator"))()
+        @test_throws ErrorException fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:Sestimate)
+    end
+
+    for name in ("Geman", "Welsch", "Tukey")
+        Mest = getproperty(RobustModels, Symbol(name * "Estimator"))()
+        m = fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:Sestimate)
         println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
     end
 end
+
+@testset "linear: MM-estimator" begin
+    println("\n\t\u25CF Estimator type: MM-estimators")
+    m1 = fit(LinearModel, form, data)
+    println(" lm             : ", coef(m1))
+    for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy")
+        Mest = getproperty(RobustModels, Symbol(name * "Estimator"))()
+        for fallback in (nothing, RobustModels.TukeyEstimator)
+            m = fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:MMestimate, sestimator=fallback)
+            println("rlm($name) : ", coef(m))
+            ## TODO: find better test
+            @test size(coef(m), 1) == 2
+        end
+    end
+
+    for name in ("Geman", "Welsch", "Tukey")
+        Mest = getproperty(RobustModels, Symbol(name * "Estimator"))()
+        for fallback in (nothing, RobustModels.TukeyEstimator)
+            m = fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:MMestimate, sestimator=fallback)
+            println("rlm($name) : ", coef(m))
+            ## TODO: find better test
+            @test size(coef(m), 1) == 2
+        end
+    end
+end
+
 
 @testset "linear: leverage correction" begin
     m1 = fit(RobustLinearModel, form, data, est2; method=:cg, initial_scale_estimate=:mad, correct_leverage=false)

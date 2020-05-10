@@ -1,7 +1,7 @@
 module RobustModels
 
 
-using Distributions: ccdf, Normal, Chisq
+using Distributions: ccdf, pdf, quantile, Normal, Chisq
 #using StatsModels: @formula, FormulaTerm, coefnames, modelcols, apply_schema, schema
 using SparseArrays: SparseMatrixCSC
 using LinearAlgebra: diag
@@ -9,13 +9,14 @@ using Printf: @printf, @sprintf
 using GLM: Link, canonicallink, FPVector, cholpred
 using StatsBase: mean, mad, ConvergenceException
 using IterativeSolvers: lsqr!, cg!
-using Roots: find_zero, Order1, ConvergenceFailed
+#using Roots: find_zero, Order1, ConvergenceFailed
+#using QuadGK: quadgk
 #using JuMP: Model, @variable, @constraint, @objective, optimize!, value
 #import GLPK
 
 
 import Base: ==, show
-import GLM: dispersion, dispersion_parameter, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
+import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
 import StatsBase: fit, fit!, deviance, nobs, weights
 import StatsModels: RegressionModel, coef, coeftable, CoefTable, leverage, TableRegressionModel
 
@@ -43,7 +44,6 @@ export coef,
        r²,
        adjr2,
        adjr²,
-       dispersion_parameter,
        dispersion,
        weights,
        leverage,
@@ -60,7 +60,7 @@ export Estimator,
        AbstractRobustModel,
        RobustLinearModel,
        QuantileRegression,
-       interiormethod,
+       SEstimator,
        nothing  # stopper
 
 
@@ -98,7 +98,7 @@ abstract type RobustResp{T} <: ModResp end
 include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")
-include("pirls.jl")
-include("interiorpoint.jl")
+include("linresp.jl")
+include("quantileregression.jl")
 
 end # module

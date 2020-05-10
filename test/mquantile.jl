@@ -28,6 +28,8 @@ est2 = RobustModels.TukeyEstimator()
             @test all(isapprox.(coef(m1), coef(m2); rtol=1.0e-5))
         elseif name != "Quantile"
             @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
+        else
+            println("Quantile $τ:\n$(m2)\n$(m3)")
         end
     end
 end

@@ -2,4 +2,4 @@ using RobustModels
 
 include("linearfit.jl")
 include("mquantile.jl")
-include("interiormethod.jl")
+include("qreg.jl")

@@ -12,7 +12,7 @@ form = @formula(Brain ~ 1 + Body)
     y = data.Brain
 
     τs = range(0.1, 0.9, step=0.1)
-    βs = hcat(map(τ->interiormethod(X, y, τ)[1], τs)...)
+    βs = hcat(map(τ->RobustModels.interiormethod(X, y, τ)[1], τs)...)
     println("Coefficients: $(vcat(τs', βs))")
     @test size(βs) == (size(X, 2), length(τs))
 end

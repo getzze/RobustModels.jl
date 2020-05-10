@@ -32,8 +32,6 @@ end
 
 objective(m::AbstractRobustModel) = deviance(m)
 
-dispersion_parameter(m::AbstractRobustModel) = if m.dofitdispersion; true else false end
-
 dof(m::AbstractRobustModel)::Int = length(coef(m))
 
 dof_residual(m::AbstractRobustModel)::Int = nobs(m) - dof(m)
@@ -170,7 +168,7 @@ A quantile can be provided to perform MQuantile regression.
 - `dofit::Bool = true`: if false, return the model object without fitting;
 - `weights::Vector = []`: a weight vector, should be empty if no weights are used;
 - `offset::Vector = []`: an offset vector, should be empty if no offset is used;
-- `fitdispersion::Bool = false`: keep track of the residual norm in each iteration;
+- `fitdispersion::Bool = false`: reevaluate the dispersion;
 - `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm (see [`pirls!`](@ref)).
 
 # Output
@@ -255,15 +253,17 @@ objective and the parameters are printed on stdout at each function evaluation.
 This function assumes that `m` was correctly initialized.
 """
 function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Symbol, Real}=nothing,
-              correct_leverage::Bool=false, kind::Symbol=:Mestimate,
-              verbose::Bool=false, kwargs...) where {T}
+              correct_leverage::Bool=false, kind::Symbol=:Mestimate, sestimator::Union{Nothing, Type{E}}=nothing,
+              verbose::Bool=false, kwargs...) where {T, E<:BoundedEstimator}
 
     # Return early if model has the fit flag set
     m.fitted && return m
 
     σ0 = if isa(initial_scale_estimate, Real)
+        m.fitdispersion = false
         float(initial_scale_estimate)
     elseif isa(initial_scale_estimate, Symbol) && initial_scale_estimate == :mad
+        m.fitdispersion = true
         mad(m.resp.y; normalize=true)
     end
 
@@ -273,34 +273,54 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         ## TODO: maybe multiply by the old wts?
     end
 
-    if kind in (:Sestimate, :MMestimate)
-        # Change estimator
-        ## TODO: Allow mixing Tukey S-Estimator with other M-Estimator
+    if kind == :Sestimate
         Mest = Estimator(m)
-        isa(Mest, TukeyEstimator) || error("Only TukeyEstimator is allowed for S- and MM-Estimation.")
+        isbounded(Mest) || error("Only bounded estimators are allowed for S-Estimation: $(Mest)")
 
-        Sest = TukeyEstimator(estimator_low_breakpoint_constant(TukeyEstimator))
-        m.resp.est = Sest
+        ## Change the estimator to an S-Estimator of the same kind
+        m.resp.est = SEstimator(Mest)
 
         verbose && println("\nFit with S-estimator: $(Estimator(m))")
         ## Minimize the objective
         pirls_Sestimate!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
 
-        # Reset original estimator
-        m.resp.est = Mest
+        # Set the `fitdispersion` flag to true, because σ was estimated
+        m.fitdispersion = true
 
-        if kind == :MMestimate
-            β0 = coef(m)
-            σ0 = scale(m)
+    elseif kind == :MMestimate
+        ## Use an S-estimate to estimate the scale/dispersion
+        Mest = Estimator(m)
 
-            verbose && println("\nFit with MM-estimator: $(Estimator(m))")
-            ## Minimize the objective
-            pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
+        Sest = if !isnothing(sestimator)
+            # Use an S-Estimator of the `sestimator`'s kind
+            SEstimator(Mest; fallback=sestimator, force=true)
+        else
+            # Use an S-Estimator of the same kind as the M-Estimator or fallback
+            SEstimator(Mest)
         end
-    else
+
+        Sresp = RobustLinResp(Sest, m.resp.y, m.resp.offset, m.resp.wts, m.resp.σ)
+        Sm = RobustLinearModel(Sresp, m.pred, true, m.fitted)
+
+        verbose && println("\nFit with MM-estimator - 1. S-estimator: $(Estimator(Sm))")
+        ## Minimize the objective
+        pirls_Sestimate!(Sm; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+
+        ## Use an M-estimate to estimate coefficients
+        σ0 = scale(Sm)
+
+        verbose && println("\nFit with MM-estimator - 2. M-estimator: $(Estimator(m))")
+        ## Minimize the objective
+        pirls!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+
+        # Set the `fitdispersion` flag to true, because σ was estimated
+        m.fitdispersion = true
+    elseif kind == :Mestimate
         verbose && println("\nFit with M-estimator: $(Estimator(m))")
         ## Minimize the objective
         pirls!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+    else
+        error("only :Mestimate, :Sestimate and :MMestimate are allowed: $(kind)")
     end
 
     m.fitted = true
@@ -480,7 +500,7 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
 
     # Compute initial scale
     sigold = try
-        optimscale(setη!(m).resp)
+        optimscale(setη!(m).resp; verbose=verbose)
     catch e
         if isa(e, ConvergenceFailed)
             sigold = maxσ
@@ -498,7 +518,7 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
 
         # Compute the change to β, update μ and compute deviance
         try
-            sig = optimscale(setη!(m).resp)
+            sig = optimscale(setη!(m).resp; verbose=verbose)
         catch e
             if isa(e, ConvergenceFailed)
                 sig = maxσ

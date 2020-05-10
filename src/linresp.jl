@@ -1,3 +1,11 @@
+
+
+
+function show(io::IO, obj::ConvergenceFailed)
+    println(io, "failed to find a solution: $(obj.reason)")
+end
+
+
 """
     RobustLinearModel
 
@@ -80,9 +88,9 @@ function Base.getproperty(r::RobustLinResp, s::Symbol)
     end
 end
 
-function dispersion(r::RobustResp, dof_residual::Int=nobs(r), sqr::Bool=false, safe::Bool=true)
+function dispersion(r::RobustResp, dof_residual::Int=nobs(r), sqr::Bool=false, robust::Bool=true)
     wrkwt, wrkres, wrkscaledres = r.wrkwt, r.wrkres, r.wrkscaledres
-    if safe
+    if robust
         s = (r.σ)^2*sum(i -> wrkwt[i] * abs2(wrkscaledres[i]), eachindex(wrkwt, wrkres)) / dof_residual
     else
         s = sum(i -> wrkwt[i] * abs2(wrkres[i]), eachindex(wrkwt, wrkres)) / dof_residual
@@ -99,9 +107,15 @@ If `sqr` is false, return the standard deviation instead.
 
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
-function location_variance(r::RobustLinResp, dof_residual::Int=nobs(r), sqr::Bool=false)
+function location_variance(r::RobustLinResp, dof_residual::Int=(nobs(r)-1), sqr::Bool=false)
+    println(typeof(r))
     psi(x)    = estimator_psi(r.est, x)
     psider(x) = estimator_psider(r.est, x)
+    
+    if isa(r.est, UnionL1)
+        @warn "coefficient variance is not well defined for L1Estimator."
+        return Inf
+    end
 
     v = if isempty(r.wts)
         v = mean( (psi.(r.wrkscaledres)).^2 )
@@ -111,7 +125,6 @@ function location_variance(r::RobustLinResp, dof_residual::Int=nobs(r), sqr::Boo
         v = mean( (psi.(r.wrkscaledres)).^2, wts )
         v /= ( mean(psider.(r.wrkscaledres), wts) )^2
     end
-
     v *= r.σ^2
     v *= (nobs(r)/dof_residual)
     if sqr; v else sqrt(v) end
@@ -132,8 +145,9 @@ function nulldeviance(r::RobustResp)
 end
 
 ## TODO: define correctly the loglikelihood of the full model
-fullloglikelihood(r::RobustResp) = 0
+fullloglikelihood(r::RobustLinResp) = r.scale * log(estimator_norm(r.est))
 loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r)/2
+nullloglikelihood(r::RobustResp) = fullloglikelihood(r) - nulldeviance(r)/2
 
 response(r::RobustResp) = r.y
 
@@ -234,34 +248,31 @@ end
 
 function optimscale(r::RobustLinResp; sigma0::Union{Nothing, AbstractFloat}=nothing, verbose::Bool=false)
     est, res = r.est, r.wrkres
-    if !isbounded(est)
-        @warn "scale/dispersion is not changed because the estimator ($(est)) does not allow scale estimation, a bounded estimator should be used, like TukeyEstimator."
-        return r
-    end
-    σest(x) = estimator_chi(est, x) - 1/2
-
     σ0 = ifelse( isnothing(sigma0), r.σ, sigma0 )
 
-    verbose && println("Update scale:\n\told = $(σ0)\tΣχ(r/σ) = $(sum(σest.(res ./ σ0))/length(r.y))")
-
-    ## Solving for the precision=1/scale gives better results
-    res = if isempty(r.wts)
-        1/find_zero(s->sum(σest.(res .* s)), 1/σ0, Order1())
-#        find_zero(s->sum(σest.(res ./ s)), σ0, Order1())
-    else
-        1/find_zero(s->sum(r.wts .* σest.(res .* s)), 1/σ0, Order1())
-#        find_zero(s->sum(r.wts .* σest.(res ./ s)), σ0, Order1())
+    if !isbounded(est)
+        @warn "scale/dispersion is not changed because the estimator ($(est)) does not allow scale estimation, a bounded estimator should be used, like TukeyEstimator."
+        return σ0
     end
-    verbose && println("\tnew = $(res)")
-    res
+
+    verbose && print("Update scale: $(σ0)")
+    σ = scale_estimate(est, res; σ0=σ0, wts=r.wts, use_reciprocal=true)
+    if σ <= 0
+        println("  ->  error")
+        throw(ConvergenceFailed("the resulting scale is non-positive"))
+    end
+    verbose && println("  ->  $(σ)")
+    σ
 end
 
-function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.0, sestimator=TukeyEstimator)
+function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.0)
     res = r.wrkres
-    allowed_methods = [:mad, :Sestimate, :largebreakpoint]
+    allowed_methods = [:extrema, :mad, :Sestimate, :highbreakpoint]
     if !(method in allowed_methods)
         @warn "scale/dispersion is not changed because `method` argument must be in $(allowed_methods): $(method)"
         return r
+    elseif method == :extrema
+        r.σ = -(-(extrema(res)...))/2 * factor
     elseif method == :mad
         if isempty(r.wts)
             r.σ = abs(factor*mad(res; normalize=true))
@@ -269,22 +280,13 @@ function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.
             r.σ = abs(factor*mad(r.wts .* res; normalize=true))
         end
     elseif method == :Sestimate
-        est = r.est
-        if isnothing(sestimator) && !isbounded(est)
-            @warn "scale/dispersion is not changed because the estimator () does not allow scale estimation. Provide a bounded estimator as argument, e.g. `sestimator=TukeyEstimator` to use another function."
-            return r
+        Mest = r.est
+        if !isbounded(Mest)
+            @warn "the current estimator is not bounded, use TukeyEstimator to estimate the scale."
         end
-        σest = if isnothing(sestimator)
-            x -> estimator_chi(est, x) - 1/2
-        else
-            MScaleEstimator(sestimator)
-        end
-        if isempty(r.wts)
-            r.σ = 1/find_zero(s->sum(σest.(s .* res)), 1/λ2, Order1())
-        else
-            r.σ = find_zero(s->sum(r.wts .* σest.(res ./ s)), λ2, Order1())
-        end
-    elseif method == :largebreakpoint
+        Sest = SEstimator(Mest)
+        r.σ = scale_estimate(Sest, res; σ0=r.σ, wts=r.wts, use_reciprocal=true)
+    elseif method == :highbreakpoint
         K = 4.5
         if isempty(r.wts)
             r.σ = sqrt(sum( res.^2 ./ (1 .+ (res./(K*r.σ)).^2))/size(res, 1))
