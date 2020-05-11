@@ -40,6 +40,15 @@ mutable struct QuantileRegression{T<:AbstractFloat, M<:AbstractMatrix{T}, V<:Abs
 end
 
 
+function show(io::IO, obj::QuantileRegression)
+    println(io, "Quantile regression for quantile: $(obj.τ)\n\nCoefficients:\n", coeftable(obj))
+end
+
+function show(io::IO, obj::TableRegressionModel{M, T}) where {T, M<:QuantileRegression}
+    println(io, "Quantile regression for quantile: $(obj.model.τ)\n\n$(obj.mf.f)\n\nCoefficients:\n", coeftable(obj))
+end
+
+
 """
     quantreg(X, y, args...; kwargs...)
 An alias for `fit(QuantileRegression, X, y)`

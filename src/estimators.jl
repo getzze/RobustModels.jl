@@ -443,7 +443,7 @@ end
 GeneralQuantileEstimator{E}(τ::Real) where E<:SimpleEstimator = GeneralQuantileEstimator(E(), float(τ))
 
 function show(io::IO, obj::GeneralQuantileEstimator)
-    println(io, "MQuantile($(obj.τ), $(obj.est))")
+    print(io, "MQuantile($(obj.τ), $(obj.est))")
 end
 
 # Forward all methods to the `est` field

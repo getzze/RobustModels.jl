@@ -108,7 +108,6 @@ If `sqr` is false, return the standard deviation instead.
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
 function location_variance(r::RobustLinResp, dof_residual::Int=(nobs(r)-1), sqr::Bool=false)
-    println(typeof(r))
     psi(x)    = estimator_psi(r.est, x)
     psider(x) = estimator_psider(r.est, x)
     
@@ -258,7 +257,7 @@ function optimscale(r::RobustLinResp; sigma0::Union{Nothing, AbstractFloat}=noth
     verbose && print("Update scale: $(σ0)")
     σ = scale_estimate(est, res; σ0=σ0, wts=r.wts, use_reciprocal=true)
     if σ <= 0
-        println("  ->  error")
+        verbose && println("  ->  error")
         throw(ConvergenceFailed("the resulting scale is non-positive"))
     end
     verbose && println("  ->  $(σ)")

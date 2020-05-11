@@ -19,13 +19,15 @@ end
 
 @testset "Quantile regression: fit" begin
     τs = range(0.1, 0.9, step=0.1)
-    for τ in τs
-        m = fit(QuantileRegression, form, data; quantile=τ, verbose=false)
-        println("Quantile $τ:\n$(m)")
-        β = coef(m)
-        res = residuals(m)
+    @testset "$(τ) quantile" for τ in τs
+        m1 = fit(QuantileRegression, form, data; quantile=τ, verbose=false)
+        m2 = quantreg(form, data; quantile=τ, verbose=false)
+        println(m1)
+        β = coef(m1)
+        res = residuals(m1)
         ## The quantile regression line exactly passes through p points, with p number of columns of X.
         @test count(iszero, res) == length(β)
+        @test all(β .== coef(m2))
     end
 end
 

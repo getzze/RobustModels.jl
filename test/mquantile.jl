@@ -16,7 +16,7 @@ est2 = RobustModels.TukeyEstimator()
 
 @testset "linear: Expectile estimators" begin
     m1 = fit(RobustLinearModel, form, data, est1; method=:cg, maxiter=50, verbose=false, initial_scale_estimate=:mad)
-    for τ in range(0.1, 0.9, step=0.1), name in ("Expectile", "Quantile")
+    @testset "$(τ) $(name)" for τ in range(0.1, 0.9, step=0.1), name in ("Expectile", "Quantile")
         println("\n\t\u25CF Estimator: $name($τ)")
         est = getproperty(RobustModels, Symbol(name * "Estimator"))(τ)
         m2 = fit(RobustLinearModel, form, data, est; method=:cg, maxiter=50, verbose=false, initial_scale_estimate=:mad)
@@ -29,19 +29,19 @@ est2 = RobustModels.TukeyEstimator()
         elseif name != "Quantile"
             @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
         else
-            println("Quantile $τ:\n$(m2)\n$(m3)")
+#            println("Quantile $τ:\n$(m2)\n$(m3)")
         end
     end
 end
 
 
 @testset "linear: M-Quantile estimators" begin
-    for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan") #, "Cauchy", "Geman", "Welsch", "Tukey")
+    @testset "$(name) estimator" for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan") #, "Cauchy", "Geman", "Welsch", "Tukey")
         println("\n\t\u25CF M-Quantile Estimator: $name")
         est = getproperty(RobustModels, Symbol(name * "Estimator"))()
         m1 = fit(RobustLinearModel, form, data, est; method=:cg, maxiter=50, verbose=false, initial_scale_estimate=:mad)
         println("no quant, rlm(cg)  : ", coef(m1))
-        for τ in range(0.1, 0.9, step=0.1)
+        @testset "$(τ) quantile" for τ in range(0.1, 0.9, step=0.1)
             m2 = fit(RobustLinearModel, form, data, est; quantile=τ, method=:cg, maxiter=50, verbose=false, initial_scale_estimate=:mad)
             m3 = fit(RobustLinearModel, form, data, est; quantile=τ, method=:chol, maxiter=50, initial_scale_estimate=:mad)
             println("quant $(τ) rlm(cg)  : ", coef(m2))

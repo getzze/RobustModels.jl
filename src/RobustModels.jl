@@ -61,6 +61,8 @@ export Estimator,
        RobustLinearModel,
        QuantileRegression,
        SEstimator,
+       rlm,
+       quantreg,
        nothing  # stopper
 
 

@@ -51,9 +51,6 @@ function confint(m::AbstractRobustModel; level::Real=0.95)
 end
 confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
-function show(io::IO, obj::AbstractRobustModel)
-    println(io, "$(typeof(obj)):\n\nCoefficients:\n", coeftable(obj))
-end
 
 function cor(m::AbstractRobustModel)
     Σ = vcov(m)
@@ -69,6 +66,14 @@ leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
 ######
 ##    RobustLinearModel methods
 ######
+
+function show(io::IO, obj::RobustLinearModel)
+    println(io, "Robust regression with $(obj.resp.est)\n\nCoefficients:\n", coeftable(obj))
+end
+
+function show(io::IO, obj::TableRegressionModel{M, T}) where {T, M<:RobustLinearModel}
+    println(io, "Robust regression with $(obj.model.resp.est)\n\n$(obj.mf.f)\n\nCoefficients:\n", coeftable(obj))
+end
 
 """
     deviance(m::RobustLinearModel{T})::T where {T}
