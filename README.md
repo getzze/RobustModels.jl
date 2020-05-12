@@ -1,5 +1,19 @@
 # Robust linear models in Julia
 
+| CI Status | Coverage |
+|:------------------:|:-----------------:|
+| [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+
+[travis-img]: https://travis-ci.org/getzze/RobustModels.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/getzze/RobustModels.jl
+
+[coveralls-img]: https://coveralls.io/repos/github/getzze/RobustModels.jl/badge.svg?branch=master
+[coveralls-url]: https://coveralls.io/github/getzze/RobustModels.jl?branch=master
+
+[codecov-img]: https://codecov.io/gh/getzze/RobustModels.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/getzze/RobustModels.jl/branch/master
+
+
 This package defines robust linear models using the interfaces from [StatsBase.jl](https://github.com/JuliaStats/StatsBase.jl) and [StatsModels.jl](https://github.com/JuliaStats/StatsModels.jl). It defines an `AbstractRobustModel` type as a subtype of `RegressionModel` and it defines the methods from the statistical model API like `fit`/`fit!`.
 
 A _robust model_ is a regression model, meaning it finds a relationship between one or several _covariates_/_independent variables_ `X` and a _response_/_dependent_ variable `y`. Contrary to ordinary least squares estimates, robust regression mitigates the influence of _outliers_ in the data.
