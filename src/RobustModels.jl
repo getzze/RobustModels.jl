@@ -1,6 +1,5 @@
 module RobustModels
 
-import Base: ==, show
 
 # https://github.com/JuliaLang/julia/pull/29679
 @static if VERSION < v"1.1.0-DEV.472"
@@ -10,7 +9,8 @@ end
 
 # https://github.com/JuliaLang/julia/pull/32148
 @static if VERSION < v"1.3.0"
-    show(io::IO, ::Nothing) = print(io, "nothing")
+    import Base: print
+    print(io::IO, ::Nothing) = print(io, "nothing")
 end
 
 using Distributions: ccdf, pdf, quantile, Normal, Chisq
@@ -26,6 +26,7 @@ using IterativeSolvers: lsqr!, cg!
 #import GLPK
 
 
+import Base: ==, show
 import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
 import StatsBase: fit, fit!, deviance, nobs, weights
 import StatsModels: RegressionModel, coef, coeftable, CoefTable, leverage, TableRegressionModel
