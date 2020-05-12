@@ -1,10 +1,14 @@
 module RobustModels
 
+# https://github.com/JuliaLang/julia/pull/29679
+@static if VERSION < v"1.1.0-DEV.472"
+    isnothing(::Any) = false
+    isnothing(::Nothing) = true
+end
 
 using Distributions: ccdf, pdf, quantile, Normal, Chisq
-#using StatsModels: @formula, FormulaTerm, coefnames, modelcols, apply_schema, schema
 using SparseArrays: SparseMatrixCSC
-using LinearAlgebra: diag
+using LinearAlgebra: diag, dot
 using Printf: @printf, @sprintf
 using GLM: Link, canonicallink, FPVector, cholpred
 using StatsBase: mean, mad, ConvergenceException

@@ -1,6 +1,5 @@
 
 
-using LinearAlgebra: dot
 using JuMP: Model, @variable, @constraint, @objective, optimize!, value
 import GLPK
 
