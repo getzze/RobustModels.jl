@@ -4,8 +4,8 @@
 |:------------------:|:-----------------:|
 | [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
 
-[travis-img]: https://travis-ci.org/getzze/RobustModels.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/getzze/RobustModels.jl
+[travis-img]: https://travis-ci.com/getzze/RobustModels.jl.svg?branch=master
+[travis-url]: https://travis-ci.com/getzze/RobustModels.jl
 
 [coveralls-img]: https://coveralls.io/repos/github/getzze/RobustModels.jl/badge.svg?branch=master
 [coveralls-url]: https://coveralls.io/github/getzze/RobustModels.jl?branch=master
