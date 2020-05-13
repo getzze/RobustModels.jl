@@ -17,8 +17,8 @@ est2 = RobustModels.TukeyEstimator()
 
 @testset "linear: L2 estimator" begin
     println("\n\t\u25CF Estimator: L2")
-    y = data.Brain
     X = hcat(ones(size(data, 1)), data.Body)
+    y = data.Brain
     sX = SparseMatrixCSC(X)
 
     # OLS
@@ -30,9 +30,15 @@ est2 = RobustModels.TukeyEstimator()
         name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
         name *= if method==:cg; ",  cg" else ",chol" end
         m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale_estimate=:mad)
-        println("rlm($name): ", coef(m))
+        β = copy(coef(m))
+        println("rlm($name): ", β)
         println(m)
-        @test all(isapprox.(coef(m1), coef(m); rtol=1.0e-5))
+        @test all(isapprox.(coef(m1), β; rtol=1.0e-5))
+
+        # refit
+        refit!(m, y; verbose=false, initial_scale_estimate=:extrema)
+        println("$m")
+        @test all(coef(m) .== β)
     end
 end
 
@@ -46,9 +52,16 @@ end
     println("rlm(cg)   : ", coef(m2))
     println("rlm(chol) : ", coef(m3))
     println("rlm2(chol): ", coef(m4))
+    println(m2)
     if name != "L1"
         @test all(isapprox.(coef(m2), coef(m3); rtol=1.0e-5))
     end
+    
+    # refit
+    y = data.Brain
+    β2 = copy(coef(m2))
+    refit!(m2, y; wts=weights(m2), verbose=false, initial_scale_estimate=:mad)
+    @test all(coef(m2) .== β2)
 end
 
 
