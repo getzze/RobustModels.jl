@@ -56,6 +56,8 @@ export Estimator,
        BoundedEstimator,
        AbstractQuantileEstimator,
        GeneralQuantileEstimator,
+       ExpectileEstimator,
+       QuantileEstimator,
        RobustResp,
        AbstractRobustModel,
        RobustLinearModel,
@@ -63,6 +65,7 @@ export Estimator,
        SEstimator,
        rlm,
        quantreg,
+       refit!,
        nothing  # stopper
 
 

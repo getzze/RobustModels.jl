@@ -6,8 +6,9 @@
 
 leverage(p::TableRegressionModel) = leverage(p.model)
 residuals(p::TableRegressionModel) = residuals(p.model)
-
-
+weights(p::TableRegressionModel) = weights(p.model)
+fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
+refit!(p::TableRegressionModel, args...; kwargs...) = (refit!(p.model, args...; kwargs...); p)
 
 """
     RobustLinearModel
@@ -142,6 +143,7 @@ The arguments `X` and `y` can be a `Matrix` and a `Vector` or a `Formula` and a 
 """
 rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
 
+
 """
    fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
              y::AbstractVector{T}, est::Estimator;
@@ -222,33 +224,66 @@ function fit(::Type{M}, X::Union{AbstractMatrix,SparseMatrixCSC},
 end
 
 
+"""
+    refit!(m::RobustLinearModel, [y::FPVector ; verbose::Bool=false, kind::Symbol=:Mestimate])
+Optimize the objective of a `RobustLinearModel`.  When `verbose` is `true` the values of the
+objective and the parameters are printed on stdout at each function evaluation.
+This function assumes that `m` was correctly initialized and the model is refitted with
+the new values for the response, weights, offset, scale, quantile and initial_coef.
+"""
+function refit!(m::RobustLinearModel, y::FPVector; kwargs...)
+    r = m.resp
+    # Check that old and new y have the same number of observations
+    if size(r.y, 1) != size(y, 1)
+        throw(DimensionMismatch("the new response vector should have the same dimension:  $(size(r.y, 1)) != $(size(y, 1))"))
+    end
+    # Update y
+    copyto!(r.y, y)
+    
+    refit!(m; kwargs...)
+end
 
-function fit!(m::RobustLinearModel{T}, y::FPVector;
+function refit!(m::RobustLinearModel{T};
                 wts::Union{Nothing, FPVector}=nothing,
                 offset::Union{Nothing, FPVector}=nothing,
                 σ::Union{Nothing, AbstractFloat}=nothing,
+                quantile::Union{Nothing, AbstractFloat} = nothing,
                 kwargs...) where {T}
+
+    if haskey(kwargs, :method)
+        @warn("the method argument is not used for refitting, ignore.")
+        delete!(kwargs, :method)
+    end
+
     r = m.resp
 
-    # Update y, wts and offset in the response
-    copy!(r.y, y)
     if !isa(σ, Nothing); r.σ = σ end
     n = length(r.y)
-    l = length(wts)
-    if !isa(wts, Nothing) && (l==n || l==0)
+    if !isa(wts, Nothing) && (length(wts) in (0, n))
         copy!(r.wts, wts)
     end
-    l = length(offset)
-    if !isa(offset, Nothing) && (l==n || l==0)
+    if !isa(offset, Nothing) && (length(offset) in (0, n))
         copy!(r.offset, offset)
+    end
+
+    # Update quantile, if it was defined before
+    if !isnothing(quantile)
+        if isa(r.est, GeneralQuantileEstimator)
+            (0 < quantile < 1) || throw(DomainError(quantile, "quantile should be a number between 0 and 1 excluded"))
+            r.est = GeneralQuantileEstimator(r.est.est, quantile)
+        else
+            error("quantile can only be changed if the original model is a GeneralQuantileEstimator.")
+        end
     end
 
     # Reinitialize the coefficients and the response
     fill!(coef(m), zero(T))
     initresp!(r)
 
+    m.fitted = false
     fit!(m; kwargs...)
 end
+
 
 
 """
@@ -256,9 +291,11 @@ end
 Optimize the objective of a `RobustLinearModel`.  When `verbose` is `true` the values of the
 objective and the parameters are printed on stdout at each function evaluation.
 This function assumes that `m` was correctly initialized.
+This function returns early if the model was already fitted, instead call `refit!`.
 """
 function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Symbol, Real}=nothing,
               correct_leverage::Bool=false, kind::Symbol=:Mestimate, sestimator::Union{Nothing, Type{E}}=nothing,
+              initial_coef::AbstractVector=[],
               verbose::Bool=false, kwargs...) where {T, E<:BoundedEstimator}
 
     # Return early if model has the fit flag set
@@ -267,10 +304,25 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
     σ0 = if isa(initial_scale_estimate, Real)
         m.fitdispersion = false
         float(initial_scale_estimate)
-    elseif isa(initial_scale_estimate, Symbol) && initial_scale_estimate == :mad
-        m.fitdispersion = true
-        mad(m.resp.y; normalize=true)
+    elseif isa(initial_scale_estimate, Symbol)
+        if initial_scale_estimate == :mad
+            m.fitdispersion = true
+            mad(m.resp.y; normalize=true)
+        elseif initial_scale_estimate == :extrema
+            m.fitdispersion = true
+            -(-(extrema(m.resp.y)...))/2
+        else
+            @warn "only a number or :mad and :extrema are allowed for the :initial_scale_estimate argument, ignoring it: $(initial_scale_estimate)"
+            nothing
+        end
     end
+
+    β0 = if isempty(initial_coef) || size(initial_coef, 1) != size(coef(m), 1)
+        []
+    else
+        float(initial_coef)
+    end
+
 
     if correct_leverage
         wts = m.resp.wts
@@ -287,7 +339,7 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
 
         verbose && println("\nFit with S-estimator: $(Estimator(m))")
         ## Minimize the objective
-        pirls_Sestimate!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+        pirls_Sestimate!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
         # Set the `fitdispersion` flag to true, because σ was estimated
         m.fitdispersion = true
@@ -309,21 +361,21 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
 
         verbose && println("\nFit with MM-estimator - 1. S-estimator: $(Estimator(Sm))")
         ## Minimize the objective
-        pirls_Sestimate!(Sm; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+        pirls_Sestimate!(Sm; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
         ## Use an M-estimate to estimate coefficients
         σ0 = scale(Sm)
 
         verbose && println("\nFit with MM-estimator - 2. M-estimator: $(Estimator(m))")
         ## Minimize the objective
-        pirls!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+        pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
         # Set the `fitdispersion` flag to true, because σ was estimated
         m.fitdispersion = true
     elseif kind == :Mestimate
         verbose && println("\nFit with M-estimator: $(Estimator(m))")
         ## Minimize the objective
-        pirls!(m; sigma0=σ0, beta0=[], verbose=verbose, kwargs...)
+        pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
     else
         error("only :Mestimate, :Sestimate and :MMestimate are allowed: $(kind)")
     end

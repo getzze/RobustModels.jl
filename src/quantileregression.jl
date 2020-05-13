@@ -65,7 +65,7 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
 
     # Check that X and y have the same number of observations
     if size(X, 1) != size(y, 1)
-        throw(DimensionMismatch("number of rows in X and y must match"))
+        throw(DimensionMismatch("number of rows in X and y must match: $(size(X, 1)) != $(size(y, 1))"))
     end
 
     # Check quantile is an allowed value
@@ -81,24 +81,42 @@ function fit(::Type{M}, X::Union{AbstractMatrix,SparseMatrixCSC},
 end
 
 
+"""
+    refit!(m::QuantileRegression, [y::FPVector ; verbose::Bool=false, quantile::Union{Nothing, AbstractFloat}=nothing])
+Optimize the objective of a `RobustLinearModel`.  When `verbose` is `true` the values of the
+objective and the parameters are printed on stdout at each function evaluation.
+This function assumes that `m` was correctly initialized and the model is refitted with
+the new values for the response, weights and quantile.
+"""
+function refit!(m::QuantileRegression, y::FPVector; kwargs...)
+    # Update y
+    # Check that the old and new y have the same number of rows
+    if size(m.y, 1) != size(y, 1)
+        throw(DimensionMismatch("the new response vector should have the same dimension:  $(size(m.y, 1)) != $(size(y, 1))"))
+    end
+    copyto!(m.y, y)
+    
+    refit!(m; kwargs...)
+end
 
-function fit!(m::QuantileRegression{T}, y::FPVector;
+function refit!(m::QuantileRegression{T};
                 quantile::Union{Nothing, AbstractFloat}=nothing,
                 wts::Union{Nothing, FPVector}=nothing,
                 kwargs...) where {T}
 
-    # Update y and wts
-    copy!(m.y, y)
+    # Update wts
     n = length(m.y)
-    l = length(wts)
-    if !isa(wts, Nothing) && (l==n || l==0)
+    if !isnothing(wts) && (length(wts) in (0, n))
         copy!(m.wts, wts)
     end
-    if !isa(quantile, Nothing)
+
+    # Update quantile
+    if !isnothing(quantile)
         (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
         m.τ = quantile
     end
 
+    m.fitted = false
     fit!(m; kwargs...)
 end
 
@@ -108,8 +126,10 @@ end
 Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the values of the
 objective and the parameters are printed on stdout at each function evaluation.
 This function assumes that `m` was correctly initialized.
+This function returns early if the model was already fitted, instead call `refit!`.
 """
 function fit!(m::QuantileRegression{T}; verbose::Bool=false,
+              quantile::Union{Nothing, AbstractFloat}=nothing,
               correct_leverage::Bool=false, kwargs...) where {T}
 
     # Return early if model has the fit flag set
@@ -119,6 +139,12 @@ function fit!(m::QuantileRegression{T}; verbose::Bool=false,
         wts = m.wts
         copy!(wts, leverage_weights(m))
         ## TODO: maybe multiply by the old wts?
+    end
+
+    # Update quantile
+    if !isnothing(quantile)
+        (0 < quantile < 1) || throw(DomainError(quantile, "quantile should be a number between 0 and 1 excluded"))
+        m.τ = quantile
     end
 
     interiormethod!(m.β, m.wrkres, m.X, m.y, m.τ; wts=m.wts, verbose=verbose)

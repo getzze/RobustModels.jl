@@ -69,6 +69,10 @@ m6 = fit(RobustLinearModel, form, data, L2Estimator(); quantile=0.8)
 
 ## Quantile regression solved by linear programming interior point method
 m7 = fit(QuantileRegression, form, data; quantile=0.2)
+
+## Refit with different parameters
+refit!(m7; quantile=0.8)
+
 ```
 
 ## Theory

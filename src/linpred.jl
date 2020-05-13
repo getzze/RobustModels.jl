@@ -205,13 +205,13 @@ end
 #end
 
 #function delbeta!(p::DensePredQR{T}, r::AbstractVector{T}, wt::AbstractVector{T}) where T<:BlasReal
-#    valid = copy!(p.scratchv1, wt .>= eps())
+#    valid = copyto!(p.scratchv1, wt .>= eps())
 #    ## TODO: make it inplace, but the matrix size is undefined...
 #    wQT = (wt[valid] .* p.qr.Q[valid, :])'
 
 #    C  = cholesky(Hermitian(wQT * p.qr.Q[valid, :]))
 #    ldiv!(C, mul!(p.scratchr1, wQT, r[valid]))
-#    copy!(p.dels, p.scratchr1[1:size(p.qr.R, 1)])
+#    copyto!(p.dels, p.scratchr1[1:size(p.qr.R, 1)])
 #    return p
 #end
 

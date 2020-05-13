@@ -35,8 +35,8 @@ function estimator_norm end
 isconvex( e::SimpleEstimator) = isa(e, ConvexEstimator)
 isbounded(e::SimpleEstimator) = isa(e, BoundedEstimator)
 
-estimator_high_breakdown_point_constant( ::SimpleEstimator) = 1
-estimator_high_efficiency_constant(::SimpleEstimator) = 1
+estimator_high_breakdown_point_constant(::Type{E}) where {E<:SimpleEstimator} = 1
+estimator_high_efficiency_constant(::Type{E}) where {E<:SimpleEstimator} = 1
 
 
 """
@@ -45,7 +45,7 @@ The function derived from the estimator for M-estimation of scale.
 It is bounded with lim_{t->∞} χ = 1
 It can be proportional to ρ or t.ψ(t) depending on the estimator.
 """
-function estimator_chi(::M, r) where M<:SimpleEstimator
+function estimator_chi(::M, r::Real) where M<:SimpleEstimator
     error("This estimator cannot be used for scale estimation: $(M)")
 end
 
@@ -76,7 +76,7 @@ The tuning constant c is computed so the efficiency for Normally distributed
 residuals is 0.95. The efficiency of the mean estimate μ is defined by:
 eff_μ = (E[ψ'])²/E[ψ²]
 """
-function efficiency_tuning_constant(::Type{M}; eff=0.95, c0=1.0) where M<:SimpleEstimator
+function efficiency_tuning_constant(::Type{M}; eff::Real=0.95, c0::Real=1.0) where M<:SimpleEstimator
     psi(x, c)  = RobustModels.estimator_psi(M(c), x)
     psip(x, c) = RobustModels.estimator_psider(M(c), x)
 
@@ -99,12 +99,10 @@ The function χ can be directly the pseudo-negloglikelihood ρ or `t.ψ(t)`.
 `MScaleEstimator(::Type{SimpleEstimator})` that returns the function r->(χ(r) - 1/2) to be called directly to find ŝ by solving:
 Σ MScaleEstimator(ri/ŝ) = 0  with ri = yi - μi
 """
-function breakdown_point_tuning_constant(::Type{M}; bp=1/2, c0=1.0) where M<:SimpleEstimator
+function breakdown_point_tuning_constant(::Type{M}; bp::Real=1/2, c0::Real=1.0) where M<:SimpleEstimator
     (0 < bp <= 1/2) || error("breakdown-point should be between 0 and 1/2")
 
-    try
-        RobustModels.estimator_chi(M(c0))
-    catch
+    if !(M <: BoundedEstimator)
         error("optimizing the tuning constant for high breakdown-point is only defined for bounded estimators.")
     end
 
@@ -120,17 +118,17 @@ end
 "The (convex) L2 M-estimator is that of the standard least squares problem."
 struct L2Estimator <: ConvexEstimator; end
 L2Estimator(c) = L2Estimator()
-estimator_rho(   ::L2Estimator, r) = r^2 / 2
-estimator_psi(   ::L2Estimator, r) = r
-estimator_psider(::L2Estimator, r) = oftype(r, 1)
-estimator_weight(::L2Estimator, r) = oftype(r, 1)
-estimator_values(::L2Estimator, r) = (r^2/2, r, oftype(r, 1))
+estimator_rho(   ::L2Estimator, r::Real) = r^2 / 2
+estimator_psi(   ::L2Estimator, r::Real) = r
+estimator_psider(::L2Estimator, r::Real) = oftype(r, 1)
+estimator_weight(::L2Estimator, r::Real) = oftype(r, 1)
+estimator_values(::L2Estimator, r::Real) = (r^2/2, r, oftype(r, 1))
 estimator_norm(::L2Estimator, ln=false) = √(2*π)
 
-rho(   ::L2Estimator, r) = r^2 / 2
-psi(   ::L2Estimator, r) = r
-psider(::L2Estimator, r) = oftype(r, 1)
-weight(::L2Estimator, r) = oftype(r, 1)
+rho(   ::L2Estimator, r::Real) = r^2 / 2
+psi(   ::L2Estimator, r::Real) = r
+psider(::L2Estimator, r::Real) = oftype(r, 1)
+weight(::L2Estimator, r::Real) = oftype(r, 1)
 
 
 
@@ -141,20 +139,20 @@ with very small tuning constant.
 """
 struct L1Estimator <: ConvexEstimator; end
 L1Estimator(c) = L1Estimator()
-estimator_rho(   ::L1Estimator, r) = abs(r)
-estimator_psi(   ::L1Estimator, r) = sign(r)
-estimator_psider(::L1Estimator, r) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
-estimator_weight(::L1Estimator, r) = if (abs(r)<DELTA); L1WDELTA else 1/abs(r) end
-function estimator_values(est::L1Estimator, r)
+estimator_rho(   ::L1Estimator, r::Real) = abs(r)
+estimator_psi(   ::L1Estimator, r::Real) = sign(r)
+estimator_psider(::L1Estimator, r::Real) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
+estimator_weight(::L1Estimator, r::Real) = if (abs(r)<DELTA); L1WDELTA else 1/abs(r) end
+function estimator_values(est::L1Estimator, r::Real)
     rr = abs(r)
     return (rr, sign(r), (if (rr<DELTA); L1WDELTA else 1/rr end) )
 end
 estimator_norm(::L1Estimator) = 2
 
-rho(   ::L1Estimator, r) = abs(r)
-psi(   ::L1Estimator, r) = sign(r)
-psider(::L1Estimator, r) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
-weight(::L1Estimator, r) = if (abs(r)<DELTA); L1WDELTA else 1/abs(r) end
+rho(   ::L1Estimator, r::Real) = abs(r)
+psi(   ::L1Estimator, r::Real) = sign(r)
+psider(::L1Estimator, r::Real) = if (abs(r)<DELTA); oftype(r, 1) else oftype(r, 0) end
+weight(::L1Estimator, r::Real) = if (abs(r)<DELTA); L1WDELTA else 1/abs(r) end
 
 
 
@@ -169,12 +167,12 @@ struct HuberEstimator <: ConvexEstimator
     HuberEstimator() = new(1.345)
 end
 
-#estimator_rho(   est::HuberEstimator, r) = if (abs(r)<=est.c); r^2/2         else (est.c*abs(r) - est.c^2/2) end
-estimator_rho(   est::HuberEstimator, r) = if (abs(r)<=est.c); (r/est.c)^2/2 else (abs(r)/est.c - 1/2) end
-estimator_psi(   est::HuberEstimator, r) = if (abs(r)<=est.c); r             else est.c*sign(r) end
-estimator_psider(est::HuberEstimator, r) = if (abs(r)<=est.c); oftype(r, 1)  else oftype(r, 0) end
-estimator_weight(est::HuberEstimator, r) = if (abs(r)<=est.c); oftype(r, 1)  else est.c/abs(r) end
-function estimator_values(est::HuberEstimator, r)
+#estimator_rho(   est::HuberEstimator, r::Real) = if (abs(r)<=est.c); r^2/2         else (est.c*abs(r) - est.c^2/2) end
+estimator_rho(   est::HuberEstimator, r::Real) = if (abs(r)<=est.c); (r/est.c)^2/2 else (abs(r)/est.c - 1/2) end
+estimator_psi(   est::HuberEstimator, r::Real) = if (abs(r)<=est.c); r             else est.c*sign(r) end
+estimator_psider(est::HuberEstimator, r::Real) = if (abs(r)<=est.c); oftype(r, 1)  else oftype(r, 0) end
+estimator_weight(est::HuberEstimator, r::Real) = if (abs(r)<=est.c); oftype(r, 1)  else est.c/abs(r) end
+function estimator_values(est::HuberEstimator, r::Real)
     rr = abs(r)
     if rr <= est.c
         return ((rr/est.c)^2/2 , r , oftype(r, 1) )
@@ -186,10 +184,10 @@ end
 estimator_norm(est::HuberEstimator) = est.c * 2.92431
 
 estimator_high_efficiency_constant(::Type{HuberEstimator}) = 1.345
-rho(   est::HuberEstimator, r) = if (abs(r)<=1); r^2/2        else (abs(r) - 1/2) end
-psi(   est::HuberEstimator, r) = if (abs(r)<=1); r            else sign(r) end
-psider(est::HuberEstimator, r) = if (abs(r)<=1); oftype(r, 1) else oftype(r, 0) end
-weight(est::HuberEstimator, r) = if (abs(r)<=1); oftype(r, 1) else 1/abs(r) end
+rho(   est::HuberEstimator, r::Real) = if (abs(r)<=1); r^2/2        else (abs(r) - 1/2) end
+psi(   est::HuberEstimator, r::Real) = if (abs(r)<=1); r            else sign(r) end
+psider(est::HuberEstimator, r::Real) = if (abs(r)<=1); oftype(r, 1) else oftype(r, 0) end
+weight(est::HuberEstimator, r::Real) = if (abs(r)<=1); oftype(r, 1) else 1/abs(r) end
 
 
 
@@ -203,21 +201,21 @@ struct L1L2Estimator <: ConvexEstimator
     L1L2Estimator(c::Real) = new(c)
     L1L2Estimator() = new(1.287)
 end
-estimator_rho(   est::L1L2Estimator, r) = (sqrt(1 + (r/est.c)^2) - 1)
-estimator_psi(   est::L1L2Estimator, r) = r / sqrt(1 + (r/est.c)^2)
-estimator_psider(est::L1L2Estimator, r) = 1 / (1 + (r/est.c)^2)^(3/2)
-estimator_weight(est::L1L2Estimator, r) = 1 / sqrt(1 + (r/est.c)^2)
-function estimator_values(est::L1L2Estimator, r)
+estimator_rho(   est::L1L2Estimator, r::Real) = (sqrt(1 + (r/est.c)^2) - 1)
+estimator_psi(   est::L1L2Estimator, r::Real) = r / sqrt(1 + (r/est.c)^2)
+estimator_psider(est::L1L2Estimator, r::Real) = 1 / (1 + (r/est.c)^2)^(3/2)
+estimator_weight(est::L1L2Estimator, r::Real) = 1 / sqrt(1 + (r/est.c)^2)
+function estimator_values(est::L1L2Estimator, r::Real)
     sqr = sqrt(1 + (r/est.c)^2)
     return ((sqr - 1), r/sqr, 1/sqr)
 end
 estimator_norm(est::L1L2Estimator) = est.c * 3.2723
 
 estimator_high_efficiency_constant(::Type{L1L2Estimator}) = 1.287
-rho(   est::L1L2Estimator, r) = sqrt(1 + r^2) - 1
-psi(   est::L1L2Estimator, r) = r / sqrt(1 + r^2)
-psider(est::L1L2Estimator, r) = 1 / (1 + r^2)^(3/2)
-weight(est::L1L2Estimator, r) = 1 / sqrt(1 + r^2)
+rho(   est::L1L2Estimator, r::Real) = sqrt(1 + r^2) - 1
+psi(   est::L1L2Estimator, r::Real) = r / sqrt(1 + r^2)
+psider(est::L1L2Estimator, r::Real) = 1 / (1 + r^2)^(3/2)
+weight(est::L1L2Estimator, r::Real) = 1 / sqrt(1 + r^2)
 
 
 
@@ -231,21 +229,21 @@ struct FairEstimator <: ConvexEstimator
     FairEstimator(c::Real) = new(c)
     FairEstimator() = new(1.400)
 end
-estimator_rho(   est::FairEstimator, r) = abs(r)/est.c - log(1 + abs(r/est.c))
-estimator_psi(   est::FairEstimator, r) = r / (1 + abs(r)/est.c)
-estimator_psider(est::FairEstimator, r) = 1 / (1 + abs(r)/est.c)^2
-estimator_weight(est::FairEstimator, r) = 1 / (1 + abs(r)/est.c)
-function estimator_values(est::FairEstimator, r)
+estimator_rho(   est::FairEstimator, r::Real) = abs(r)/est.c - log(1 + abs(r/est.c))
+estimator_psi(   est::FairEstimator, r::Real) = r / (1 + abs(r)/est.c)
+estimator_psider(est::FairEstimator, r::Real) = 1 / (1 + abs(r)/est.c)^2
+estimator_weight(est::FairEstimator, r::Real) = 1 / (1 + abs(r)/est.c)
+function estimator_values(est::FairEstimator, r::Real)
     ir = 1/(1 + abs(r/est.c))
     return (abs(r)/est.c + log(ir), r*ir, ir)
 end
 estimator_norm(est::FairEstimator) = est.c * 4
 
 estimator_high_efficiency_constant(::Type{FairEstimator}) = 1.400
-rho(   est::FairEstimator, r) = abs(r) - log(1 + abs(r))
-psi(   est::FairEstimator, r) = r / (1 + abs(r))
-psider(est::FairEstimator, r) = 1 / (1 + abs(r))^2
-weight(est::FairEstimator, r) = 1 / (1 + abs(r))
+rho(   est::FairEstimator, r::Real) = abs(r) - log(1 + abs(r))
+psi(   est::FairEstimator, r::Real) = r / (1 + abs(r))
+psider(est::FairEstimator, r::Real) = 1 / (1 + abs(r))^2
+weight(est::FairEstimator, r::Real) = 1 / (1 + abs(r))
 
 
 """
@@ -258,11 +256,11 @@ struct LogcoshEstimator <: ConvexEstimator
     LogcoshEstimator(c::Real) = new(c)
     LogcoshEstimator() = new(1.2047)
 end
-estimator_rho(   est::LogcoshEstimator, r) = log(cosh(r/est.c))
-estimator_psi(   est::LogcoshEstimator, r) = est.c * tanh(r/est.c)
-estimator_psider(est::LogcoshEstimator, r) = 1 / (cosh(r/est.c))^2
-estimator_weight(est::LogcoshEstimator, r) = if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else est.c * tanh(r/est.c) / r end
-function estimator_values(est::LogcoshEstimator, r)
+estimator_rho(   est::LogcoshEstimator, r::Real) = log(cosh(r/est.c))
+estimator_psi(   est::LogcoshEstimator, r::Real) = est.c * tanh(r/est.c)
+estimator_psider(est::LogcoshEstimator, r::Real) = 1 / (cosh(r/est.c))^2
+estimator_weight(est::LogcoshEstimator, r::Real) = if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else est.c * tanh(r/est.c) / r end
+function estimator_values(est::LogcoshEstimator, r::Real)
     tr = est.c * tanh(r/est.c)
     rr = abs(r/est.c)
     return ( log(cosh(rr)), tr, (if (rr<DELTA); (1 - rr^2/3) else tr/r end) )
@@ -270,10 +268,10 @@ end
 estimator_norm(est::LogcoshEstimator) = est.c * π
 
 estimator_high_efficiency_constant(::Type{LogcoshEstimator}) = 1.2047
-rho(   est::LogcoshEstimator, r) = log(cosh(r))
-psi(   est::LogcoshEstimator, r) = tanh(r)
-psider(est::LogcoshEstimator, r) = 1 / (cosh(r))^2
-weight(est::LogcoshEstimator, r) = if (abs(r)<DELTA); (1 - r^2/3) else tanh(r) / r end
+rho(   est::LogcoshEstimator, r::Real) = log(cosh(r))
+psi(   est::LogcoshEstimator, r::Real) = tanh(r)
+psider(est::LogcoshEstimator, r::Real) = 1 / (cosh(r))^2
+weight(est::LogcoshEstimator, r::Real) = if (abs(r)<DELTA); (1 - r^2/3) else tanh(r) / r end
 
 
 """
@@ -286,22 +284,22 @@ struct ArctanEstimator <: ConvexEstimator
     ArctanEstimator(c::Real) = new(c)
     ArctanEstimator() = new(0.919)
 end
-estimator_rho(   est::ArctanEstimator, r) =  r / est.c * atan(r/est.c) - 1/2*log(1 + (r/est.c)^2)
-estimator_psi(   est::ArctanEstimator, r) = est.c * atan(r/est.c)
-estimator_psider(est::ArctanEstimator, r) = 1 / (1 + (r/est.c)^2)
-estimator_weight(est::ArctanEstimator, r) = if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else est.c * atan(r/est.c) / r end
-function estimator_values(est::ArctanEstimator, r)
+estimator_rho(   est::ArctanEstimator, r::Real) =  r / est.c * atan(r/est.c) - 1/2*log(1 + (r/est.c)^2)
+estimator_psi(   est::ArctanEstimator, r::Real) = est.c * atan(r/est.c)
+estimator_psider(est::ArctanEstimator, r::Real) = 1 / (1 + (r/est.c)^2)
+estimator_weight(est::ArctanEstimator, r::Real) = if (abs(r/est.c)<DELTA); (1 - (r/est.c)^2/3) else est.c * atan(r/est.c) / r end
+function estimator_values(est::ArctanEstimator, r::Real)
     ar = atan(r/est.c)
     rr = abs(r/est.c)
-    return ( r*ar/est.c - 1/2*log(1 + rr^2), ar, (if (rr<DELTA); (1 - rr^2/3) else est.c*ar/r end) )
+    return ( r*ar/est.c - 1/2*log(1 + rr^2), est.c*ar, (if (rr<DELTA); (1 - rr^2/3) else est.c*ar/r end) )
 end
 estimator_norm(est::ArctanEstimator) = est.c * 2.98151
 
 estimator_high_efficiency_constant(::Type{ArctanEstimator}) = 0.919
-rho(   est::ArctanEstimator, r) = r * atan(r) - 1/2*log(1 + r^2)
-psi(   est::ArctanEstimator, r) = atan(r)
-psider(est::ArctanEstimator, r) = 1 / (1 + r^2)
-weight(est::ArctanEstimator, r) = if (abs(r)<DELTA); (1 - r^2/3) else atan(r) / r end
+rho(   est::ArctanEstimator, r::Real) = r * atan(r) - 1/2*log(1 + r^2)
+psi(   est::ArctanEstimator, r::Real) = atan(r)
+psider(est::ArctanEstimator, r::Real) = 1 / (1 + r^2)
+weight(est::ArctanEstimator, r::Real) = if (abs(r)<DELTA); (1 - r^2/3) else atan(r) / r end
 
 
 """
@@ -314,11 +312,11 @@ struct CauchyEstimator <: SimpleEstimator
     CauchyEstimator(c::Real) = new(c)
     CauchyEstimator() = new(2.385)
 end
-estimator_rho(   est::CauchyEstimator, r) = log(1 + (r/est.c)^2) # * 1/2  # remove factor 1/2 so the estimator has a norm
-estimator_psi(   est::CauchyEstimator, r) = r / (1 + (r/est.c)^2)
-estimator_psider(est::CauchyEstimator, r) = (1 - (r/est.c)^2) / (1 + (r/est.c)^2)^2
-estimator_weight(est::CauchyEstimator, r) = 1 / (1 + (r/est.c)^2)
-function estimator_values(est::CauchyEstimator, r)
+estimator_rho(   est::CauchyEstimator, r::Real) = log(1 + (r/est.c)^2) # * 1/2  # remove factor 1/2 so the estimator has a norm
+estimator_psi(   est::CauchyEstimator, r::Real) = r / (1 + (r/est.c)^2)
+estimator_psider(est::CauchyEstimator, r::Real) = (1 - (r/est.c)^2) / (1 + (r/est.c)^2)^2
+estimator_weight(est::CauchyEstimator, r::Real) = 1 / (1 + (r/est.c)^2)
+function estimator_values(est::CauchyEstimator, r::Real)
     ir = 1/(1 + (r/est.c)^2)
     return ( - log(ir), r*ir, ir )
 end
@@ -328,12 +326,12 @@ isbounded(::CauchyEstimator) = false
 
 estimator_high_efficiency_constant(::Type{CauchyEstimator}) = 2.385
 estimator_high_breakdown_point_constant( ::Type{CauchyEstimator}) = 0.61200
-estimator_chi(est::CauchyEstimator, r) = r*estimator_psi(est, r)/(est.c)^2
+estimator_chi(est::CauchyEstimator, r::Real) = r*estimator_psi(est, r)/(est.c)^2
 
-rho(   est::CauchyEstimator, r) = 1/2 * log(1 + r^2)
-psi(   est::CauchyEstimator, r) = r / (1 + r^2)
-psider(est::CauchyEstimator, r) = (1 - r^2) / (1 + r^2)^2
-weight(est::CauchyEstimator, r) = 1 / (1 + r^2)
+rho(   est::CauchyEstimator, r::Real) = 1/2 * log(1 + r^2)
+psi(   est::CauchyEstimator, r::Real) = r / (1 + r^2)
+psider(est::CauchyEstimator, r::Real) = (1 - r^2) / (1 + r^2)^2
+weight(est::CauchyEstimator, r::Real) = 1 / (1 + r^2)
 
 
 """
@@ -346,11 +344,11 @@ struct GemanEstimator <: BoundedEstimator
     GemanEstimator(c::Real) = new(c)
     GemanEstimator() = new(3.787)
 end
-estimator_rho(   est::GemanEstimator, r) = 1/2 * (r/est.c)^2 / (1 + (r/est.c)^2)
-estimator_psi(   est::GemanEstimator, r) = r / (1 + (r/est.c)^2)^2
-estimator_psider(est::GemanEstimator, r) = (1 - 3*(r/est.c)^2) / (1 + (r/est.c)^2)^3
-estimator_weight(est::GemanEstimator, r) = 1 / (1 + (r/est.c)^2)^2
-function estimator_values(est::GemanEstimator, r)
+estimator_rho(   est::GemanEstimator, r::Real) = 1/2 * (r/est.c)^2 / (1 + (r/est.c)^2)
+estimator_psi(   est::GemanEstimator, r::Real) = r / (1 + (r/est.c)^2)^2
+estimator_psider(est::GemanEstimator, r::Real) = (1 - 3*(r/est.c)^2) / (1 + (r/est.c)^2)^3
+estimator_weight(est::GemanEstimator, r::Real) = 1 / (1 + (r/est.c)^2)^2
+function estimator_values(est::GemanEstimator, r::Real)
     ir = 1/(1 + (r/est.c)^2)
     return ( 1/2 * (r/est.c)^2 *ir, r*ir^2, ir^2 )
 end
@@ -360,12 +358,12 @@ isbounded(::GemanEstimator) = true
 
 estimator_high_efficiency_constant(::Type{GemanEstimator}) = 3.787
 estimator_high_breakdown_point_constant( ::Type{GemanEstimator}) = 0.61200
-estimator_chi(est::GemanEstimator, r) = estimator_rho(est, r)*2
+estimator_chi(est::GemanEstimator, r::Real) = estimator_rho(est, r)*2
 
-rho(   est::GemanEstimator, r) = 1/2 * r^2 / (1 + r^2)
-psi(   est::GemanEstimator, r) = r / (1 + r^2)^2
-psider(est::GemanEstimator, r) = (1 - 3*r^2) / (1 + r^2)^3
-weight(est::GemanEstimator, r) = 1 / (1 + r^2)^2
+rho(   est::GemanEstimator, r::Real) = 1/2 * r^2 / (1 + r^2)
+psi(   est::GemanEstimator, r::Real) = r / (1 + r^2)^2
+psider(est::GemanEstimator, r::Real) = (1 - 3*r^2) / (1 + r^2)^3
+weight(est::GemanEstimator, r::Real) = 1 / (1 + r^2)^2
 
 
 
@@ -378,11 +376,11 @@ struct WelschEstimator <: BoundedEstimator
     WelschEstimator(c::Real) = new(c)
     WelschEstimator() = new(2.985)
 end
-estimator_rho(   est::WelschEstimator, r) = -1/2 * Base.expm1(-(r/est.c)^2)
-estimator_psi(   est::WelschEstimator, r) = r * exp(-(r/est.c)^2)
-estimator_psider(est::WelschEstimator, r) = (1 - 2*(r/est.c)^2)*exp(-(r/est.c)^2)
-estimator_weight(est::WelschEstimator, r) = exp(-(r/est.c)^2)
-function estimator_values(est::WelschEstimator, r)
+estimator_rho(   est::WelschEstimator, r::Real) = -1/2 * Base.expm1(-(r/est.c)^2)
+estimator_psi(   est::WelschEstimator, r::Real) = r * exp(-(r/est.c)^2)
+estimator_psider(est::WelschEstimator, r::Real) = (1 - 2*(r/est.c)^2)*exp(-(r/est.c)^2)
+estimator_weight(est::WelschEstimator, r::Real) = exp(-(r/est.c)^2)
+function estimator_values(est::WelschEstimator, r::Real)
     er = exp(-(r/est.c)^2)
     return ( -1/2 * Base.expm1(-(r/est.c)^2), r*er, er )
 end
@@ -392,12 +390,12 @@ isbounded(::WelschEstimator) = true
 
 estimator_high_efficiency_constant(::Type{WelschEstimator}) = 2.985
 estimator_high_breakdown_point_constant( ::Type{WelschEstimator}) = 0.8165
-estimator_chi(est::WelschEstimator, r) = estimator_rho(est, r)*2
+estimator_chi(est::WelschEstimator, r::Real) = estimator_rho(est, r)*2
 
-rho(   est::WelschEstimator, r) = -1/2 * Base.expm1(-r^2)
-psi(   est::WelschEstimator, r) = r * exp(-r^2)
-psider(est::WelschEstimator, r) = (1 - 2*r^2)*exp(-r^2)
-weight(est::WelschEstimator, r) = exp(-r^2)
+rho(   est::WelschEstimator, r::Real) = -1/2 * Base.expm1(-r^2)
+psi(   est::WelschEstimator, r::Real) = r * exp(-r^2)
+psider(est::WelschEstimator, r::Real) = (1 - 2*r^2)*exp(-r^2)
+weight(est::WelschEstimator, r::Real) = exp(-r^2)
 
 
 
@@ -411,11 +409,11 @@ struct TukeyEstimator <: BoundedEstimator
     TukeyEstimator(c::Real) = new(c)
     TukeyEstimator() = new(4.685)
 end
-estimator_rho(   est::TukeyEstimator, r) = if (abs(r)<=est.c); 1/6 * (1 - ( 1 - (r/est.c)^2 )^3) else 1/6  end
-estimator_psi(   est::TukeyEstimator, r) = if (abs(r)<=est.c); r*(1 - (r/est.c)^2)^2             else oftype(r, 0) end
-estimator_psider(est::TukeyEstimator, r) = if (abs(r)<=est.c); 1 - 6*(r/est.c)^2 + 5*(r/est.c)^4 else oftype(r, 0) end
-estimator_weight(est::TukeyEstimator, r) = if (abs(r)<=est.c); (1 - (r/est.c)^2)^2               else oftype(r, 0) end
-function estimator_values(est::TukeyEstimator, r)
+estimator_rho(   est::TukeyEstimator, r::Real) = if (abs(r)<=est.c); 1/6 * (1 - ( 1 - (r/est.c)^2 )^3) else 1/6  end
+estimator_psi(   est::TukeyEstimator, r::Real) = if (abs(r)<=est.c); r*(1 - (r/est.c)^2)^2             else oftype(r, 0) end
+estimator_psider(est::TukeyEstimator, r::Real) = if (abs(r)<=est.c); 1 - 6*(r/est.c)^2 + 5*(r/est.c)^4 else oftype(r, 0) end
+estimator_weight(est::TukeyEstimator, r::Real) = if (abs(r)<=est.c); (1 - (r/est.c)^2)^2               else oftype(r, 0) end
+function estimator_values(est::TukeyEstimator, r::Real)
     pr = (abs(r)<=est.c) * (1 - (r/est.c)^2)
     return ( 1/6*(1 - pr^3), r*pr^2, pr^2 )
 end
@@ -425,7 +423,7 @@ isbounded(::TukeyEstimator) = true
 
 estimator_high_efficiency_constant(::Type{TukeyEstimator}) = 4.685
 estimator_high_breakdown_point_constant( ::Type{TukeyEstimator}) = 1.5476
-estimator_chi(est::TukeyEstimator, r) = estimator_rho(est, r)*6
+estimator_chi(est::TukeyEstimator, r::Real) = estimator_rho(est, r)*6
 
 
 
@@ -433,7 +431,7 @@ estimator_chi(est::TukeyEstimator, r) = estimator_rho(est, r)*6
 ######
 ###   MQuantile Estimators
 ######
-quantile_weight(τ::Real, r::AbstractFloat) = oftype(r, 2*ifelse(r>0, τ, 1 - τ))
+quantile_weight(τ::Real, r::Real) = oftype(r, 2*ifelse(r>0, τ, 1 - τ))
 
 
 struct GeneralQuantileEstimator{E<:SimpleEstimator} <: AbstractQuantileEstimator
@@ -447,17 +445,17 @@ function show(io::IO, obj::GeneralQuantileEstimator)
 end
 
 # Forward all methods to the `est` field
-estimator_rho(   E::GeneralQuantileEstimator, r) = quantile_weight(E.τ, r) * estimator_rho(   E.est, r)
-estimator_psi(   E::GeneralQuantileEstimator, r) = quantile_weight(E.τ, r) * estimator_psi(   E.est, r)
-estimator_psider(E::GeneralQuantileEstimator, r) = quantile_weight(E.τ, r) * estimator_psider(E.est, r)
-estimator_weight(E::GeneralQuantileEstimator, r) = quantile_weight(E.τ, r) * estimator_weight(E.est, r)
+estimator_rho(   E::GeneralQuantileEstimator, r::Real) = quantile_weight(E.τ, r) * estimator_rho(   E.est, r)
+estimator_psi(   E::GeneralQuantileEstimator, r::Real) = quantile_weight(E.τ, r) * estimator_psi(   E.est, r)
+estimator_psider(E::GeneralQuantileEstimator, r::Real) = quantile_weight(E.τ, r) * estimator_psider(E.est, r)
+estimator_weight(E::GeneralQuantileEstimator, r::Real) = quantile_weight(E.τ, r) * estimator_weight(E.est, r)
 function estimator_values(E::GeneralQuantileEstimator, r)
     w = quantile_weight(E.τ, r)
     vals = estimator_values(E.est, r)
     Tuple([x * w for x in vals])
 end
 estimator_norm(E::GeneralQuantileEstimator, args...) = estimator_norm(E.est, args...)
-estimator_chi(   E::GeneralQuantileEstimator, r) = quantile_weight(E.τ, r) * estimator_chi(   E.est, r)
+estimator_chi(   E::GeneralQuantileEstimator, r::Real) = quantile_weight(E.τ, r) * estimator_chi(   E.est, r)
 isbounded(E::GeneralQuantileEstimator) = isbounded(E.est)
 isconvex( E::GeneralQuantileEstimator) = isconvex( E.est)
 estimator_high_breakdown_point_constant( E::GeneralQuantileEstimator) = estimator_high_breakdown_point_constant( E.est)
