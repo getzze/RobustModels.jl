@@ -4,9 +4,12 @@
 ##    TableRegressionModel methods to forward
 ######
 
-leverage(p::TableRegressionModel) = leverage(p.model)
-residuals(p::TableRegressionModel) = residuals(p.model)
-weights(p::TableRegressionModel) = weights(p.model)
+leverage(p::TableRegressionModel)    = leverage(p.model)
+residuals(p::TableRegressionModel)   = residuals(p.model)
+weights(p::TableRegressionModel)     = weights(p.model)
+scale(p::TableRegressionModel)       = scale(p.model)
+dispersion(p::TableRegressionModel)  = dispersion(p.model)
+modelmatrix(p::TableRegressionModel) = modelmatrix(p.model)
 fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
 refit!(p::TableRegressionModel, args...; kwargs...) = (refit!(p.model, args...; kwargs...); p)
 
@@ -48,7 +51,8 @@ function coeftable(m::AbstractRobustModel)
 end
 
 function confint(m::AbstractRobustModel; level::Real=0.95)
-    hcat(coef(m),coef(m)) + stderror(m)*quantile(Normal(), (1-level)/2)*[1. -1.]
+    alpha = quantile(TDist(dof_residual(m)), (1-level)/2)
+    hcat(coef(m), coef(m)) + stderror(m)*alpha*[1.0  -1.0]
 end
 confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
@@ -82,14 +86,9 @@ Return the deviance of the RobustLinearModel.
 """
 deviance(m::RobustLinearModel{T}) where {T} = Base.convert(T, deviance(m.resp))
 
-function dispersion(m::RobustLinearModel{T}, sqr::Bool = false) where T<:AbstractFloat
-    r = m.resp
-    if dispersion_parameter(m)
-        dispersion(r, dof_residual(m), sqr)
-    else
-        one(T)
-    end
-end
+nulldeviance(m::RobustLinearModel{T}) where {T} = Base.convert(T, nulldeviance(m.resp))
+
+dispersion(m::RobustLinearModel{T}, sqr::Bool=false) where {T} = dispersion(m.resp, dof_residual(m), sqr)
 
 
 """
@@ -107,6 +106,8 @@ end
 stderror(m::RobustLinearModel) = location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 
 loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
+
+nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp)
 
 weights(m::RobustLinearModel) = weights(m.resp)
 
@@ -151,7 +152,7 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
              method::Symbol       = :chol, # :cg
              scale::AbstractFloat = 1.0,
              dofit::Bool          = true,
-             weights::FPVector    = similar(y, 0),
+             wts::FPVector        = similar(y, 0),
              offset::FPVector     = similar(y, 0),
              fitdispersion::Bool  = false,
              fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
@@ -173,7 +174,7 @@ A quantile can be provided to perform MQuantile regression.
 - `method::Symbol = :chol`: the method to use for solving the weighted linear system, `chol` (default) or `cg`;
 - `scale::AbstractFloat = 1.0`: an estimate for the scale;
 - `dofit::Bool = true`: if false, return the model object without fitting;
-- `weights::Vector = []`: a weight vector, should be empty if no weights are used;
+- `wts::Vector = []`: a weight vector, should be empty if no weights are used;
 - `offset::Vector = []`: an offset vector, should be empty if no offset is used;
 - `fitdispersion::Bool = false`: reevaluate the dispersion;
 - `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm (see [`pirls!`](@ref)).
@@ -189,7 +190,7 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
              method::Symbol       = :chol, # :cg
              scale::AbstractFloat = 1.0,
              dofit::Bool          = true,
-             weights::FPVector    = similar(y, 0),
+             wts::FPVector        = similar(y, 0),
              offset::FPVector     = similar(y, 0),
              fitdispersion::Bool  = false,
              fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
@@ -209,7 +210,7 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
         est
     end
 
-    rr = RobustLinResp(est2, y, offset, weights, scale)
+    rr = RobustLinResp(est2, y, offset, wts, scale)
 #    pp = if method == :cg; cgpred(X) elseif method==:chol; cholpred(X) else qrpred(X) end
     pp = if method==:cg; cgpred(X) else cholpred(X) end
 
@@ -294,27 +295,18 @@ This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
 function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Symbol, Real}=nothing,
-              correct_leverage::Bool=false, kind::Symbol=:Mestimate, sestimator::Union{Nothing, Type{E}}=nothing,
-              initial_coef::AbstractVector=[],
-              verbose::Bool=false, kwargs...) where {T, E<:BoundedEstimator}
+              verbose::Bool=false, kind::Symbol=:Mestimate, sestimator::Union{Nothing, Type{E}}=nothing,
+              initial_coef::AbstractVector=[], 
+              resample::Bool=false, resampling_options::Dict{Symbol, F}=Dict{Symbol, Any}(:verbose=>verbose),
+              correct_leverage::Bool=false, kwargs...) where {T, E<:BoundedEstimator, F}
 
     # Return early if model has the fit flag set
     m.fitted && return m
 
     σ0 = if isa(initial_scale_estimate, Real)
-        m.fitdispersion = false
         float(initial_scale_estimate)
     elseif isa(initial_scale_estimate, Symbol)
-        if initial_scale_estimate == :mad
-            m.fitdispersion = true
-            mad(m.resp.y; normalize=true)
-        elseif initial_scale_estimate == :extrema
-            m.fitdispersion = true
-            -(-(extrema(m.resp.y)...))/2
-        else
-            @warn "only a number or :mad and :extrema are allowed for the :initial_scale_estimate argument, ignoring it: $(initial_scale_estimate)"
-            nothing
-        end
+        initialscale(m, initial_scale_estimate)
     end
 
     β0 = if isempty(initial_coef) || size(initial_coef, 1) != size(coef(m), 1)
@@ -337,6 +329,11 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         ## Change the estimator to an S-Estimator of the same kind
         m.resp.est = SEstimator(Mest)
 
+        ## TODO: Resampling algorithm
+        if resample
+            σ0, β0 = resampling_best_estimate(m, kind; resampling_options...)
+        end
+        
         verbose && println("\nFit with S-estimator: $(Estimator(m))")
         ## Minimize the objective
         pirls_Sestimate!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
@@ -348,6 +345,7 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         ## Use an S-estimate to estimate the scale/dispersion
         Mest = Estimator(m)
 
+        ## TODO: Create a type MMEstimator that holds the two estimator
         Sest = if !isnothing(sestimator)
             # Use an S-Estimator of the `sestimator`'s kind
             SEstimator(Mest; fallback=sestimator, force=true)
@@ -359,11 +357,17 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         Sresp = RobustLinResp(Sest, m.resp.y, m.resp.offset, m.resp.wts, m.resp.σ)
         Sm = RobustLinearModel(Sresp, m.pred, true, m.fitted)
 
+        ## TODO: Resampling algorithm
+        if resample
+            σ0, β0 = resampling_best_estimate(m, :Sestimate; resampling_options...)
+        end
+
         verbose && println("\nFit with MM-estimator - 1. S-estimator: $(Estimator(Sm))")
         ## Minimize the objective
         pirls_Sestimate!(Sm; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
         ## Use an M-estimate to estimate coefficients
+        β0 = coef(Sm)
         σ0 = scale(Sm)
 
         verbose && println("\nFit with MM-estimator - 2. M-estimator: $(Estimator(m))")
@@ -372,12 +376,32 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
 
         # Set the `fitdispersion` flag to true, because σ was estimated
         m.fitdispersion = true
+
+    elseif kind == :Tauestimate
+        Mest = Estimator(m)
+        isa(Mest, TauEstimator) || error("Use a TauEstimator for τ-Estimation: $(Mest)")
+        
+        ## TODO: Resampling algorithm
+        if resample
+            ## TODO: add extract rng key from resampling_options
+            σ0, β0 = resampling_best_estimate(m, kind; resampling_options...)
+        end
+
+        verbose && println("\nFit with τ-estimator: $(Estimator(m))")
+        ## Minimize the objective
+        pirls_τestimate!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
+
+        # Set the `fitdispersion` flag to true, because σ was estimated
+        m.fitdispersion = true
+        
     elseif kind == :Mestimate
         verbose && println("\nFit with M-estimator: $(Estimator(m))")
         ## Minimize the objective
         pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
+
+        ## TODO: update scale is fitdispersion is true
     else
-        error("only :Mestimate, :Sestimate and :MMestimate are allowed: $(kind)")
+        error("only :Mestimate, :Sestimate, :MMestimate and :Tauestimate are allowed: $(kind)")
     end
 
     m.fitted = true
@@ -385,14 +409,38 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
 end
 
 
+function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::AbstractFloat=1.0)
+    factor > 0 || error("factor should be positive")
+
+    y = response(m)
+    wts = weights(m)
+
+    allowed_methods = (:mad, :extrema, :L1)
+    if method == :mad
+        σ = if length(wts) == length(y)
+            factor*mad(wts .* abs.(y); normalize=true)
+        else
+            factor*mad(abs.(y); normalize=true)
+        end
+    elseif method == :extrema
+        σ = -(-(extrema(y)...))/2
+    elseif method == :L1
+        X = modelmatrix(m)
+        σ = dispersion(quantreg(X, y; wts=wts))
+    else
+        error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
+    end
+    return σ
+end
 
 function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector=[]) where {T<:AbstractFloat}
     r = m.resp
     p = m.pred
 
+    initresp!(r)
     if isempty(β0)
         # Compute beta0 from solving the least square with the response value r.y
-        initresp!(r)
+#        initresp!(r)
         delbeta!(p, r.wrkres, r.wrkwt)
         installbeta!(p)
     else
@@ -403,6 +451,10 @@ function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector=[]) where {T<:Abst
     m
 end
 
+"""
+    setinitη!(m)
+Compute the predictor using the initial value of β0 and compute the residuals
+"""
 function setinitη!(m::RobustLinearModel{T}) where {T}
     r = m.resp
     p = m.pred
@@ -414,20 +466,36 @@ function setinitη!(m::RobustLinearModel{T}) where {T}
     m
 end
 
-function setη!(m::RobustLinearModel{T}, f::T=1.0) where {T}
+setinitσ!(m::RobustLinearModel; kwargs...) = (m.resp.σ = initialresidualscale(m.resp; kwargs...); m)
+
+"""
+    setη!(m)
+Compute the ∇β using the current residuals and working weights (only if f=1,
+which corresponds to the first iteration of linesearch), then compute
+the predictor using the ∇β value and compute the new residuals and deviance.
+if update_scale is true, the scale is also updated using the residuals.
+"""
+function setη!(m::RobustLinearModel{T}, f::T=1.0; update_scale::Bool=false, kwargs...) where {T}
     r = m.resp
     p = m.pred
 
-    # First update trial, compute ∇β
+    # First update of linesearch algorithm, compute ∇β
     if f==1
         delbeta!(p, r.wrkres, r.wrkwt)
     end
+    # Compute and set the predictor η from β0 and ∇β
     linpred!(r.η, p, f)
-    updateres!(r)
 
+    # Update the residuals and weights (and scale)
+    if update_scale
+        update_res_and_scale!(r; kwargs...)
+    else
+        updateres!(r; kwargs...)
+    end
     m
 end
 
+tauscale(m::RobustLinearModel) = tauscale(m.resp)
 
 
 """
@@ -491,7 +559,8 @@ function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=3
         ## is unchanged except for rounding errors.
         while dev > devold + rtol*absdev
             f /= 2
-            f > minstepfac || error("step-halving failed at beta0 = $(p.beta0)")
+            f > minstepfac || error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
+
             try
                 # Update μ and compute deviance with new f. Do not recompute ∇β
                 dev = deviance(setη!(m, f))
@@ -522,7 +591,7 @@ end
 
 
 """
-    pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=50,
+    pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=50,
            minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
            beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing,
            update_scale::Bool=false)
@@ -531,7 +600,7 @@ end
 The Penalized aspect is not implemented (yet).
 """
 function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=30,
-              minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
+              minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6, miniter::Int=2,
               beta0::AbstractVector=[], sigma0::Union{Nothing, T}=nothing) where {T<:AbstractFloat}
 
     # Check arguments
@@ -554,17 +623,9 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
     # Initialize μ and compute residuals
     setinitη!(m)
 
-
     # Compute initial scale
-    sigold = try
-        optimscale(setη!(m).resp; verbose=verbose)
-    catch e
-        if isa(e, ConvergenceFailed)
-            sigold = maxσ
-        else
-            rethrow(e)
-        end
-    end
+    sigold = scale(setη!(m; update_scale=true, verbose=verbose, sigma0=sigma0, fallback=maxσ))
+#    sigold = optimscale(setη!(m).resp; verbose=verbose, sigma0=sigma0, fallback=maxσ)
     installbeta!(p, 1)
     r.σ = sigold
 
@@ -574,15 +635,8 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
         local sig
 
         # Compute the change to β, update μ and compute deviance
-        try
-            sig = optimscale(setη!(m).resp; verbose=verbose)
-        catch e
-            if isa(e, ConvergenceFailed)
-                sig = maxσ
-            else
-                rethrow(e)
-            end
-        end
+        sig = scale(setη!(m; update_scale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
+#        sig = optimscale(setη!(m).resp; verbose=verbose, sigma0=sigold, fallback=maxσ)
 
         # Assert the deviance is positive (up to rounding error)
         @assert sig > -atol
@@ -593,19 +647,20 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
         ## If the scale isn't declining then half the step size
         ## The rtol*abs(sigold) term is to avoid failure when scale
         ## is unchanged except for rounding errors.
-        while sig > sigold + rtol*sig
+        while sig > sigold*(1 + rtol)
             f /= 2
-            f > minstepfac || error("step-halving failed at beta0 = $(p.beta0)")
-            try
-                # Update μ and compute deviance with new f. Do not recompute ∇β
-                sig = optimscale(setη!(m).resp; sigma0=sigold)
-            catch e
-                if isa(e, ConvergenceFailed)
-                    sig = maxσ
+            if f <= minstepfac
+                if i <= miniter
+                    sigold = maxσ
+                    r.σ = sigold
+                    verbose && println("linesearch failed at early iteration $(i), set scale to maximum value: $(sigold)")
                 else
-                    rethrow(e)
+                    error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
                 end
             end
+            # Update μ and compute deviance with new f. Do not recompute ∇β
+            sig = scale(setη!(m; update_scale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
+#            sig = optimscale(setη!(m).resp; sigma0=sigold, fallback=maxσ)
         end
         installbeta!(p, f)
         r.σ = sig
@@ -623,4 +678,204 @@ function pirls_Sestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter:
     end
     cvg || throw(ConvergenceException(maxiter))
     m
+end
+
+
+"""
+    pirls_τestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=50,
+           minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6,
+           beta0::FPVector=T[], sigma0::Union{Nothing, T}=nothing,
+           update_scale::Bool=false)
+
+(Penalized) Iteratively Reweighted Least Square procedure.
+The Penalized aspect is not implemented (yet).
+"""
+function pirls_τestimate!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=30,
+              minstepfac::Real=1e-3, atol::Real=1e-6, rtol::Real=1e-6, miniter::Int=2,
+              beta0::AbstractVector=[], sigma0::Union{Nothing, T}=nothing) where {T<:AbstractFloat}
+
+    # Check arguments
+    maxiter >= 1       || throw(ArgumentError("maxiter must be positive"))
+    0 < minstepfac < 1 || throw(ArgumentError("minstepfac must be in (0, 1)"))
+
+    # Extract fields and set convergence flag
+    cvg, p, r = false, m.pred, m.resp
+
+    maxσ = -(-(extrema(r.y)...))/2
+    if !isnothing(sigma0)
+        r.σ = sigma0
+    else
+        r.σ = maxσ
+    end
+
+    ## Initialize β or set it to the provided values
+    setβ0!(m, beta0)
+
+    # Initialize μ and compute residuals
+    setinitη!(m)
+
+    # Compute initial τ-scale
+    tauold = tauscale(setη!(m; update_scale=true).resp; verbose=verbose)
+    installbeta!(p, 1)
+
+    verbose && println("initial τ-scale: $(@sprintf("%.4g", tauold))")
+    for i = 1:maxiter
+        f = 1.0 # line search factor
+        local tau
+
+        # Compute the change to β, update μ and compute deviance
+        tau = tauscale(setη!(m; update_scale=true, verbose=true, fallback=maxσ).resp; verbose=verbose)
+
+        # Assert the deviance is positive (up to rounding error)
+        @assert tau > -atol
+
+        verbose && println("scale at step $i: $(@sprintf("%.4g", tau)), crit=$((tauold - tau)/tauold)")
+
+        # Line search
+        ## If the scale isn't declining then half the step size
+        ## The rtol*abs(sigold) term is to avoid failure when scale
+        ## is unchanged except for rounding errors.
+        while tau > tauold + rtol*tau
+            f /= 2
+            if f <= minstepfac
+                if i <= miniter
+                    tauold = maxσ
+                    r.σ = tauold
+                    verbose && println("linesearch failed at early iteration $(i), set scale to maximum value: $(tauold)")
+                else
+                    error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
+                end
+            end
+
+            # Update μ and compute deviance with new f. Do not recompute ∇β
+            tau = tauscale(setη!(m; update_scale=true).resp)
+        end
+        installbeta!(p, f)
+
+        # Test for convergence
+        Δtau = (tauold - tau)
+        verbose && println("Iteration: $i, scale: $tau, Δsig: $(Δtau)")
+        tol = max(rtol*tauold, atol)
+        if -tol < Δtau < tol || tau < atol
+            cvg = true
+            break
+        end
+        @assert isfinite(tau) && !iszero(tau)
+        tauold = tau
+    end
+    cvg || throw(ConvergenceException(maxiter))
+    m
+end
+
+
+
+##########
+###   Resampling
+##########
+
+"""
+For S- and τ-Estimators, compute the minimum number of subsamples to draw
+to ensure that with probability 1-α, at least one of the subsample
+is free of outlier, given that the ratio of outlier/clean data is ε.
+The number of data point per subsample is p, that should be at least
+equal to the degree of freedom.
+"""
+function resampling_minN(p::Int, α::Real=0.05, ε::Real=0.5)
+    ceil(Int, abs(log(α) / log(1 - (1-ε)^p)))
+end
+
+
+function resampling_initialcoef(m, inds)
+    # Get the subsampled model matrix, response and weights
+    Xi = modelmatrix(m)[inds, :]
+    yi = response(m)[inds]
+    wi = Vector(weights(m)[inds])
+
+    # Fit with OLS
+    coef(lm(Xi, yi; wts=wi))
+end
+
+"""
+    best_from_resampling(m::RobustLinearModel, kind::Symbol; Nsamples=nothing)
+
+Return the best scale σ0 and coefficients β0 from resampling of the S- or τ-Estimate.
+"""
+function resampling_best_estimate(m::RobustLinearModel, kind::Symbol;
+            propoutliers::Real=0.5, Nsamples::Union{Nothing, Int}=nothing, Nsubsamples::Int=10,
+            Npoints::Union{Nothing, Int}=nothing, Nsteps_β::Int=2, Nsteps_σ::Int=1,
+            verbose::Bool=false, rng::AbstractRNG=GLOBAL_RNG)
+    kind in (:Sestimate, :Tauestimate) || error("resampling is implemented for :Sestimate or :Tauestimate only: $(kind)")
+    
+    if isnothing(Nsamples)
+        Nsamples = resampling_minN(dof(m), 0.05, propoutliers)
+    end
+    if isnothing(Npoints)
+        Npoints = dof(m)
+    end
+    Nsubsamples = min(Nsubsamples, Nsamples)
+    
+    
+    verbose && println("Start $(Nsamples) subsamples...")
+    σis = zeros(Nsamples)
+    βis = zeros(dof(m), Nsamples)
+    for i in 1:Nsamples
+        # TODO: to parallelize, make a deepcopy of m
+        inds = sample(rng, 1:nobs(m), Npoints; replace=false, ordered=false)
+        # Find OLS fit of the subsample
+        βi = resampling_initialcoef(m, inds)
+        verbose && println("Sample $(i)/$(Nsamples): β0 = $(βi)")
+
+        ## Initialize β or set it to the provided values
+        setβ0!(m, βi)
+        # Initialize μ and compute residuals
+        setinitη!(m)
+        # Initialize σ as mad(residuals)
+        setinitσ!(m)
+       
+       
+        σi = 0
+        for k in 1:Nsteps_β
+            setη!(m; update_scale=true, verbose=verbose, sigma0=:mad, nmax=Nsteps_σ, approx=true)
+            
+            σi = if kind == :Sestimate
+                scale(m)
+            else # if kind == :Tauestimate
+                tauscale(m)
+            end
+            installbeta!(m.pred, 1)
+        end
+        σis[i] = σi
+        βis[:, i] .= coef(m)
+        verbose && println("Sample $(i)/$(Nsamples): β1=$(βis[:, i])\tσ1=$(σi)")
+    end
+
+    verbose && println("Sorted scales: $(sort(σis))")
+    inds = sortperm(σis)[1:Nsubsamples]
+    σls = σis[inds]
+    βls = βis[:, inds]
+
+    verbose && println("Keep best $(Nsubsamples) subsamples: $(inds)")
+    for l in 1:Nsubsamples
+        σl, βl = σls[l], βls[:, l]
+        # TODO: to parallelize, make a deepcopy of m
+
+        try
+            if kind == :Sestimate
+                pirls_Sestimate!(m; verbose=verbose, beta0=βl, sigma0=σl, miniter=3)
+                σls[l] = scale(m)
+            else
+                pirls_τestimate!(m; verbose=verbose, beta0=βl, sigma0=σl)
+                σls[l] = tauscale(m)
+            end
+            βls[:, l] .= coef(m)
+        catch e
+            # Didn't converge, set to infinite scale
+            σls[l] = Inf
+        end
+        verbose && println("Subsample $(l)/$(Nsubsamples): β2=$(βls[:, l])\tσ2=$(σls[l])")
+    end
+    N = argmin(σls)
+    ## TODO: for τ-Estimate, the returned scale is τ not σ
+    verbose && println("Best subsample: β=$(βls[:, N])\tσ=$(σls[N])")
+    return σls[N], βls[:, N]
 end

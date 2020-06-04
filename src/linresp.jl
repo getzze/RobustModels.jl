@@ -69,6 +69,11 @@ function initresp!(r::RobustResp{T}) where {T}
     μ0 = 0
     fill!(r.μ, μ0)
 
+    # Reset the factor of the TauEstimator
+    if isa(r.est, TauEstimator)
+        update_weight!(r.est, 0)
+    end
+
     # Set residual (without offset)
     broadcast!(-, r.wrkres, r.y, r.μ)
 
@@ -88,7 +93,7 @@ function Base.getproperty(r::RobustLinResp, s::Symbol)
     end
 end
 
-function dispersion(r::RobustResp, dof_residual::Int=nobs(r), sqr::Bool=false, robust::Bool=true)
+function dispersion(r::RobustResp, dof_residual::Int=(nobs(r)-1), sqr::Bool=false, robust::Bool=true)
     wrkwt, wrkres, wrkscaledres = r.wrkwt, r.wrkres, r.wrkscaledres
     if robust
         s = (r.σ)^2*sum(i -> wrkwt[i] * abs2(wrkscaledres[i]), eachindex(wrkwt, wrkres)) / dof_residual
@@ -138,14 +143,16 @@ function nulldeviance(r::RobustResp)
 
     dev = 0
     @inbounds for i in eachindex(y)
-        dev += estimator_rho(r.est, (y[i] - μi)/σ)
+        dev += 2*estimator_rho(r.est, (y[i] - μi)/σ)
     end
     dev
 end
 
 ## TODO: define correctly the loglikelihood of the full model
-fullloglikelihood(r::RobustLinResp) = r.scale * log(estimator_norm(r.est))
+fullloglikelihood(r::RobustLinResp) = -log(r.scale) - log(estimator_norm(r.est))
+
 loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r)/2
+
 nullloglikelihood(r::RobustResp) = fullloglikelihood(r) - nulldeviance(r)/2
 
 response(r::RobustResp) = r.y
@@ -218,8 +225,6 @@ end
     updateres!{T<:FPVector}(r::RobustResp{T})
 Update the mean, working weights, working residuals and deviance residuals, of the response `r`.
 """
-function updateres! end
-
 function updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVector, M<:Estimator}
     ## Add offset to the linear predictor, if offset is defined
     ## and copy the linear predictor to the mean
@@ -234,7 +239,7 @@ function updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVec
         wrkres[i] = y[i] - μ[i]
         wrkscaledres[i] = wrkres[i]/σ
         wrkwt[i] = estimator_weight(r.est, wrkscaledres[i])
-        devresid[i] = estimator_rho(r.est, wrkscaledres[i])
+        devresid[i] = 2*estimator_rho(r.est, wrkscaledres[i])
     end
 
     ## Multiply by the observation weights
@@ -245,59 +250,145 @@ function updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVec
 
 end
 
-function optimscale(r::RobustLinResp; sigma0::Union{Nothing, AbstractFloat}=nothing, verbose::Bool=false)
+
+function update_res_and_scale!(r::RobustLinResp{T, V, M}; kwargs...) where {T<:AbstractFloat, V<:FPVector, M<:Estimator}
+    ## Add offset to the linear predictor, if offset is defined
+    ## and copy the linear predictor to the mean
+    if length(r.offset) != 0
+        broadcast!(+, r.μ, r.μ, r.offset)
+    end
+
+    y, μ, devresid = r.y, r.μ, r.devresid
+    wrkres, wrkscaledres, wrkwt = r.wrkres, r.wrkscaledres, r.wrkwt
+
+    # First pass, compute the residuals
+    @inbounds for i in eachindex(y, μ, wrkres)
+        wrkres[i] = y[i] - μ[i]
+    end
+
+    # Second pass, compute the scale
+    updatescale!(r; kwargs...)
+
+    # Third pass, compute the scaled residuals, weights and deviance residuals
+    @inbounds for i in eachindex(wrkres, wrkscaledres, wrkwt, devresid)
+        wrkscaledres[i] = wrkres[i]/r.σ
+        wrkwt[i] = estimator_weight(r.est, wrkscaledres[i])
+        devresid[i] = 2*estimator_rho(r.est, wrkscaledres[i])
+    end
+
+    ## Multiply by the observation weights
+    if !isempty(r.wts)
+        broadcast!(*, r.devresid, r.devresid, r.wts)
+        broadcast!(*, r.wrkwt, r.wrkwt, r.wts)
+    end
+end
+
+
+function update_res_and_scale!(r::RobustLinResp{T, V, M}; kwargs...) where {T<:AbstractFloat, V<:FPVector, M<:TauEstimator}
+    ## Add offset to the linear predictor, if offset is defined
+    ## and copy the linear predictor to the mean
+    if length(r.offset) != 0
+        broadcast!(+, r.μ, r.μ, r.offset)
+    end
+
+    y, μ, devresid = r.y, r.μ, r.devresid
+    wrkres, wrkscaledres, wrkwt = r.wrkres, r.wrkscaledres, r.wrkwt
+
+    # First pass, compute the residuals
+    @inbounds for i in eachindex(y, μ, wrkres)
+        wrkres[i] = y[i] - μ[i]
+    end
+
+    # Second pass, compute the scale
+    updatescale!(r; kwargs..., sigma0=:mad)
+
+    # Third pass, compute the scaled residuals
+    @inbounds for i in eachindex(wrkres, wrkscaledres)
+        wrkscaledres[i] = wrkres[i]/r.σ
+    end
+
+    # Fourth pass, compute the weights of the τ-estimator
+    update_weight!(r.est, wrkscaledres; wts=r.wts)
+
+    # Fifth pass, compute the weights and deviance residuals
+    @inbounds for i in eachindex(wrkscaledres, wrkwt, devresid)
+        wrkwt[i] = estimator_weight(r.est, wrkscaledres[i])
+        devresid[i] = 2*estimator_rho(r.est, wrkscaledres[i])
+    end
+
+    ## Multiply by the observation weights
+    if !isempty(r.wts)
+        broadcast!(*, r.devresid, r.devresid, r.wts)
+        broadcast!(*, r.wrkwt, r.wrkwt, r.wts)
+    end
+end
+
+"""
+    optimscale(r::RobustLinResp; sigma0::Union{Symbol, AbstractFloat}=r.σ, fallback::Union{Nothing, AbstractFloat}=nothing, verbose::Bool=false, kwargs...)
+Compute the M-scale estimate from the estimator and residuals.
+`sigma0` : initial value of the scale (default to r.σ), or `:mad` if it is estimated from mad(res).
+`fallback` : if the algorithm does not converge, return the fallback value. If nothing, raise a ConvergenceFailed error.
+`kwargs` : keyword arguments for the scale_estimate function.
+"""
+function optimscale(r::RobustLinResp; sigma0::Union{Symbol, AbstractFloat}=r.σ, fallback::Union{Nothing, AbstractFloat}=nothing, verbose::Bool=false, kwargs...)
     est, res = r.est, r.wrkres
-    σ0 = ifelse( isnothing(sigma0), r.σ, sigma0 )
+    σ0 = if isa(sigma0, AbstractFloat); sigma0 else initialresidualscale(r) end
 
     if !isbounded(est)
         @warn "scale/dispersion is not changed because the estimator ($(est)) does not allow scale estimation, a bounded estimator should be used, like TukeyEstimator."
         return σ0
     end
 
-    verbose && print("Update scale: $(σ0)")
-    σ = scale_estimate(est, res; σ0=σ0, wts=r.wts, use_reciprocal=true)
-    if σ <= 0
-        verbose && println("  ->  error")
-        throw(ConvergenceFailed("the resulting scale is non-positive"))
+    verbose && print("Update scale: $(σ0) ")
+    σ = try 
+        scale_estimate(est, res; σ0=σ0, wts=r.wts, kwargs...)
+    catch e
+        if isa(e, ConvergenceFailed) && !isnothing(fallback)
+            verbose && print("  x>  fallback")
+            σ = fallback
+        else
+            verbose && println("  x>  error")
+            rethrow(e)
+        end
     end
     verbose && println("  ->  $(σ)")
     σ
 end
 
-function updatescale!(r::RobustLinResp, method::Symbol; factor::AbstractFloat=1.0)
-    res = r.wrkres
-    allowed_methods = [:extrema, :mad, :Sestimate, :highbreakpoint]
-    if !(method in allowed_methods)
-        @warn "scale/dispersion is not changed because `method` argument must be in $(allowed_methods): $(method)"
-        return r
-    elseif method == :extrema
-        r.σ = -(-(extrema(res)...))/2 * factor
-    elseif method == :mad
-        if isempty(r.wts)
-            r.σ = abs(factor*mad(res; normalize=true))
-        else
-            r.σ = abs(factor*mad(r.wts .* res; normalize=true))
-        end
-    elseif method == :Sestimate
-        Mest = r.est
-        if !isbounded(Mest)
-            @warn "the current estimator is not bounded, use TukeyEstimator to estimate the scale."
-        end
-        Sest = SEstimator(Mest)
-        r.σ = scale_estimate(Sest, res; σ0=r.σ, wts=r.wts, use_reciprocal=true)
-    elseif method == :highbreakpoint
-        K = 4.5
-        if isempty(r.wts)
-            r.σ = sqrt(sum( res.^2 ./ (1 .+ (res./(K*r.σ)).^2))/size(res, 1))
-        else
-            wres = r.wts .* res
-            N = sum(r.wts)
-            r.σ = sqrt(sum( wres.^2 ./ (1 .+ (wres./(K*r.σ)).^2))/N)
-        end
-    end
-    @debug "new robust scale/dispersion for $(typeof(r.est)): $(r.σ)"
+function updatescale!(r::RobustLinResp; kwargs...)
+    r.σ = optimscale(r; kwargs...)
     r
 end
+
+function tauscale(r::RobustLinResp{T, V, M}; verbose::Bool=false, bound::AbstractFloat=0.5, sigma0::Union{Symbol, AbstractFloat}=r.σ, update_scale::Bool=false) where {T, V, M<:TauEstimator}
+    # No need to recompute s, as it was called in updateres! and stored in r.σ
+    if update_scale
+        updatescale!(r; sigma0=sigma0, verbose=verbose)
+    end
+    s, res = r.σ, r.wrkres
+    t = if length(r.wts) == length(res)
+        mean( estimator_chi.(Ref(r.est.est2), res ./ s), weights(r.wts) ) / bound
+    else
+        mean( estimator_chi.(Ref(r.est.est2), res ./ s)) / bound
+    end
+    s * √t
+end
+
+
+function initialresidualscale(res::AbstractArray; factor::AbstractFloat=1.0, wts::AbstractArray=[])
+    factor > 0 || error("factor should be positive")
+    
+    σ = if length(wts) == length(res)
+        factor*mad(wts .* abs.(res); normalize=true)
+    else
+        factor*mad(abs.(res); normalize=true)
+    end
+    return σ
+end
+function initialresidualscale(r::RobustLinResp; factor::AbstractFloat=1.0)
+    initialresidualscale(r.wrkres; factor=factor, wts=r.wts)
+end
+
 ####################
 
 

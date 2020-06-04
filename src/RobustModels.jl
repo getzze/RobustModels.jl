@@ -2,12 +2,13 @@ module RobustModels
 
 include("compat.jl")
 
-using Distributions: ccdf, pdf, quantile, Normal, Chisq
+using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist
 using SparseArrays: SparseMatrixCSC
 using LinearAlgebra: diag, dot
+using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
-using GLM: Link, canonicallink, FPVector, cholpred
-using StatsBase: mean, mad, ConvergenceException
+using GLM: Link, canonicallink, FPVector, cholpred, lm
+using StatsBase: mean, mad, ConvergenceException, sample, quantile
 using IterativeSolvers: lsqr!, cg!
 #using Roots: find_zero, Order1, ConvergenceFailed
 #using QuadGK: quadgk
@@ -17,7 +18,9 @@ using IterativeSolvers: lsqr!, cg!
 
 import Base: ==, show
 import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
-import StatsBase: fit, fit!, deviance, nobs, weights
+import StatsBase: fit, fit!, deviance, nulldeviance, nobs, weights, confint,
+                  dof, dof_residual, loglikelihood, nullloglikelihood, stderror,
+                  vcov, residuals, predict, response, modelmatrix
 import StatsModels: RegressionModel, coef, coeftable, CoefTable, leverage, TableRegressionModel
 
 ## Reexports
@@ -37,13 +40,8 @@ export coef,
        predict,
        fit,
        fit!,
-       model_response,
        response,
        modelmatrix,
-       r2,
-       r²,
-       adjr2,
-       adjr²,
        dispersion,
        weights,
        leverage,
@@ -63,8 +61,10 @@ export Estimator,
        RobustLinearModel,
        QuantileRegression,
        SEstimator,
+       TauEstimator,
        rlm,
        quantreg,
+       scale,
        refit!,
        nothing  # stopper
 

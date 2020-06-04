@@ -1,4 +1,3 @@
-using RobustModels
 using RobustModels: estimator_rho, 
                     estimator_psi, 
                     estimator_psider, 
@@ -7,32 +6,21 @@ using RobustModels: estimator_rho,
                     estimator_values,
                     estimator_high_breakdown_point_constant,
                     estimator_high_efficiency_constant,
+                    estimator_tau_efficient_constant,
                     isbounded,
                     isconvex,
                     efficiency_tuning_constant,
                     breakdown_point_tuning_constant,
+                    tau_efficiency_tuning_constant,
                     nothing  # stopper
-using Test
-using RDatasets: dataset
-using StatsModels: @formula, coef
-using StatsBase: mad
-using GLM: LinearModel
 
-data = dataset("robustbase", "Animals2")
-form = @formula(Brain ~ 1 + Body)
 
-m1 = fit(LinearModel, form, data)
-
-λ = mad(data.Brain; normalize=true)
-est1 = RobustModels.L2Estimator()
-est2 = RobustModels.TukeyEstimator()
-
-@testset "Methods estimators: $(name)" for name in ("L2", "L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey")
+@testset "Methods estimators: $(name)" for name in ("L2", "L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
     typest = getproperty(RobustModels, Symbol(name * "Estimator"))
     est = typest()
     
     @testset "Bounded estimators: $(name)" begin
-        if name in ("Geman", "Welsch", "Tukey")
+        if name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
             @test isbounded(est)
         else
             @test !isbounded(est)
@@ -40,7 +28,7 @@ est2 = RobustModels.TukeyEstimator()
     end
 
     @testset "Convex estimators: $(name)" begin
-        if name in ("Cauchy", "Geman", "Welsch", "Tukey")
+        if name in ("Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
             @test !isconvex(est)
         else
             @test isconvex(est)
@@ -71,9 +59,16 @@ est2 = RobustModels.TukeyEstimator()
     if isbounded(est)
         @testset "Estimator high breakdown point: $(name)" begin
             vopt = estimator_high_breakdown_point_constant(typest)
-            v = breakdown_point_tuning_constant(typest; bp=0.5, c0=0.9*vopt)
+            v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1*vopt)
             @test isapprox(v, vopt; rtol=1e-3)
         end
+
+        @testset "τ-Estimator high efficiency: $(name)" begin
+            vopt = estimator_tau_efficient_constant(typest)
+            v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1*vopt)
+            @test isapprox(v, vopt; rtol=1e-3)
+        end
+
     end
 
     @testset "MQuantile: $(name)" begin

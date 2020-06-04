@@ -341,6 +341,8 @@ nobs(m::QuantileRegression)::Int = if !isempty(m.wts); count(!iszero, m.wts) els
 
 coef(m::QuantileRegression) = m.β
 
+dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
+
 stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
 
 weights(m::QuantileRegression{T}) where T<:AbstractFloat = if isempty(m.wts); weights(ones(T, length(m.y))) else weights(m.wts) end
@@ -369,7 +371,10 @@ deviance(m::QuantileRegression) = sum(_objective.(m.wrkres, Ref(m.τ)))
 
 ## TODO: define correctly the loglikelihood of the full model
 fullloglikelihood(m::QuantileRegression) = 0
+
 loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m)/2
+
+nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m)/2
 
 modelmatrix(m::QuantileRegression) = m.X
 
