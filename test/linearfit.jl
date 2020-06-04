@@ -1,4 +1,6 @@
 
+using Random: MersenneTwister
+
 m1 = fit(LinearModel, form, data)
 
 est1 = RobustModels.L2Estimator()
@@ -40,6 +42,12 @@ end
         println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
+
+        # Resampling
+        rng = MersenneTwister(1)
+        opts = Dict(:Nsteps_β=>3, :rng=>rng)
+        m2 = fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:Sestimate, resample=true, resampling_options=opts)
+        @test (scale(m2) / scale(m) - 1) <= 1e-2
     end
 end
 
@@ -63,6 +71,12 @@ end
             println("rlm($name) : ", coef(m))
             ## TODO: find better test
             @test size(coef(m), 1) == 2
+
+            # Resampling
+            rng = MersenneTwister(1)
+            opts = Dict(:Npoints=>10, :Nsteps_β=>3, :Nsteps_σ=>3, :rng=>rng)
+            m2 = fit(RobustLinearModel, form, data, Mest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:MMestimate, sestimator=fallback, resample=true, resampling_options=opts)
+            @test (scale(m2) / scale(m) - 1) <= 1e-2
         end
     end
 end
@@ -85,6 +99,12 @@ end
         println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
+
+        # Resampling
+        rng = MersenneTwister(1)
+        opts = Dict(:Nsteps_β=>3, :Nsteps_σ=>3, :rng=>rng)
+        m2 = fit(RobustLinearModel, form, data, τest; method=:cg, verbose=false, initial_scale_estimate=:mad, kind=:Tauestimate, resample=true, resampling_options=opts)
+        @test (tauscale(m2) / tauscale(m) - 1) <= 1e-2
     end
 end
 

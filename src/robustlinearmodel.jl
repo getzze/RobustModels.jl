@@ -8,6 +8,7 @@ leverage(p::TableRegressionModel)    = leverage(p.model)
 residuals(p::TableRegressionModel)   = residuals(p.model)
 weights(p::TableRegressionModel)     = weights(p.model)
 scale(p::TableRegressionModel)       = scale(p.model)
+tauscale(p::TableRegressionModel)    = tauscale(p.model)
 dispersion(p::TableRegressionModel)  = dispersion(p.model)
 modelmatrix(p::TableRegressionModel) = modelmatrix(p.model)
 fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
@@ -329,7 +330,7 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         ## Change the estimator to an S-Estimator of the same kind
         m.resp.est = SEstimator(Mest)
 
-        ## TODO: Resampling algorithm
+        ## Resampling algorithm to find a starting point close to the global minimum
         if resample
             σ0, β0 = resampling_best_estimate(m, kind; resampling_options...)
         end
@@ -357,7 +358,7 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         Sresp = RobustLinResp(Sest, m.resp.y, m.resp.offset, m.resp.wts, m.resp.σ)
         Sm = RobustLinearModel(Sresp, m.pred, true, m.fitted)
 
-        ## TODO: Resampling algorithm
+        ## Resampling algorithm to find a starting point close to the global minimum
         if resample
             σ0, β0 = resampling_best_estimate(m, :Sestimate; resampling_options...)
         end
@@ -381,9 +382,8 @@ function fit!(m::RobustLinearModel{T}; initial_scale_estimate::Union{Nothing, Sy
         Mest = Estimator(m)
         isa(Mest, TauEstimator) || error("Use a TauEstimator for τ-Estimation: $(Mest)")
         
-        ## TODO: Resampling algorithm
+        ## Resampling algorithm to find a starting point close to the global minimum
         if resample
-            ## TODO: add extract rng key from resampling_options
             σ0, β0 = resampling_best_estimate(m, kind; resampling_options...)
         end
 

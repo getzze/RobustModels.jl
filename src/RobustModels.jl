@@ -65,6 +65,7 @@ export Estimator,
        rlm,
        quantreg,
        scale,
+       tauscale,
        refit!,
        nothing  # stopper
 
