@@ -49,7 +49,7 @@ The same for quantile regression:
 using RDatasets: dataset
 using StatsModels
 using RobustModels
-using RobustModels: HuberEstimator, TukeyEstimator, L2Estimator, TauEstimator
+using RobustModels: HuberEstimator, TukeyEstimator, L2Estimator, YohaiZamarEstimator, TauEstimator
 
 data = dataset("robustbase", "Animals2")
 data.logBrain = log.(data.Brain)
@@ -74,12 +74,16 @@ m5 = fit(RobustLinearModel, form, data, TukeyEstimator(); initial_scale_estimate
 ## τ-estimator using Tukey estimator
 m6 = fit(RobustLinearModel, form, data, TauEstimator(TukeyEstimator); initial_scale_estimate=:mad, kind=:Tauestimate)
 
+## τ-estimator using YohaiZamar estimator and resampling to find the global minimum
+opts = Dict(:Npoints=>10, :Nsteps_β=>3, :Nsteps_σ=>3)
+m7 = fit(RobustLinearModel, form, data, TauEstimator(YohaiZamarEstimator); initial_scale_estimate=:mad, kind=:Tauestimate, resample=true, resampling_options=opts)
+
 ## Expectile regression for τ=0.8
-m7 = fit(RobustLinearModel, form, data, L2Estimator(); quantile=0.8)
-#m7 = fit(RobustLinearModel, form, data, ExpectileEstimator(0.8))
+m8 = fit(RobustLinearModel, form, data, L2Estimator(); quantile=0.8)
+#m8 = fit(RobustLinearModel, form, data, ExpectileEstimator(0.8))
 
 ## Quantile regression solved by linear programming interior point method
-m8 = fit(QuantileRegression, form, data; quantile=0.2)
+m9 = fit(QuantileRegression, form, data; quantile=0.2)
 
 ## Refit with different parameters
 refit!(m8; quantile=0.8)
