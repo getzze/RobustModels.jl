@@ -17,3 +17,7 @@ makedocs(
 #    doctest = :fix,
     debug = false,
 )
+
+deploydocs(
+    repo = "github.com/getzze/RobustModels.jl"
+)

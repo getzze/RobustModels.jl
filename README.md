@@ -1,8 +1,14 @@
 # Robust linear models in Julia
 
-| CI Status | Coverage |
-|:------------------:|:-----------------:|
-| [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+| Documentation | CI Status | Coverage |
+|:-------------------:|:------------------:|:-----------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][travis-img]][travis-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: https://getzze.github.io/RobustModels.jl/dev
+
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://getzze.github.io/RobustModels.jl/stable
 
 [travis-img]: https://img.shields.io/travis/com/getzze/RobustModels.jl?label=Travis&logo=travis
 [travis-url]: https://travis-ci.com/getzze/RobustModels.jl
@@ -119,7 +125,7 @@ where `yᵢ` are the values of the response variable, `𝒙ᵢ` are the covector
 (rows of the model matrix `X`), `𝜷` is the vector of fitted coefficients and `rᵢ` are the individual residuals.
 
 A `RobustLinearModel` solves instead for the following loss function: `L' = Σᵢ ρ(rᵢ)`
-(more precisely `L' = Σᵢ ρ(rᵢ/σ)` where `σ` is an estimate of the standard deviation of the residual).
+(more precisely `L' = Σᵢ ρ(rᵢ/σ)` where `σ` is an (robust) estimate of the standard deviation of the residual).
 Several loss functions are implemented:
 
 - `L2Loss`: `ρ(r) = ½ r²`, like ordinary OLS.
