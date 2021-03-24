@@ -36,6 +36,7 @@ end
     @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (X, y), (sX, y))
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
+        @test_nowarn println(m2)
         @test all(coef(m1) .== coef(m2))
 
         # refit
@@ -54,6 +55,9 @@ end
         @test all(0 .== coef(m3))
         fit!(m3; verbose=false)
         @test all(β .== coef(m3))
+
+        # leverage weights
+        @test_nowarn refit!(m3; correct_leverage=true)
     end
 end
 

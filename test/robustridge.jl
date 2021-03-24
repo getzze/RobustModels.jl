@@ -59,6 +59,7 @@ est2 = MEstimator(loss2)
         
         # refit
         refit!(m5; ridgeλ=1, initial_scale=:L1)
+        @test isapprox(m5.pred.λ, 1.0; rtol=1e-5)
         @test isapprox(coef(m3), coef(m5); rtol=1e-5)
     end
 end

@@ -939,8 +939,8 @@ function update_weight!(E::TauEstimator, res::AbstractArray{T};
             wts::AbstractArray{T}=T[]) where {T<:AbstractFloat}
     c² = (tuning_constant(E.loss2))^2
     E.w = if length(wts) == length(res)
-        w2 = sum(@.( wts*(2*rho(Ref(E.loss2), res)*c² - res * psi(Ref(E.loss2), res)) ))
-        w1 = sum(@.( wts * res * psi(Ref(E.loss1), res) ))
+        w2 = sum(@.( wts*(2*rho(E.loss2, res)*c² - res * psi(E.loss2, res)) ))
+        w1 = sum(@.( wts * res * psi(E.loss1, res) ))
         w2 / w1
     else
         w2 = sum(r-> 2*rho(E.loss2, r)*c² - r*psi(E.loss2, r), res)

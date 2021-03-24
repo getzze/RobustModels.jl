@@ -34,6 +34,7 @@ using RobustModels: rho,
             T{typeloss}
         end
         est = typest()
+        @test_nowarn println(est)
 
         if !isnothing(estimator)
             if estimator == "Tau"

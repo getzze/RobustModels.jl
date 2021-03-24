@@ -239,11 +239,6 @@ end
 
 _objective(r::AbstractFloat, τ::AbstractFloat) = (τ - (r < 0)) * r
 
-function rss(m::QuantileRegression, sqr::Bool=false)
-    s = sum(abs2, m.wrkres)
-    if sqr; s else sqrt(s) end
-end
-
 """
     hall_sheather_bandwidth()
 Optimal bandwidth for sparsity estimation according to Hall and Sheather (1988)
@@ -390,9 +385,13 @@ stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov
 
 weights(m::QuantileRegression{T}) where T<:AbstractFloat = if isempty(m.wts); weights(ones(T, length(m.y))) else weights(m.wts) end
 
+workingweights(m::QuantileRegression) = m.wrkres
+
 response(m::QuantileRegression) = m.y
 
 isfitted(m::QuantileRegression) = m.fitted
+
+islinear(m::QuantileRegression) = true
 
 fitted(m::QuantileRegression) = m.y - m.wrkres
 

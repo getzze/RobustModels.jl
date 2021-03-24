@@ -19,6 +19,8 @@
 fit!(p::TableRegressionModel, args...; kwargs...)   = (fit!(p.model, args...; kwargs...); p)
 refit!(p::TableRegressionModel, args...; kwargs...) = (refit!(p.model, args...; kwargs...); p)
 
+
+
 """
     RobustLinearModel
     
@@ -36,6 +38,14 @@ mutable struct RobustLinearModel{T<:AbstractFloat, R<:RobustResp{T}, L<:LinPred}
     pred::L
     fitdispersion::Bool
     fitted::Bool
+end
+
+function Base.getproperty(r::TableRegressionModel{M}, s::Symbol) where M<:RobustLinearModel
+    if s ∈ (:resp, :pred, :fitdispersion, :fitted)
+        getproperty(r.model, s)
+    else
+        getfield(r, s)
+    end
 end
 
 
@@ -646,7 +656,7 @@ function setη!(m::RobustLinearModel{T}, f::T=1.0; updatescale::Bool=false, kwar
     # Compute and set the predictor η from β0 and ∇β
     linpred!(r.η, p, f)
 
-    # Update the residuals and weights (and scale is updatescale=true)
+    # Update the residuals and weights (and scale if updatescale=true)
     updateres!(r; updatescale=updatescale, kwargs...)
     m
 end
