@@ -2,12 +2,20 @@ using Documenter
 using GLM, StatsBase, SparseArrays, LinearAlgebra
 using RobustModels
 
-prettyurls = get(ENV, "CI", nothing) == "true"
+DocMeta.setdocmeta!(RobustModels, :DocTestSetup, :(using RobustModels); recursive=true)
+
+prettyurls = get(ENV, "CI", "false") == "true"
 
 makedocs(
-    format = Documenter.HTML(prettyurls=prettyurls),
     sitename = "RobustModels",
     modules = [RobustModels, GLM, StatsBase],
+    authors="Bertrand Lacoste <bertrand.lacoste@gmail.com>",
+    repo="https://github.com/getzze/RobustModels.jl/blob/{commit}{path}#{line}",
+    format = Documenter.HTML(;
+        prettyurls=prettyurls,
+        canonical="https://getzze.github.io/RobustModels.jl",
+        assets=String[],
+    ),
     pages = [
         "Home" => "index.md",
         "manual.md",
