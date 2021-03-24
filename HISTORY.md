@@ -1,3 +1,10 @@
+v0.3.0 (2021-03-22)
+-------------------
+* BREAKING: Implement the loss functions as subclasses of `LossFunction` and estimators as subclasses of `AbstractEstimator`.
+The `kind` keyword argument is not used anymore, instead use `rlm(form, data, MMEstimator{TukeyLoss}(); initial_scale=:L1)`
+* Implement Robust Ridge regression by using the keyword argument `ridgeλ` (and `ridgeG` and `βprior` for more general penalty).
+* Add documentation.
+
 v0.2.0 (2020-06-04)
 -------------------
 * τ-Estimator

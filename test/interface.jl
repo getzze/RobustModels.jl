@@ -2,8 +2,10 @@
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
 
-est1 = RobustModels.L2Estimator()
-est2 = RobustModels.TukeyEstimator()
+loss1 = RobustModels.L2Loss()
+loss2 = RobustModels.TukeyLoss()
+est1 = MEstimator(loss1)
+est2 = MEstimator(loss2)
 
 funcs = ( dof,
           dof_residual,
@@ -20,8 +22,15 @@ funcs = ( dof,
           predict,
           response,
           weights,
+          workingweights,
+          fitted,
+          predict,
+          isfitted,
+          islinear,
           leverage,
           modelmatrix,
+          projectionmatrix,
+          Estimator,
           scale
         )
 
@@ -38,23 +47,23 @@ funcs = ( dof,
         name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
         name *= if method==:cg; ",  cg" else ",chol" end
         # use the dispersion from GLM to ensure that the loglikelihood is correct
-        m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale_estimate=λlm)
+        m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm)
         β = copy(coef(m))
         println("rlm($name): ", β)
-        println(m)
+        @test_nowarn println(m)
         @test isapprox(coef(m1), β; rtol=1e-5)
 
         # refit
-        refit!(m, y; verbose=false, initial_scale_estimate=:extrema)
+        refit!(m, y; verbose=false, initial_scale=:extrema)
         println("$m")
         @test all(coef(m) .== β)
         
-        # interface
+        # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
-            # make sure the interfaces for RobustLinearModel are well defined
-            if f in (weights, leverage, modelmatrix, scale)
+            if f in (Estimator, weights, workingweights, islinear, isfitted,
+                     leverage, modelmatrix, projectionmatrix, scale)
                 # method is not defined in GLM
-                robvar = f(m)
+                @test_nowarn f(m)
             else
                 var = f(m1)
                 robvar = f(m)
@@ -84,10 +93,14 @@ funcs = ( dof,
             end
         end
         
+        # TauEstimator interface
+        m3 = fit(RobustLinearModel, A, b, TauEstimator{TukeyLoss}(); method=method, initial_scale=λlm)
+        @test_nowarn tauscale(m3)
+
         # later fit!
         m2 = fit(RobustLinearModel, A, b, est1; method=method, dofit=false)
         @test all(0 .== coef(m2))
-        fit!(m2; verbose=false, initial_scale_estimate=:mad)
+        fit!(m2; verbose=false, initial_scale=:mad)
         @test all(β .== coef(m2))
     end
 end

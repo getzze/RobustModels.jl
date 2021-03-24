@@ -7,8 +7,11 @@ import GLPK
 
 """
     QuantileRegression
+    
 Quantile regression representation
+
 ## Fields
+
 * `τ`: the quantile value
 * `X`: the model matrix
 * `β`: the coefficients
@@ -50,17 +53,51 @@ end
 
 """
     quantreg(X, y, args...; kwargs...)
-An alias for `fit(QuantileRegression, X, y)`
+    
+An alias for `fit(QuantileRegression, X, y; kwargs...)`.
+
 The arguments `X` and `y` can be a `Matrix` and a `Vector` or a `Formula` and a `DataFrame`.
 """
 quantreg(X, y, args...; kwargs...) = fit(QuantileRegression, X, y, args...; kwargs...)
 
 
-function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
-             y::AbstractVector{T}; quantile::AbstractFloat=0.5,
-             dofit::Bool          = true,
-             weights::FPVector    = similar(y, 0),
-             fitdispersion::Bool  = false,
+"""
+    fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+        y::AbstractVector{T}; quantile::AbstractFloat=0.5,
+        dofit::Bool          = true,
+        wts::FPVector        = similar(y, 0),
+        fitdispersion::Bool  = false,
+        fitargs...) where {M<:QuantileRegression, T<:AbstractFloat}
+
+Fit a quantile regression model with the model matrix (or formula) X and response vector (or dataframe) y.
+
+It is solved using the exact interior method.
+
+# Arguments
+
+- `X`: the model matrix (it can be dense or sparse) or a formula
+- `y`: the response vector or a dataframe.
+
+# Keywords
+
+- `quantile::AbstractFloat=0.5`: the quantile value for the regression, between 0 and 1.
+- `dofit::Bool = true`: if `false`, return the model object without fitting;
+- `wts::Vector = []`: a weight vector, should be empty if no weights are used;
+- `fitdispersion::Bool = false`: reevaluate the dispersion;
+- `fitargs...`: other keyword arguments like `verbose` to print iteration details.
+
+# Output
+
+the RobustLinearModel object.
+
+"""
+function fit(::Type{M},
+             X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+             y::AbstractVector{T};
+             quantile::AbstractFloat = 0.5,
+             dofit::Bool             = true,
+             wts::FPVector           = similar(y, 0),
+             fitdispersion::Bool     = false,
              fitargs...) where {M<:QuantileRegression, T<:AbstractFloat}
 
     # Check that X and y have the same number of observations
@@ -71,7 +108,7 @@ function fit(::Type{M}, X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     # Check quantile is an allowed value
     (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
 
-    m = QuantileRegression(quantile, X, y, weights)
+    m = QuantileRegression(quantile, X, y, wts)
     return if dofit; fit!(m; fitargs...) else m end
 end
 
@@ -83,10 +120,9 @@ end
 
 """
     refit!(m::QuantileRegression, [y::FPVector ; verbose::Bool=false, quantile::Union{Nothing, AbstractFloat}=nothing])
-Optimize the objective of a `RobustLinearModel`.  When `verbose` is `true` the values of the
-objective and the parameters are printed on stdout at each function evaluation.
-This function assumes that `m` was correctly initialized and the model is refitted with
-the new values for the response, weights and quantile.
+    
+Refit the `QuantileRegression` model with the new values for the response, weights and quantile.
+This function assumes that `m` was correctly initialized.
 """
 function refit!(m::QuantileRegression, y::FPVector; kwargs...)
     # Update y
@@ -122,9 +158,15 @@ end
 
 
 """
-    fit!(m::QuantileRegression[; verbose::Bool=false, correct_leverage::Bool=false])
+    fit!(m::QuantileRegression;
+         verbose::Bool=false,
+         quantile::Union{Nothing, AbstractFloat}=nothing,
+         correct_leverage::Bool=false,
+         kwargs...)
+    
 Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the values of the
 objective and the parameters are printed on stdout at each function evaluation.
+
 This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
@@ -286,13 +328,15 @@ quantile densities and density quantiles.
 
 """
 function sparcity(m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov)
+    u = m.τ
+    n = nobs(m)
     ## Select the optimal bandwidth from different methods
     h = if bw_method==:jones
-        jones_bandwidth(m.τ, nobs(m); kernel=kernel)
+        jones_bandwidth(u, n; kernel=kernel)
     elseif bw_method==:bofinger
-        bofinger_bandwidth(m.τ, nobs(m))
+        bofinger_bandwidth(u, n)
     elseif bw_method==:hall_sheather
-        hall_sheather_bandwidth(m.τ, nobs(m), α)
+        hall_sheather_bandwidth(u, n, α)
     else
         error("only :jones, :bofinger and :hall_sheather methods for estimating the optimal bandwidth are allowed: $(bw_method)")
     end
@@ -307,8 +351,7 @@ function sparcity(m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05
     else
         error("only :epanechnikov, :triangle and :window kernels are allowed: $(kernel)")
     end
-    u = m.τ
-    n = nobs(m)
+
     r = sort(residuals(m))
 
     s0 = 0
