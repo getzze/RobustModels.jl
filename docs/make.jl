@@ -2,7 +2,7 @@ using Documenter
 using GLM, StatsBase, SparseArrays, LinearAlgebra
 using RobustModels
 
-DocMeta.setdocmeta!(RobustModels, :DocTestSetup, :(using RobustModels); recursive=true)
+DocMeta.setdocmeta!(RobustModels, :DocTestSetup, :(using RobustModels, StatsBase, GLM); recursive=true)
 
 prettyurls = get(ENV, "CI", "false") == "true"
 
