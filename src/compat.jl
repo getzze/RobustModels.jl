@@ -4,6 +4,7 @@
 @static if VERSION < v"1.1.0-DEV.472"
     isnothing(::Any) = false
     isnothing(::Nothing) = true
+    export isnothing
 end
 
 # https://github.com/JuliaLang/julia/pull/32148
