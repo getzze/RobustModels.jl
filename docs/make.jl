@@ -7,14 +7,14 @@ DocMeta.setdocmeta!(RobustModels, :DocTestSetup, :(using RobustModels, StatsBase
 prettyurls = get(ENV, "CI", "false") == "true"
 
 makedocs(
-    sitename = "RobustModels",
     modules = [RobustModels, GLM, StatsBase],
+    sitename = "RobustModels",
     authors="Bertrand Lacoste <bertrand.lacoste@gmail.com>",
     repo="https://github.com/getzze/RobustModels.jl/blob/{commit}{path}#{line}",
     format = Documenter.HTML(;
         prettyurls=prettyurls,
         canonical="https://getzze.github.io/RobustModels.jl",
-        assets=String[],
+        assets = ["assets/favicon.ico"],
     ),
     pages = [
         "Home" => "index.md",

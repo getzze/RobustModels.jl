@@ -39,9 +39,11 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-      - uses: julia-actions/julia-uploadcoveralls@v1
+      - name: Coveralls
+        run: julia --project -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
         env:
           COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+        continue-on-error: true
   docs:
     name: Documentation
     runs-on: ubuntu-latest
