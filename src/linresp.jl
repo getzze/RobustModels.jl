@@ -72,16 +72,14 @@ Create a response structure by copying the value of `y` to the mean `μ`.
 
 """
 function RobustLinResp(est::M, y::V, off::V, wts::V, σ::Real=1) where {V<:FPVector, M<:AbstractEstimator}
-    T = eltype(y)
-    r = RobustLinResp{T,V,M}(est, y, similar(y), off, wts, float(σ))
+    r = RobustLinResp{eltype(y),V,M}(est, y, similar(y), off, wts, float(σ))
     initresp!(r)
     return r
 end
 
 function initresp!(r::RobustResp{T}) where {T}
     # Set μ to 0
-    μ0 = 0
-    fill!(r.μ, μ0)
+    fill!(r.μ, 0)
 
     # Reset the factor of the TauEstimator
     if isa(r.est, TauEstimator)
@@ -92,8 +90,11 @@ function initresp!(r::RobustResp{T}) where {T}
     broadcast!(-, r.wrkres, r.y, r.μ)
 
     # Set working weights to the data weights
-    initwt = if !isempty(r.wts); r.wts else ones(T, size(r.y)) end
-    copyto!(r.wrkwt, initwt)
+    if !isempty(r.wts)
+        copyto!(r.wrkwt, r.wts)
+    else
+        fill!(r.wrkwt, 1)
+    end
 end
 
 
@@ -260,9 +261,10 @@ function _updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVe
     y, μ, σ, devresid = r.y, r.μ, r.σ, r.devresid
     wrkres, wrkscaledres, wrkwt = r.wrkres, r.wrkscaledres, r.wrkwt
 
+    invσ = inv(σ) # reduce #allocations using * instead of /.
     @inbounds for i in eachindex(y, μ, wrkres, wrkscaledres, wrkwt, devresid)
-        wrkres[i] = y[i] - μ[i]
-        wrkscaledres[i] = wrkres[i]/σ
+        wrkscaledres[i] = wrkres[i] = y[i] - μ[i]
+        wrkscaledres[i] *= invσ
         wrkwt[i] = weight(r.est, wrkscaledres[i])
         devresid[i] = 2*rho(r.est, wrkscaledres[i])
     end
@@ -272,7 +274,6 @@ function _updateres!(r::RobustLinResp{T, V, M}) where {T<:AbstractFloat, V<:FPVe
         broadcast!(*, r.devresid, r.devresid, r.wts)
         broadcast!(*, r.wrkwt, r.wrkwt, r.wts)
     end
-
 end
 
 
@@ -295,8 +296,9 @@ function _updateres_and_scale!(r::RobustLinResp{T, V, M}; kwargs...) where {T<:A
     updatescale!(r; kwargs...)
 
     # Third pass, compute the scaled residuals, weights and deviance residuals
+    invσ = inv(r.σ) # reduce #allocations using * instead of /.
     @inbounds for i in eachindex(wrkres, wrkscaledres, wrkwt, devresid)
-        wrkscaledres[i] = wrkres[i]/r.σ
+        wrkscaledres[i] = wrkres[i]*invσ
         wrkwt[i] = weight(r.est, wrkscaledres[i])
         devresid[i] = 2*rho(r.est, wrkscaledres[i])
     end
@@ -328,8 +330,9 @@ function _updateres_and_scale!(r::RobustLinResp{T, V, M}; kwargs...) where {T<:A
     updatescale!(r; kwargs..., sigma0=:mad)
 
     # Third pass, compute the scaled residuals
+    invσ = inv(r.σ) # reduce #allocations using * instead of /.
     @inbounds for i in eachindex(wrkres, wrkscaledres)
-        wrkscaledres[i] = wrkres[i]/r.σ
+        wrkscaledres[i] = wrkres[i]*invσ
     end
 
     # Fourth pass, compute the weights of the τ-estimator

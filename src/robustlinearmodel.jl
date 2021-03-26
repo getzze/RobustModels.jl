@@ -695,28 +695,27 @@ function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=3
 
     # Compute initial deviance
     devold = deviance(m)
+    absdev = abs(devold)
+    dev = devold
+    Δdev = 0
 
     verbose && println("initial deviance: $(@sprintf("%.4g", devold))")
     for i = 1:maxiter
         f = 1.0 # line search factor
-        local dev
+#        local dev
         absdev = abs(devold)
 
         # Compute the change to β, update μ and compute deviance
-        try
-            dev = deviance(setη!(m; updatescale=false))
+        dev = try
+            deviance(setη!(m; updatescale=false))
         catch e
-            if isa(e, DomainError)
-                dev = Inf
-            else
-                rethrow(e)
-            end
+            isa(e, DomainError) ? Inf : rethrow(e)
         end
 
         # Assert the deviance is positive (up to rounding error)
         @assert dev > -atol
 
-        verbose && println("deviance at step $i: $(@sprintf("%.4g", dev)), crit=$((devold - dev)/abs(devold))")
+        verbose && println("deviance at step $i: $(@sprintf("%.4g", dev)), crit=$((devold - dev)/absdev)")
 
         # Line search
         ## If the deviance isn't declining then half the step size
@@ -726,15 +725,11 @@ function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=3
             f /= 2
             f > minstepfac || error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
 
-            try
+            dev = try
                 # Update μ and compute deviance with new f. Do not recompute ∇β
-                dev = deviance(setη!(m, f))
+                deviance(setη!(m, f))
             catch e
-                if isa(e, DomainError)
-                    dev = Inf
-                else
-                    rethrow(e)
-                end
+                isa(e, DomainError) ? Inf : rethrow(e)
             end
         end
         installbeta!(p, f)
