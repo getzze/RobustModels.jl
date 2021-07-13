@@ -60,6 +60,15 @@ For quantile regression, use `quantreg`:
 
 `m = quantreg(X, y; quantile=0.5)`
 
+For robust version of `mean`, `std`, `var` and `sem` statistics, specify the estimator as first argument.
+Use the `dims` keyword for computing the statistics along specific dimensions.
+The following functions are also implemented: `mean_and_std`, `mean_and_var` and `mean_and_sem`.
+
+`xm = mean(MEstimator{HuberLoss}(), x; dims=2)`
+
+`(xm, sm) = mean_and_std(TauEstimator{YohaiZamarLoss}(), x)`
+
+
 ## Examples
 
 ```julia

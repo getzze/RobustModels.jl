@@ -27,7 +27,8 @@ import Base: ==, show, broadcastable
 import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
 import StatsBase: fit, fit!, deviance, nulldeviance, nobs, weights, Weights, confint,
                   dof, dof_residual, loglikelihood, nullloglikelihood, stderror,
-                  vcov, residuals, predict, response, islinear, fitted, isfitted
+                  vcov, residuals, predict, response, islinear, fitted, isfitted,
+                  mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels: @delegate, @formula, RegressionModel, coef, coeftable, CoefTable, leverage, modelmatrix, TableRegressionModel
 
 ## Reexports
@@ -57,6 +58,12 @@ export coef,
        leverage,
        quantile,
        @formula,
+       mean,
+       var,
+       std,
+       sem,
+       mean_and_std,
+       mean_and_var,
        nothing  # stopper
 
 
@@ -102,6 +109,7 @@ export LossFunction,
        workingweights,
        scale,
        tauscale,
+       mean_and_sem,
        nothing  # stopper
 
 
@@ -153,6 +161,7 @@ include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")
 include("linresp.jl")
+include("univariate.jl")
 include("quantileregression.jl")
 
 end # module
