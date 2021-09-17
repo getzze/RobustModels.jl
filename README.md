@@ -2,7 +2,7 @@
 
 | Documentation | CI Status | Coverage |
 |:-------------------:|:------------------:|:-----------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][CI-img]][CI-url] | [![][coveralls-img]][coveralls-url] [![][codecov-img]][codecov-url] |
+| [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] | [![][CI-img]][CI-url] | [![][codecov-img]][codecov-url] |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://getzze.github.io/RobustModels.jl/dev
@@ -12,9 +12,6 @@
 
 [CI-img]: https://github.com/getzze/RobustModels.jl/workflows/CI/badge.svg
 [CI-url]: https://github.com/getzze/RobustModels.jl/actions
-
-[coveralls-img]: https://img.shields.io/coveralls/github/getzze/RobustModels.jl?label=Coveralls&logo=coveralls
-[coveralls-url]: https://coveralls.io/github/getzze/RobustModels.jl?branch=master
 
 [codecov-img]: https://img.shields.io/codecov/c/github/getzze/RobustModels.jl?label=Codecov&logo=codecov
 [codecov-url]: https://codecov.io/gh/getzze/RobustModels.jl/branch/master
