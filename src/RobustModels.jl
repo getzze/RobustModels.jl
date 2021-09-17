@@ -19,8 +19,7 @@ using StatsBase: mean, mad, ConvergenceException, sample, quantile
 using IterativeSolvers: lsqr!, cg!
 #using Roots: find_zero, Order1, ConvergenceFailed
 #using QuadGK: quadgk
-#using JuMP: Model, @variable, @constraint, @objective, optimize!, value
-#import GLPK
+#import Tulip
 
 
 import Base: ==, show, broadcastable

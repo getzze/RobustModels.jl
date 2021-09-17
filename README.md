@@ -196,9 +196,9 @@ _Quantile regression_ results from minimizing the following objective function:
 where `wᵢ = ifelse(rᵢ>0, τ, 1-τ)` and `τ` is the quantile of interest. `τ=0.5` corresponds to _Least Absolute Deviations_.
 
 This problem is solved exactly using linear programming techniques,
-specifically, interior point methods using the [JuMP](https://github.com/JuliaOpt/JuMP.jl)
-package with the [GLPK](https://github.com/JuliaOpt/GLPK.jl) backend.
-
+specifically, interior point methods using the internal API of [Tulip](https://github.com/ds4dm/Tulip.jl).
+The internal API is considered unstable, but it results in a much lighter dependency than
+including the [JuMP](https://github.com/JuliaOpt/JuMP.jl) package with Tulip backend.
 
 ## Credits
 

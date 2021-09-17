@@ -71,7 +71,8 @@ end
         β = coef(m1)
         res = residuals(m1)
         ## The quantile regression line exactly passes through p points, with p number of columns of X.
-        @test count(iszero, res) == length(β)
+        @test count(x->isapprox(x, 0; atol=1e-7), res) == length(β)
+#        @test count(iszero, res) == length(β)
 
         # refit with new quantile
         refit!(m2; quantile=τ)

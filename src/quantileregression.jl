@@ -1,8 +1,6 @@
 
 
-using JuMP: Model, @variable, @constraint, @objective, optimize!, value
-import GLPK
-
+import Tulip
 
 
 """
@@ -202,19 +200,33 @@ function interiormethod(X, y, τ; kwargs...)
     interiormethod!(zeros(T, p), zeros(T, n), X, y, τ; kwargs...)
 end
 
-
 function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
-    model = Model(GLPK.Optimizer)
+    model = Tulip.Model{Float64}()
+    pb = model.pbdata  # Internal problem data
 
     n, p = size(X)
 
-    @variable(model, β[1:p])
-    @variable(model, u[1:n] >= 0)
-    @variable(model, v[1:n] >= 0)
+    # Define variables
+    β = Vector{Int}(undef, p)
+    u = Vector{Int}(undef, n)
+    v = Vector{Int}(undef, n)
+    for i in 1:p
+        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0 , -Inf , Inf , "β$i")
+    end
+    for i in 1:n
+        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ   ,  0.0 , Inf , "u$i")
+    end
+    for i in 1:n
+        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1-τ ,  0.0 , Inf , "v$i")
+    end
+#    @variable(model, β[1:p])
+#    @variable(model, u[1:n] >= 0)
+#    @variable(model, v[1:n] >= 0)
 
-    e = ones(n)
-
-    @objective(model, Min, τ*dot(e, u) + (1-τ)*dot(e, v) )
+    # Define objective
+    # Nothing to do, already defined with the variables
+#    e = ones(n)
+#    @objective(model, Min, τ*dot(e, u) + (1-τ)*dot(e, v) )
 
     Wy, WX = if isempty(wts)
         y, X
@@ -222,12 +234,23 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
         (wts .* y), (wts .* X)
     end
 
-    @constraint(model, resid, Wy .== WX * β + u - v)
+    # Define constraints
+    resid = Vector{Int}(undef, n)
+    for i in 1:n
+        ci = vcat(β, [u[i], v[i]])
+        # Call Vector to transform to dense vector
+        cci = vcat(Vector(WX[i, :]), [1.0, -1.0])
+        vi = Wy[i]
+        resid[i] = Tulip.add_constraint!(pb, ci, cci, vi, vi, "resid$i")
+    end
+#    @constraint(model, resid, Wy .== WX * β + u - v)
 
-    optimize!(model)
+    Tulip.optimize!(model)
 
-    copyto!(βout, value.(β))
-    copyto!(rout, value.(u) - value.(v))
+    copyto!(βout, model.solution.x[β])
+    copyto!(rout, model.solution.x[u] - model.solution.x[v])
+#    copyto!(βout, value.(β))
+#    copyto!(rout, value.(u) - value.(v))
 
     if verbose
         println("coef: ", βout)
@@ -235,7 +258,6 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     end
     βout, rout
 end
-
 
 _objective(r::AbstractFloat, τ::AbstractFloat) = (τ - (r < 0)) * r
 
