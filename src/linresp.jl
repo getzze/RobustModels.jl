@@ -77,6 +77,16 @@ function RobustLinResp(est::M, y::V, off::V, wts::V, σ::Real=1) where {V<:FPVec
     return r
 end
 
+"""
+    RobustLinResp(est::M, y, off, wts) where {M<:AbstractEstimator}
+
+Convert the arguments to float arrays
+"""
+function RobustLinResp(est::M, y, off, wts) where {M<:AbstractEstimator}
+    RobustLinResp(est, float(collect(y)), float(collect(off)), float(collect(wts)), float(1))
+end
+
+
 function initresp!(r::RobustResp{T}) where {T}
     # Set μ to 0
     fill!(r.μ, 0)

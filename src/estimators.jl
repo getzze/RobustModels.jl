@@ -578,7 +578,7 @@ function scale_estimate(l::L, res::AbstractArray{T};
 
         ε = σnp1/σn
         σn = σnp1
-        if abs(ε) < rtol
+        if abs(ε-1) < rtol
             verbose && println("M-scale converged after $(n) steps.")
             converged = true
             break

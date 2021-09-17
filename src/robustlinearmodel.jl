@@ -578,9 +578,9 @@ function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::Abstrac
     allowed_methods = (:mad, :extrema, :L1)
     if method == :mad
         σ = if length(wts) == length(y)
-            factor*mad(wts .* abs.(y); normalize=true)
+            factor*mad(wts .* y; normalize=true)
         else
-            factor*mad(abs.(y); normalize=true)
+            factor*mad(y; normalize=true)
         end
     elseif method == :L1
         X = modelmatrix(m)
