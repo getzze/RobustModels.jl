@@ -1,3 +1,9 @@
+v0.4.0 (2021-09-17)
+-------------------
+* Drop the heavy `JuMP` dependency and use `Tulip` with the unstable internal API instead.
+* Add univariate robust functions: `mean`, `std`, `var`, `sem`, `mean_and_std`, `mean_and_var` and `mean_and_sem`.
+* Small bug corrections.
+
 v0.3.0 (2021-03-22)
 -------------------
 * BREAKING: Implement the loss functions as subclasses of `LossFunction` and estimators as subclasses of `AbstractEstimator`.

@@ -1,10 +1,9 @@
 name = "RobustModels"
 uuid = "d6ea1423-9682-4bbd-952f-b1577cbf8c98"
 authors = ["bertrand <bertrand.lacoste@gmail.com>"]
-version = "0.3.0"
+version = "0.4.0"
 
 [deps]
-Coverage = "a2441757-f6aa-5fb2-8edb-039e3f45d037"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Future = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"

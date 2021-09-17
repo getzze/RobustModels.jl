@@ -11,7 +11,7 @@ jobs:
       matrix:
         version:
           - '1.0'
-          - '1.6'
+          - '1'  # latest stable 1.x release
           - 'nightly'
         os:
           - ubuntu-latest
@@ -39,10 +39,10 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-      - name: Coveralls
-        run: julia --project -e 'import Pkg; Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'
-        env:
-          COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      - name: Coveralls GitHub Action
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
   docs:
     name: Documentation
