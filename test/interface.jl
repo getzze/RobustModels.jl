@@ -57,7 +57,7 @@ funcs = ( dof,
         refit!(m, y; verbose=false, initial_scale=:extrema)
         println("$m")
         @test all(coef(m) .== β)
-        
+
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
             if f in (Estimator, weights, workingweights, islinear, isfitted,
@@ -78,7 +78,7 @@ funcs = ( dof,
                         @test var == robvar
                     elseif f in (deviance, nulldeviance)
                         s = scale(m)
-                        ## the deviance in RobustModels is the scaled deviance (divided by 
+                        ## the deviance in RobustModels is the scaled deviance (divided by
                         ## the squared dispersion), whereas in GLM it is not.
                         @test isapprox(var, robvar * s^2; rtol=1e-4)
                     elseif f in (loglikelihood, nullloglikelihood)
@@ -92,7 +92,7 @@ funcs = ( dof,
                 end
             end
         end
-        
+
         # TauEstimator interface
         m3 = fit(RobustLinearModel, A, b, TauEstimator{TukeyLoss}(); method=method, initial_scale=λlm)
         @test_nowarn tauscale(m3)

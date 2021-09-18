@@ -64,7 +64,7 @@ end
 
 """
     SparsePredChol{T<:BlasReal} <: LinPred
-    
+
 A LinPred type with a sparse Cholesky factorization of X'X
 
 # Members
@@ -333,10 +333,10 @@ function delbeta!(p::RidgePred{T}, r::AbstractVector{T}, wt::AbstractVector{T}) 
 #    yprior = sqrt(p.λ/2) * p.G * (p.βprior - p.pred.beta0)
     broadcast!(-, p.scratchbeta, p.βprior, p.pred.beta0)
     @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrthalfλ, 0)
-    
+
     # Fill weights
     copyto!(p.scratchwt, wt)
-     
+
     # Compute Δβₙ from (XᵀWₙX + λGᵀG)⁻¹ (XᵀWₙrₙ + λGᵀG(βprior - βₙ))
     delbeta!(p.pred, p.scratchy, p.scratchwt)
 

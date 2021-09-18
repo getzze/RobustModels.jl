@@ -43,13 +43,13 @@ end
         β = copy(coef(m2))
         refit!(m2, y; quantile=τ, verbose=false)
         @test all(coef(m2) .== β)
-        
+
         # interface
         @testset "interface method: $(f)" for f in funcs
             # make sure the method is defined
             robvar = f(m1)
         end
-        
+
         # later fit!
         m3 = fit(QuantileRegression, A, b; quantile=τ, dofit=false)
         @test all(0 .== coef(m3))

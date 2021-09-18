@@ -56,7 +56,7 @@ est2 = MEstimator(loss2)
 
         # Test printing the model
         @test_nowarn println(m3)
-        
+
         # refit
         refit!(m5; ridgeλ=1, initial_scale=:L1)
         @test isapprox(m5.pred.λ, 1.0; rtol=1e-5)

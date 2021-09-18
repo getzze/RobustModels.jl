@@ -23,7 +23,7 @@ refit!(p::TableRegressionModel, args...; kwargs...) = (refit!(p.model, args...; 
 
 """
     RobustLinearModel
-    
+
 Robust linear model representation
 
 ## Fields
@@ -96,7 +96,7 @@ islinear(m::RobustLinearModel) = true
 
 """
     deviance(m::RobustLinearModel)
-    
+
 The sum of twice the loss/objective applied to the scaled residuals.
 
 It is consistent with the definition of the deviance for OLS.
@@ -107,7 +107,7 @@ nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp)
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
-    
+
 The dispersion is the (weighted) sum of robust residuals. If `sqr` is true, return the squared dispersion.
 """
 dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
@@ -119,7 +119,7 @@ coef(m::RobustLinearModel) = coef(m.pred)
 
 """
     Estimator(m::RobustLinearModel)
-    
+
 The robust estimator object used to fit the model.
 """
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
@@ -134,7 +134,7 @@ weights(m::RobustLinearModel) = weights(m.resp)
 
 """
     workingweights(m::RobustLinearModel)
-    
+
 The robust weights computed by the model.
 
 This can be used to detect outliers, as outliers weights are lower than the
@@ -152,7 +152,7 @@ residuals(m::RobustLinearModel) = residuals(m.resp)
 
 """
     scale(m::RobustLinearModel, sqr::Bool=false)
-    
+
 The robust scale estimate used for the robust estimation.
 
 If `sqr` is `true`, the square of the scale is returned.
@@ -161,7 +161,7 @@ scale(m::RobustLinearModel, sqr::Bool=false) = scale(m.resp, sqr)
 
 """
     tauscale(m::RobustLinearModel, sqr::Bool=false; kwargs...)
-    
+
 The robust τ-scale that is minimized in τ-estimation.
 
 If `sqr` is `true`, the square of the τ-scale is returned.
@@ -185,7 +185,7 @@ predict(m::RobustLinearModel) = fitted(m)
 
 """
     rlm(X, y, args...; kwargs...)
-    
+
 An alias for `fit(RobustLinearModel, X, y, est; kwargs...)`.
 
 The arguments `X` and `y` can be a `Matrix` and a `Vector` or a `Formula` and a `DataFrame`.
@@ -209,8 +209,8 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
         quantile::Union{Nothing, AbstractFloat} = nothing,
         initial_scale::Union{Symbol, Real}=:mad,
         σ0::Union{Nothing, Symbol, Real}=initial_scale,
-        initial_coef::AbstractVector=[], 
-        β0::AbstractVector=initial_coef, 
+        initial_coef::AbstractVector=[],
+        β0::AbstractVector=initial_coef,
         correct_leverage::Bool=false
         fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
 
@@ -239,7 +239,7 @@ using a robust estimator.
 - `σ0::Union{Nothing, Symbol, Real}=initial_scale`: alias of `initial_scale`;
 - `initial_coef::AbstractVector=[]`: the initial coefficients estimate, for non-convex estimator it helps to find the global minimum.
 - `β0::AbstractVector=initial_coef`: alias of `initial_coef`;
-- `correct_leverage::Bool=false`: apply the leverage correction weights with [`leverage_weights`](@ref). 
+- `correct_leverage::Bool=false`: apply the leverage correction weights with [`leverage_weights`](@ref).
 - `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm (see [`pirls!`](@ref)).
 
 # Output
@@ -317,7 +317,7 @@ end
                                  quantile::Union{Nothing, AbstractFloat} = nothing,
                                  ridgeλ::Union{Nothing, Real} = nothing,
                                  kwargs...)
-    
+
 Refit the [`RobustLinearModel`](@ref).
 
 This function assumes that `m` was correctly initialized and the model is refitted with
@@ -335,7 +335,7 @@ function refit!(m::RobustLinearModel, y::FPVector; kwargs...)
     end
     # Update y
     copyto!(r.y, y)
-    
+
     refit!(m; kwargs...)
 end
 
@@ -389,10 +389,10 @@ end
 """
     fit!(m::RobustLinearModel; initial_scale::Union{Symbol, Real}=:mad,
               σ0::Union{Nothing, Symbol, Real}=initial_scale,
-              initial_coef::AbstractVector=[], 
-              β0::AbstractVector=initial_coef, 
+              initial_coef::AbstractVector=[],
+              β0::AbstractVector=initial_coef,
               correct_leverage::Bool=false, kwargs...)
-    
+
 Optimize the objective of a `RobustLinearModel`.  When `verbose` is `true` the values of the
 objective and the parameters are printed on stdout at each iteration.
 
@@ -403,8 +403,8 @@ This function returns early if the model was already fitted, instead call `refit
 function fit!(m::RobustLinearModel;
               initial_scale::Union{Symbol, Real}=:mad,
               σ0::Union{Nothing, Symbol, Real}=initial_scale,
-              initial_coef::AbstractVector=[], 
-              β0::AbstractVector=initial_coef, 
+              initial_coef::AbstractVector=[],
+              β0::AbstractVector=initial_coef,
               correct_leverage::Bool=false,
               kwargs...)
 
@@ -429,7 +429,7 @@ function fit!(m::RobustLinearModel;
     m
 end
 
-## Error message 
+## Error message
 function _fit!(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:AbstractEstimator}
     allowed_estimators = (MEstimator, SEstimator, MMEstimator, TauEstimator, GeneralizedQuantileEstimator)
     error("only types $(allowed_estimators) are allowed, you must define the `_fit!` method for the type: $(E)")
@@ -478,14 +478,14 @@ function _fit!(m::RobustLinearModel, ::Type{E};
     if resample
         σ0, β0 = resampling_best_estimate(m, E; resampling_options...)
     end
-    
+
     verbose && println("\nFit with S-estimator: $(Estimator(m))")
     ## Minimize the objective
     pirls_Sestimate!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
-    
+
     m
 end
 
@@ -500,7 +500,7 @@ function _fit!(m::RobustLinearModel, ::Type{E};
 
     ## Set the S-Estimator for robust estimation of σ and β0
     set_SEstimator(Estimator(m.resp))
-    
+
     ## Resampling algorithm to find a starting point close to the global minimum
     if resample
         σ0, β0 = resampling_best_estimate(m, E; resampling_options...)
@@ -523,7 +523,7 @@ function _fit!(m::RobustLinearModel, ::Type{E};
 
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
-    
+
     m
 end
 
@@ -547,7 +547,7 @@ function _fit!(m::RobustLinearModel, ::Type{E};
 
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
-    
+
     m
 end
 
@@ -979,8 +979,8 @@ function resampling_best_estimate(m::RobustLinearModel, ::Type{E};
         Npoints = dof(m)
     end
     Nsubsamples = min(Nsubsamples, Nsamples)
-    
-    
+
+
     verbose && println("Start $(Nsamples) subsamples...")
     σis = zeros(Nsamples)
     βis = zeros(dof(m), Nsamples)
@@ -997,11 +997,11 @@ function resampling_best_estimate(m::RobustLinearModel, ::Type{E};
         setinitη!(m)
         # Initialize σ as mad(residuals)
         setinitσ!(m)
-       
+
         σi = 0
         for k in 1:Nsteps_β
             setη!(m; updatescale=true, verbose=verbose, sigma0=:mad, nmax=Nsteps_σ, approx=true)
-            
+
             σi = if E <: TauEstimator
                 tauscale(m)
             else # if E <: Union{SEstimator, MMEstimator}

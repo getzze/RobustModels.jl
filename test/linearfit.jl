@@ -27,7 +27,7 @@ est2 = MEstimator(loss2)
     if name != "L1"
         @test isapprox(coef(m2), coef(m3); rtol=1e-5)
     end
-    
+
     # refit
     β2 = copy(coef(m2))
     refit!(m2, y; wts=weights(m2), verbose=false, initial_scale=:mad)

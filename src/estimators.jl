@@ -422,7 +422,7 @@ estimator_high_breakdown_point_constant( ::Type{TukeyLoss}) = 1.5476
 
 """
 The non-convex (and bounded) optimal Yohai-Zamar loss function that
-minimizes the estimator bias. It was originally introduced in 
+minimizes the estimator bias. It was originally introduced in
 Optimal locally robust M-estimates of regression (1997) by Yohai and Zamar
 with a slightly different formula.
 """
@@ -505,7 +505,7 @@ end
 function CompositeLossFunction(loss1::LossFunction, loss2::LossFunction, α1::Real=1.0, α2::Real=1.0)
     α1 >= 0 || throw(DomainError(α1, "coefficients of CompositeLossFunction should be non-negative."))
     α2 >= 0 || throw(DomainError(α2, "coefficients of CompositeLossFunction should be non-negative."))
-    
+
     return CompositeLossFunction{typeof(loss1), typeof(loss2)}(float(α1), loss1, float(α2), loss2)
 end
 
@@ -533,7 +533,7 @@ values(e::CompositeLossFunction, r::Real) = @.(e.α1 * values(e.loss1) + e.α2 *
 
 """
     scale_estimate(loss, res; σ0=1.0, wts=[], verbose=false,
-                             order=1, approx=false, nmax=30, 
+                             order=1, approx=false, nmax=30,
                              rtol=1e-4, atol=0.1)
 
 Compute the M-scale estimate from the loss function.
@@ -544,16 +544,16 @@ Also, for bounded estimator, because f(s) = 1/(nδ) Σ ρ(ri/s) is decreasing
 the iteration step is not using the weights but is multiplicative.
 """
 function scale_estimate(l::L, res::AbstractArray{T};
-            verbose::Bool=false, bound::Union{Nothing, T}=nothing, 
-            σ0::T=1.0, wts::AbstractArray{T}=T[], 
-            order::Int=1, approx::Bool=false, nmax::Int=30, 
+            verbose::Bool=false, bound::Union{Nothing, T}=nothing,
+            σ0::T=1.0, wts::AbstractArray{T}=T[],
+            order::Int=1, approx::Bool=false, nmax::Int=30,
             rtol::Real=1e-4, atol::Real=0.1) where {L<:LossFunction, T<:AbstractFloat}
 
     # Compute δ such that E[ρ] = δ for a Normal N(0, 1)
     if isnothing(bound)
         bound = quadgk(x->mscale_loss(l, x)*2*exp(-x^2/2)/√(2π), 0, Inf)[1]
     end
-    
+
     Nz = sum(iszero, res)
     if Nz > length(res)*(1-bound)
         # The M-scale cannot be estimated because too many residuals are zeros.
@@ -596,10 +596,10 @@ end
 
 function scale_estimate(l::L, res::AbstractArray{T};
             verbose::Bool=false, bound::Union{Nothing, Real}=0.5,
-            σ0::Real=1.0, wts::AbstractArray{T}=T[], 
-            order::Int=1, approx::Bool=false, nmax::Int=30, 
+            σ0::Real=1.0, wts::AbstractArray{T}=T[],
+            order::Int=1, approx::Bool=false, nmax::Int=30,
             rtol::Real=1e-4, atol::Real=0.1) where {L<:BoundedLossFunction,T<:AbstractFloat}
-    
+
     # Compute δ such that E[ρ] = δ for a Normal N(0, 1)
     if isnothing(bound)
         bound = quadgk(x->mscale_loss(l, x)*2*exp(-x^2/2)/√(2π), 0, Inf)[1]
@@ -628,7 +628,7 @@ function scale_estimate(l::L, res::AbstractArray{T};
             mean(x->mscale_loss(l, x), rr) / bound
         end
         verbose && println("M-scale 1st order update: $(ε)")
-        
+
         ## Implemented, but it gives worst results than 1st order...
         ## Uses Newton's method to find the root of
         ## f(σ) = log( 1/(nb) Σ ρ(r/σ) ) = 0
@@ -645,7 +645,7 @@ function scale_estimate(l::L, res::AbstractArray{T};
                 ε = exp(ε*log(ε)/εp)
             end
         end
-        
+
         σnp1 = σn * ε
         verbose && println("M-scale update: $(ε) : $(σn) ->  $(σnp1)")
 
@@ -671,7 +671,7 @@ end
 ######
 """
     MEstimator{L<:LossFunction} <: AbstractEstimator
-    
+
 M-estimator for a given loss function.
 
 The M-estimator is obtained by minimizing the loss function:
@@ -728,7 +728,7 @@ const L2Estimator = MEstimator{L2Loss}
 
 """
     SEstimator{L<:BoundedLossFunction} <: AbstractEstimator
-    
+
 S-estimator for a given bounded loss function.
 
 The S-estimator is obtained by minimizing the scale estimate:
@@ -787,7 +787,7 @@ scale_estimate(est::E, res; kwargs...) where {E<:SEstimator} = scale_estimate(es
 
 """
     MMEstimator{L1<:BoundedLossFunction, L2<:LossFunction} <: AbstractEstimator
-    
+
 MM-estimator for the given loss functions.
 
 The MM-estimator is obtained using a two-step process:
@@ -812,7 +812,7 @@ mutable struct MMEstimator{L1<:BoundedLossFunction, L2<:LossFunction} <: Abstrac
 
     "S-Estimator phase indicator (or M-Estimator phase)"
     scaleest::Bool
-    
+
     MMEstimator{L1, L2}(loss1::L1, loss2::L2, scaleest::Bool=true) where {L1<:BoundedLossFunction, L2<:LossFunction} = new(loss1, loss2, scaleest)
 end
 MMEstimator(loss1::L1, loss2::L2, scaleest::Bool) where {L1<:BoundedLossFunction, L2<:LossFunction} = MMEstimator{L1, L2}(loss1, loss2, scaleest)
@@ -858,7 +858,7 @@ scale_estimate(est::E, res; kwargs...) where {E<:MMEstimator} = scale_estimate(e
 
 """
     TauEstimator{L1<:BoundedLossFunction, L2<:BoundedLossFunction} <: AbstractEstimator
-    
+
 τ-estimator for the given loss functions.
 
 The τ-estimator corresponds to a M-estimation, where the loss function is a weighted
@@ -882,7 +882,7 @@ mutable struct TauEstimator{L1<:BoundedLossFunction, L2<:BoundedLossFunction} <:
 
     "loss weight"
     w::Float64
-    
+
     TauEstimator{L1, L2}(l1::L1, l2::L2, w::Real=0.0) where {L1<:BoundedLossFunction, L2<:BoundedLossFunction} = new(l1, l2, float(w))
 end
 TauEstimator(l1::L1, l2::L2, args...) where {L1<:BoundedLossFunction, L2<:BoundedLossFunction} = TauEstimator{L1, L2}(l2, l2, args...)
@@ -1003,7 +1003,7 @@ quantile_weight(τ::Real, r::Real) = oftype(r, 2*ifelse(r>0, τ, 1 - τ))
 
 """
     GeneralizedQuantileEstimator{L<:LossFunction} <: AbstractQuantileEstimator
-    
+
 Generalized Quantile Estimator is an M-Estimator with asymmetric loss function.
 
 For [`L1Loss`](@ref), this corresponds to quantile regression (although it is better

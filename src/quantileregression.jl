@@ -5,7 +5,7 @@ import Tulip
 
 """
     QuantileRegression
-    
+
 Quantile regression representation
 
 ## Fields
@@ -51,7 +51,7 @@ end
 
 """
     quantreg(X, y, args...; kwargs...)
-    
+
 An alias for `fit(QuantileRegression, X, y; kwargs...)`.
 
 The arguments `X` and `y` can be a `Matrix` and a `Vector` or a `Formula` and a `DataFrame`.
@@ -118,7 +118,7 @@ end
 
 """
     refit!(m::QuantileRegression, [y::FPVector ; verbose::Bool=false, quantile::Union{Nothing, AbstractFloat}=nothing])
-    
+
 Refit the `QuantileRegression` model with the new values for the response, weights and quantile.
 This function assumes that `m` was correctly initialized.
 """
@@ -129,7 +129,7 @@ function refit!(m::QuantileRegression, y::FPVector; kwargs...)
         throw(DimensionMismatch("the new response vector should have the same dimension:  $(size(m.y, 1)) != $(size(y, 1))"))
     end
     copyto!(m.y, y)
-    
+
     refit!(m; kwargs...)
 end
 
@@ -161,7 +161,7 @@ end
          quantile::Union{Nothing, AbstractFloat}=nothing,
          correct_leverage::Bool=false,
          kwargs...)
-    
+
 Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the values of the
 objective and the parameters are printed on stdout at each function evaluation.
 

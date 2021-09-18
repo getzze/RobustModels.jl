@@ -1,7 +1,7 @@
-using RobustModels: rho, 
-                    psi, 
-                    psider, 
-                    weight, 
+using RobustModels: rho,
+                    psi,
+                    psider,
+                    weight,
                     values,
                     estimator_high_breakdown_point_constant,
                     estimator_high_efficiency_constant,
@@ -46,7 +46,7 @@ using RobustModels: rho,
                 @test typeof(loss(est)) == typeloss
             end
         end
-        
+
         @testset "Bounded $(estimator) estimators: $(name)" begin
             if name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
                 @test isbounded(est)
@@ -68,7 +68,7 @@ using RobustModels: rho,
             ψ  = psi(est, 1)
             ψp = psider(est, 1)
             w  = weight(est, 1)
-            
+
             vals = values(est, 1)
             @test length(vals) == 3
             @test vals[1] ≈ ρ  rtol=1e-6
@@ -85,7 +85,7 @@ using RobustModels: rho,
                     @test isapprox(v, vopt; rtol=1e-3)
                 end
             end
-            
+
             if isbounded(est)
                 @testset "Estimator high breakdown point: $(name)" begin
                     vopt = estimator_high_breakdown_point_constant(typest)
@@ -120,7 +120,7 @@ using RobustModels: rho,
                     ρ2 = fun(qest1, 1)
                     @test ρ1 == ρ2
                 end
-                
+
             end
         end
     end

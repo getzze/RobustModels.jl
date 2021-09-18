@@ -141,7 +141,7 @@ From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 function location_variance(r::RobustLinResp, dof_residual::Real=(nobs(r)-1), sqr::Bool=false)
     lpsi(x)    = psi(r.est, x)
     lpsider(x) = psider(r.est, x)
-    
+
     if isa(r.est, UnionL1)
         @warn "coefficient variance is not well defined for L1Estimator."
         return Inf
@@ -378,7 +378,7 @@ function updatescale!(r::RobustLinResp; sigma0::Union{Symbol, AbstractFloat}=r.�
     end
 
     verbose && print("Update scale: $(σ0) ")
-    σ = try 
+    σ = try
         scale_estimate(est, res; σ0=σ0, wts=r.wts, kwargs...)
     catch e
         if isa(e, ConvergenceFailed) && !isnothing(fallback)
@@ -406,12 +406,12 @@ end
 
 """
     madresidualscale(res)
-    
+
 Compute the scale using the MAD of the residuals.
 """
 function madresidualscale(res::AbstractArray; factor::AbstractFloat=1.0, wts::AbstractArray=[])
     factor > 0 || error("factor should be positive")
-    
+
     σ = if length(wts) == length(res)
         factor*mad(wts .* abs.(res); normalize=true)
     else
