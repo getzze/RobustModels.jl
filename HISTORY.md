@@ -1,3 +1,8 @@
+v0.4.1 (2021-09-19)
+-------------------
+* Correctly handle multidimensional arrays with univariate robust functions.
+* Correct code formatting.
+
 v0.4.0 (2021-09-17)
 -------------------
 * Drop the heavy `JuMP` dependency and use `Tulip` with the unstable internal API instead.

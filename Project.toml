@@ -1,7 +1,7 @@
 name = "RobustModels"
 uuid = "d6ea1423-9682-4bbd-952f-b1577cbf8c98"
 authors = ["bertrand <bertrand.lacoste@gmail.com>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
