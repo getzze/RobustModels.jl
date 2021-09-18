@@ -693,6 +693,12 @@ function pirls!(m::RobustLinearModel{T}; verbose::Bool=false, maxiter::Integer=3
     # Initialize μ and compute residuals
     setinitη!(m)
 
+    # If σ==0, iterations will fail, so return here
+    if iszero(r.σ)
+        verbose && println("Initial scale is 0.0, no iterations performed.")
+        return m
+    end
+
     # Compute initial deviance
     devold = deviance(m)
     absdev = abs(devold)

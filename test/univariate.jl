@@ -1,5 +1,6 @@
 
 using Statistics: median
+using RobustModels: mean_and_sem
 
 funcs = (;
           mean=mean,
@@ -11,7 +12,7 @@ funcs = (;
           mean_and_sem=mean_and_sem
         )
 
-x = [
+xorig = [
   0.529,
  -0.921,
  -0.247,
@@ -36,12 +37,8 @@ x = [
 ]
 #x = randn(100)
 
-
+x = copy(xorig)
 x[1:2] .= 50
-xx = x[3:end]
-
-import RobustModels: mean_and_sem
-mean_and_sem(x) = (m=mean(x); s=sem(x); (m,s))
 
 
 @testset "robust univariate statistics: MEstimator{$(lossname)}" for lossname in ("L2Loss", "L1Loss", "HuberLoss", "TukeyLoss")
@@ -61,9 +58,9 @@ mean_and_sem(x) = (m=mean(x); s=sem(x); (m,s))
         elseif lossname == "TukeyLoss"
             @test all(s .<= func(x))
             # the estimate is better than when the outliers are removed...
-            @test_skip all(func(xx) .<= s)
+            @test_skip all(func(xorig) .<= s)
         else
-            @test all(func(xx) .<= s .<= func(x))
+            @test all(func(xorig) .<= s .<= func(x))
         end
     end
 end
@@ -73,7 +70,41 @@ end
 
     @testset "method: $(name)" for (name, func) in pairs(funcs)
         s = func(est, x)
-#        println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xx); digits=4)) (with outliers removed)")
-        @test all(isapprox.(s, func(xx); rtol=2))
+#        println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
+        @test all(isapprox.(s, func(xorig); rtol=2))
     end
+end
+
+# define the Estimator for the next tests
+est = MEstimator{L2Loss}()
+
+x1 = reshape(xorig, (21, 1))
+x2 = reshape(xorig, (1, 21))
+x3 = reshape(xorig, (1, 3, 7))
+x4 = reshape(xorig, (7, 3, 1))
+
+@testset "robust univariate statistics: Array size: $(size(a))" for a in (x, x1, x2, x3, x4)
+    @testset "method: $(name)" for (name, func) in pairs(funcs)
+        @testset "dims=$(dims)" for dims in (1, 2, (1,), (1,2), (3,1), 4, (:))
+            s = func(est, a; dims)
+            if name in (:mean, :std, :var)
+                res = func(a; dims)
+                @test all(isapprox.(s, res; rtol=1e-7, nans=true))
+            elseif name in (:mean_and_std, :mean_and_var)
+                # tuples are not allowed for the `dims` arg in StatsBase.mean_and_var
+                if isa(dims, Tuple) && length(dims) > 1
+                    continue
+                end
+                res = if dims===(:); func(a) else func(a, first(dims)) end
+                @test all(isapprox.(s, res; rtol=1e-7, nans=true))
+            end
+        end
+    end
+end
+
+d = Base.values(Dict(:a=>1, :b=>2, :c=>3))
+g = (i for i in 1:3)
+
+@testset "robust univariate statistics: iterable $(typeof(a).name.name)" for a in (d, g)
+    @test all(isapprox.(mean(est, a), mean(a); rtol=1e-7))
 end
