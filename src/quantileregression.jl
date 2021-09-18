@@ -19,7 +19,11 @@ Quantile regression representation
 * `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
 * `fitted`: if true, the model was already fitted
 """
-mutable struct QuantileRegression{T<:AbstractFloat, M<:AbstractMatrix{T}, V<:AbstractVector{T}} <: AbstractRobustModel{T}
+mutable struct QuantileRegression{
+    T<:AbstractFloat,
+    M<:AbstractMatrix{T},
+    V<:AbstractVector{T},
+} <: AbstractRobustModel{T}
     τ::T
     X::M
     β::V
@@ -29,23 +33,36 @@ mutable struct QuantileRegression{T<:AbstractFloat, M<:AbstractMatrix{T}, V<:Abs
     fitdispersion::Bool
     fitted::Bool
 
-    function QuantileRegression(τ::T, X::M, y::V, wts::V) where {V<:AbstractVector{T}, M<:AbstractMatrix{T}} where {T<:AbstractFloat}
+    function QuantileRegression(
+        τ::T,
+        X::M,
+        y::V,
+        wts::V,
+    ) where {V<:AbstractVector{T},M<:AbstractMatrix{T}} where {T<:AbstractFloat}
         n = length(y)
         m, p = size(X)
         ll = length(wts)
         ll == 0 || ll == n || error("length of wts is $ll, must be $n or 0")
         m == n || error("X has $m rows, must be like y, $n")
-        new{T, M, V}(τ, X, zeros(T, p), y, wts, similar(y), false, false)
+        new{T,M,V}(τ, X, zeros(T, p), y, wts, similar(y), false, false)
     end
 end
 
 
 function show(io::IO, obj::QuantileRegression)
-    println(io, "Quantile regression for quantile: $(obj.τ)\n\nCoefficients:\n", coeftable(obj))
+    println(
+        io,
+        "Quantile regression for quantile: $(obj.τ)\n\nCoefficients:\n",
+        coeftable(obj),
+    )
 end
 
-function show(io::IO, obj::TableRegressionModel{M, T}) where {T, M<:QuantileRegression}
-    println(io, "Quantile regression for quantile: $(obj.model.τ)\n\n$(obj.mf.f)\n\nCoefficients:\n", coeftable(obj))
+function show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:QuantileRegression}
+    println(
+        io,
+        "Quantile regression for quantile: $(obj.model.τ)\n\n$(obj.mf.f)\n\nCoefficients:\n",
+        coeftable(obj),
+    )
 end
 
 
@@ -89,54 +106,73 @@ It is solved using the exact interior method.
 the RobustLinearModel object.
 
 """
-function fit(::Type{M},
-             X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
-             y::AbstractVector{T};
-             quantile::AbstractFloat = 0.5,
-             dofit::Bool             = true,
-             wts::FPVector           = similar(y, 0),
-             fitdispersion::Bool     = false,
-             fitargs...) where {M<:QuantileRegression, T<:AbstractFloat}
+function fit(
+    ::Type{M},
+    X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+    y::AbstractVector{T};
+    quantile::AbstractFloat=0.5,
+    dofit::Bool=true,
+    wts::FPVector=similar(y, 0),
+    fitdispersion::Bool=false,
+    fitargs...,
+) where {M<:QuantileRegression,T<:AbstractFloat}
 
     # Check that X and y have the same number of observations
     if size(X, 1) != size(y, 1)
-        throw(DimensionMismatch("number of rows in X and y must match: $(size(X, 1)) != $(size(y, 1))"))
+        mess = "number of rows in X and y must match: $(size(X, 1)) != $(size(y, 1))"
+        throw(DimensionMismatch(mess))
     end
 
     # Check quantile is an allowed value
-    (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
+    (0 < quantile < 1) ||
+        error("quantile should be a number between 0 and 1 excluded: $(quantile)")
 
     m = QuantileRegression(quantile, X, y, wts)
-    return if dofit; fit!(m; fitargs...) else m end
+    return dofit ? fit!(m; fitargs...) : m
 end
 
-function fit(::Type{M}, X::Union{AbstractMatrix,SparseMatrixCSC},
-             y::AbstractVector; kwargs...) where {M<:QuantileRegression}
+function fit(
+    ::Type{M},
+    X::Union{AbstractMatrix,SparseMatrixCSC},
+    y::AbstractVector;
+    kwargs...,
+) where {M<:QuantileRegression}
     fit(M, float(X), float(y); kwargs...)
 end
 
 
 """
-    refit!(m::QuantileRegression, [y::FPVector ; verbose::Bool=false, quantile::Union{Nothing, AbstractFloat}=nothing])
+    refit!(m::QuantileRegression,
+          [y::FPVector ;
+           verbose::Bool=false,
+           quantile::Union{Nothing,
+           AbstractFloat}=nothing,
+          ]
+    )
 
-Refit the `QuantileRegression` model with the new values for the response, weights and quantile.
-This function assumes that `m` was correctly initialized.
+Refit the `QuantileRegression` model with the new values for the response,
+weights and quantile. This function assumes that `m` was correctly initialized.
 """
 function refit!(m::QuantileRegression, y::FPVector; kwargs...)
     # Update y
     # Check that the old and new y have the same number of rows
     if size(m.y, 1) != size(y, 1)
-        throw(DimensionMismatch("the new response vector should have the same dimension:  $(size(m.y, 1)) != $(size(y, 1))"))
+        mess =
+            "the new response vector should have the same dimension: " *
+            "$(size(m.y, 1)) != $(size(y, 1))"
+        throw(DimensionMismatch(mess))
     end
     copyto!(m.y, y)
 
     refit!(m; kwargs...)
 end
 
-function refit!(m::QuantileRegression{T};
-                quantile::Union{Nothing, AbstractFloat}=nothing,
-                wts::Union{Nothing, FPVector}=nothing,
-                kwargs...) where {T}
+function refit!(
+    m::QuantileRegression{T};
+    quantile::Union{Nothing,AbstractFloat}=nothing,
+    wts::Union{Nothing,FPVector}=nothing,
+    kwargs...,
+) where {T}
 
     # Update wts
     n = length(m.y)
@@ -146,7 +182,8 @@ function refit!(m::QuantileRegression{T};
 
     # Update quantile
     if !isnothing(quantile)
-        (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
+        (0 < quantile < 1) ||
+            error("quantile should be a number between 0 and 1 excluded: $(quantile)")
         m.τ = quantile
     end
 
@@ -162,15 +199,19 @@ end
          correct_leverage::Bool=false,
          kwargs...)
 
-Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the values of the
-objective and the parameters are printed on stdout at each function evaluation.
+Optimize the objective of a `QuantileRegression`.  When `verbose` is `true` the values
+of the objective and the parameters are printed on stdout at each function evaluation.
 
 This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
-function fit!(m::QuantileRegression{T}; verbose::Bool=false,
-              quantile::Union{Nothing, AbstractFloat}=nothing,
-              correct_leverage::Bool=false, kwargs...) where {T}
+function fit!(
+    m::QuantileRegression{T};
+    verbose::Bool=false,
+    quantile::Union{Nothing,AbstractFloat}=nothing,
+    correct_leverage::Bool=false,
+    kwargs...,
+) where {T}
 
     # Return early if model has the fit flag set
     m.fitted && return m
@@ -183,7 +224,9 @@ function fit!(m::QuantileRegression{T}; verbose::Bool=false,
 
     # Update quantile
     if !isnothing(quantile)
-        (0 < quantile < 1) || throw(DomainError(quantile, "quantile should be a number between 0 and 1 excluded"))
+        (0 < quantile < 1) || throw(
+            DomainError(quantile, "quantile should be a number between 0 and 1 excluded"),
+        )
         m.τ = quantile
     end
 
@@ -211,22 +254,22 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     u = Vector{Int}(undef, n)
     v = Vector{Int}(undef, n)
     for i in 1:p
-        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0 , -Inf , Inf , "β$i")
+        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0 , -Inf , Inf, "β$i")
     end
     for i in 1:n
-        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ   ,  0.0 , Inf , "u$i")
+        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ   ,  0.0 , Inf, "u$i")
     end
     for i in 1:n
-        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1-τ ,  0.0 , Inf , "v$i")
+        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1-τ ,  0.0 , Inf, "v$i")
     end
-#    @variable(model, β[1:p])
-#    @variable(model, u[1:n] >= 0)
-#    @variable(model, v[1:n] >= 0)
+    #    @variable(model, β[1:p])
+    #    @variable(model, u[1:n] >= 0)
+    #    @variable(model, v[1:n] >= 0)
 
     # Define objective
     # Nothing to do, already defined with the variables
-#    e = ones(n)
-#    @objective(model, Min, τ*dot(e, u) + (1-τ)*dot(e, v) )
+    #    e = ones(n)
+    #    @objective(model, Min, τ*dot(e, u) + (1-τ)*dot(e, v) )
 
     Wy, WX = if isempty(wts)
         y, X
@@ -243,14 +286,14 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
         vi = Wy[i]
         resid[i] = Tulip.add_constraint!(pb, ci, cci, vi, vi, "resid$i")
     end
-#    @constraint(model, resid, Wy .== WX * β + u - v)
+    #    @constraint(model, resid, Wy .== WX * β + u - v)
 
     Tulip.optimize!(model)
 
     copyto!(βout, model.solution.x[β])
     copyto!(rout, model.solution.x[u] - model.solution.x[v])
-#    copyto!(βout, value.(β))
-#    copyto!(rout, value.(u) - value.(v))
+    #    copyto!(βout, value.(β))
+    #    copyto!(rout, value.(u) - value.(v))
 
     if verbose
         println("coef: ", βout)
@@ -266,12 +309,12 @@ _objective(r::AbstractFloat, τ::AbstractFloat) = (τ - (r < 0)) * r
 Optimal bandwidth for sparsity estimation according to Hall and Sheather (1988)
 """
 function hall_sheather_bandwidth(q::Real, n::Int, α::Real=0.05)
-    zα = quantile(Normal(), 1-α/2)
+    zα = quantile(Normal(), 1 - α / 2)
     ## Estimate of r=s/s" from a Normal distribution
     zq = quantile(Normal(), q)
     f = pdf(Normal(), zq)
-    r = f^2/(2*zq^2 + 1)
-    (zα^2*1.5*r/n)^(1/5)
+    r = f^2 / (2 * zq^2 + 1)
+    (zα^2 * 1.5 * r / n)^(1 / 5)
 end
 
 
@@ -300,8 +343,8 @@ function jones_bandwidth(q::Real, n::Int; kernel=:epanechnikov)
     ## Estimate of r=s/s" from a Normal distribution
     zq = quantile(Normal(), q)
     f = pdf(Normal(), zq)
-    r = f^2/(2*zq^2 + 1)
-    (kk*r^2/n)^(1/5)
+    r = f^2 / (2 * zq^2 + 1)
+    (kk * r^2 / n)^(1 / 5)
 end
 
 """
@@ -315,7 +358,7 @@ end
 
 function epanechnikov_kernel(x::Real)
     if abs(x) < 1
-        return 3/4*(1-x^2)
+        return 3 / 4 * (1 - x^2)
     else
         return zero(typeof(x))
     end
@@ -339,31 +382,40 @@ end
 
 """
     sparcity(m::QuantileRegression, α::Real=0.05)
+
 Compute the sparcity or quantile density ŝ(0)
 using formula from Jones (1992) - Estimating densities, quantiles,
 quantile densities and density quantiles.
 
 """
-function sparcity(m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov)
+function sparcity(
+    m::QuantileRegression;
+    bw_method::Symbol=:jones,
+    α::Real=0.05,
+    kernel::Symbol=:epanechnikov,
+)
     u = m.τ
     n = nobs(m)
     ## Select the optimal bandwidth from different methods
-    h = if bw_method==:jones
+    h = if bw_method == :jones
         jones_bandwidth(u, n; kernel=kernel)
-    elseif bw_method==:bofinger
+    elseif bw_method == :bofinger
         bofinger_bandwidth(u, n)
-    elseif bw_method==:hall_sheather
+    elseif bw_method == :hall_sheather
         hall_sheather_bandwidth(u, n, α)
     else
-        error("only :jones, :bofinger and :hall_sheather methods for estimating the optimal bandwidth are allowed: $(bw_method)")
+        error(
+            "only :jones, :bofinger and :hall_sheather methods for estimating the"*
+            " optimal bandwidth are allowed: $(bw_method)",
+        )
     end
 
     ## Select kernel for density estimation
-    k = if kernel==:epanechnikov
+    k = if kernel == :epanechnikov
         epanechnikov_kernel
-    elseif kernel==:triangle
+    elseif kernel == :triangle
         triangle_kernel
-    elseif kernel==:window
+    elseif kernel == :window
         window_kernel
     else
         error("only :epanechnikov, :triangle and :window kernels are allowed: $(kernel)")
@@ -374,22 +426,28 @@ function sparcity(m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05
     s0 = 0
     for i in eachindex(r)
         if i == 1
-            s0 += r[i]/h * k(u/h)
+            s0 += r[i] / h * k(u / h)
         else
-            s0 += (r[i] - r[i-1])/h * k((u - (i-1)/n)/h)
+            s0 += (r[i] - r[i-1]) / h * k((u - (i - 1) / n) / h)
             if i == lastindex(r)
-                s0 += r[i]/h * k((u-1)/h)
+                s0 += r[i] / h * k((u - 1) / h)
             end
         end
     end
     s0
 end
 
-function location_variance(m::QuantileRegression, sqr::Bool=false; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov)
+function location_variance(
+    m::QuantileRegression,
+    sqr::Bool=false;
+    bw_method::Symbol=:jones,
+    α::Real=0.05,
+    kernel::Symbol=:epanechnikov,
+)
     v = sparcity(m; bw_method=bw_method, α=α, kernel=kernel)^2
     v *= m.τ * (1 - m.τ)
-    v *= (nobs(m)/dof_residual(m))
-    if sqr; v else sqrt(v) end
+    v *= (nobs(m) / dof_residual(m))
+    return sqr ? v : sqrt(v)
 end
 
 
@@ -397,7 +455,13 @@ end
     nobs(m::QuantileRegression)
 For linear and generalized linear models, returns the number of elements of the response.
 """
-nobs(m::QuantileRegression)::Int = if !isempty(m.wts); count(!iszero, m.wts) else size(m.y, 1) end
+function nobs(m::QuantileRegression)::Int
+    if !isempty(m.wts)
+        count(!iszero, m.wts)
+    else
+        size(m.y, 1)
+    end
+end
 
 coef(m::QuantileRegression) = m.β
 
@@ -405,7 +469,13 @@ dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
 
 stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
 
-weights(m::QuantileRegression{T}) where T<:AbstractFloat = if isempty(m.wts); weights(ones(T, length(m.y))) else weights(m.wts) end
+function weights(m::QuantileRegression{T}) where {T<:AbstractFloat}
+    if isempty(m.wts)
+        weights(ones(T, length(m.y)))
+    else
+        weights(m.wts)
+    end
+end
 
 workingweights(m::QuantileRegression) = m.wrkres
 
@@ -436,14 +506,16 @@ deviance(m::QuantileRegression) = sum(_objective.(m.wrkres, Ref(m.τ)))
 ## TODO: define correctly the loglikelihood of the full model
 fullloglikelihood(m::QuantileRegression) = 0
 
-loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m)/2
+loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
 
-nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m)/2
+nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m) / 2
 
 modelmatrix(m::QuantileRegression) = m.X
 
-vcov(m::QuantileRegression) = inv(Hermitian(float(Matrix(modelmatrix(m)' * (weights(m) .* modelmatrix(m))))))
+vcov(m::QuantileRegression) =
+    inv(Hermitian(float(Matrix(modelmatrix(m)' * (weights(m) .* modelmatrix(m))))))
 
-projectionmatrix(m::QuantileRegression) = Hermitian(modelmatrix(m) * vcov(m) * modelmatrix(m)') .* weights(m)
+projectionmatrix(m::QuantileRegression) =
+    Hermitian(modelmatrix(m) * vcov(m) * modelmatrix(m)') .* weights(m)
 
 leverage_weights(m::QuantileRegression) = sqrt.(1 .- leverage(m))

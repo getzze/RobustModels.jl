@@ -23,12 +23,15 @@ using IterativeSolvers: lsqr!, cg!
 
 
 import Base: ==, show, broadcastable
-import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
+import GLM:
+    dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
 import StatsBase: fit, fit!, deviance, nulldeviance, nobs, weights, Weights, confint,
                   dof, dof_residual, loglikelihood, nullloglikelihood, stderror,
                   vcov, residuals, predict, response, islinear, fitted, isfitted,
                   mean, var, std, sem, mean_and_std, mean_and_var
-import StatsModels: @delegate, @formula, RegressionModel, coef, coeftable, CoefTable, leverage, modelmatrix, TableRegressionModel
+import StatsModels:
+    @delegate, @formula, RegressionModel, coef, coeftable, CoefTable,
+    leverage, modelmatrix, TableRegressionModel
 
 ## Reexports
 export coef,
@@ -153,8 +156,8 @@ abstract type RobustResp{T} <: ModResp end
 
 abstract type AbstractRegularizedPred{T} <: LinPred end
 
-Base.broadcastable(m::T) where T <: AbstractEstimator = Ref(m)
-Base.broadcastable(m::T) where T <: LossFunction = Ref(m)
+Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
+Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 
 include("estimators.jl")
 include("robustlinearmodel.jl")
