@@ -23,8 +23,8 @@ Tulip = "6dd1b50a-3aae-11e9-10b5-ef983d2400fa"
 julia = "1"
 
 [extras]
-RDatasets = "ce6b1742-4840-55fa-b093-852dadbb1d8b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["RDatasets", "Test"]
+test = ["DataFrames", "Test"]
