@@ -14,14 +14,13 @@ end
 function _model_from_univariate(
     est::AbstractEstimator,
     x::AbstractVector;
-    method=:cg,
     dims=nothing, # explicit, so it is not passed to `rlm`
     kwargs...,
 )
 
     check_l1loss(est)
     X = ones(eltype(x), (size(x, 1), 1))
-    m = rlm(X, x, est; method, kwargs...)
+    m = rlm(X, x, est; kwargs...)
 end
 
 function _mean(est::AbstractEstimator, x::AbstractVector; kwargs...)
@@ -122,7 +121,7 @@ for fun in (:mean, :std, :var, :sem)
                 if isnothing(dims)
                     return x .* $(fun)(one(eltype(x)))
                 else
-                    return mapslices(r -> $(_fun)(est, vec(r); kwargs...), x; dims)
+                    return mapslices(r -> $(_fun)(est, vec(r); kwargs...), x; dims=dims)
                 end
             end
         end
@@ -150,7 +149,7 @@ for fun in (:mean_and_std, :mean_and_var, :mean_and_sem)
                     s = std(one(eltype(x)))  # NaN or NaN32
                     return (x * m, x * s)
                 else
-                    ret = mapslices(r -> $(_fun)(est, vec(r); kwargs...), x; dims)
+                    ret = mapslices(r -> $(_fun)(est, vec(r); kwargs...), x; dims=dims)
                     return (first.(ret), last.(ret))
                 end
             end
