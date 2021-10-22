@@ -27,5 +27,6 @@ makedocs(
 )
 
 deploydocs(
+    devbranch = "main",
     repo = "github.com/getzze/RobustModels.jl"
 )
