@@ -14,13 +14,14 @@ end
 function _model_from_univariate(
     est::AbstractEstimator,
     x::AbstractVector;
+    method=:cg, # use :cg instead of :chol to avoid PosDefException
     dims=nothing, # explicit, so it is not passed to `rlm`
     kwargs...,
 )
 
     check_l1loss(est)
     X = ones(eltype(x), (size(x, 1), 1))
-    m = rlm(X, x, est; kwargs...)
+    m = rlm(X, x, est; method=method, kwargs...)
 end
 
 function _mean(est::AbstractEstimator, x::AbstractVector; kwargs...)

@@ -1,7 +1,7 @@
 name = "RobustModels"
 uuid = "d6ea1423-9682-4bbd-952f-b1577cbf8c98"
 authors = ["bertrand <bertrand.lacoste@gmail.com>"]
-version = "0.4.1"
+version = "0.4.2"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -20,7 +20,7 @@ StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
 Tulip = "6dd1b50a-3aae-11e9-10b5-ef983d2400fa"
 
 [compat]
-julia = "1.0"
+julia = "1.1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

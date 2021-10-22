@@ -1,3 +1,7 @@
+v0.4.2 (2021-10-22)
+-------------------
+* Minimal compatibility set to julia 1.1 (because of Tulip.jl>=0.6)
+
 v0.4.1 (2021-09-19)
 -------------------
 * Correctly handle multidimensional arrays with univariate robust functions.
