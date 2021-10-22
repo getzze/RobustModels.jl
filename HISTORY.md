@@ -1,3 +1,8 @@
+v0.4.3 (2021-10-22)
+-------------------
+* Add dependencies compat versions
+* Register package
+
 v0.4.2 (2021-10-22)
 -------------------
 * Minimal compatibility set to julia 1.3 (because of Tulip.jl>=0.8)
