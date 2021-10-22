@@ -1,7 +1,3 @@
-using RobustModels
-using Test
-using RDatasets: dataset
-using SparseArrays: SparseMatrixCSC
 
 funcs = ( dof,
           dof_residual,
