@@ -1,6 +1,6 @@
 v0.4.2 (2021-10-22)
 -------------------
-* Minimal compatibility set to julia 1.1 (because of Tulip.jl>=0.6)
+* Minimal compatibility set to julia 1.3 (because of Tulip.jl>=0.8)
 
 v0.4.1 (2021-09-19)
 -------------------
