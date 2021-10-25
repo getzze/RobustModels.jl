@@ -44,7 +44,13 @@ This package implements:
 ## Installation
 
 ```julia
-julia>]add https://github.com/getzze/RobustModels.jl
+julia>] add RobustModels
+```
+
+To install the last development version:
+
+```julia
+julia>] add RobustModels#main
 ```
 
 ## Usage
