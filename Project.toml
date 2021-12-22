@@ -27,12 +27,12 @@ QuadGK = "2"
 Roots = "1"
 StatsBase = "0.33"
 StatsModels = "0.6"
-Tulip = "0.8"
+Tulip = "0.8, 0.9"
 julia = "1.3"
 
 [extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["DataFrames", "Test"]
