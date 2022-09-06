@@ -1,3 +1,9 @@
+v0.4.4 (2022-09-07)
+-------------------
+* Export `hasintercept` function
+* Correct `nulldeviance` and `nullloglikelihood` for models without intercept (https://github.com/JuliaStats/StatsAPI.jl/pull/14).
+* Update dependencies compat versions (Tulip)
+
 v0.4.3 (2021-10-22)
 -------------------
 * Add dependencies compat versions
