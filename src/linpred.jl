@@ -19,31 +19,17 @@ using LinearAlgebra:
 
 #################
 modelmatrix(p::LinPred) = p.X
+
 vcov(p::LinPred, wt::AbstractVector) =
     inv(Hermitian(float(Matrix(modelmatrix(p)' * (wt .* modelmatrix(p))))))
+
 projectionmatrix(p::LinPred, wt::AbstractVector) =
     Hermitian(modelmatrix(p) * vcov(p, wt) * modelmatrix(p)' .* wt)
 
-
-modelmatrix(m::RobustLinearModel) = modelmatrix(m.pred)
-
-vcov(m::RobustLinearModel) = vcov(m.pred, workingweights(m.resp))
-
-"""
-    projectionmatrix(m::RobustLinearModel)
-
-The robust projection matrix from the predictor: X (X' W X)⁻¹ X' W
-"""
-projectionmatrix(m::RobustLinearModel) = projectionmatrix(m.pred, workingweights(m.resp))
-
-function leverage_weights(m::RobustLinearModel)
-    w = weights(m.resp)
-    v = inv(Hermitian(float(modelmatrix(m)' * (w .* modelmatrix(m)))))
-    h = diag(Hermitian(modelmatrix(m) * v * modelmatrix(m)' .* w))
-    sqrt.(1 .- h)
+function _hasintercept(X::AbstractMatrix)
+    return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
 end
-
-
+hasintercept(p::LinPred) = _hasintercept(modelmatrix(p))
 
 
 ###

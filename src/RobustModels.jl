@@ -31,7 +31,7 @@ import StatsBase: fit, fit!, deviance, nulldeviance, nobs, weights, Weights, con
                   mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
     @delegate, @formula, RegressionModel, coef, coeftable, CoefTable,
-    leverage, modelmatrix, TableRegressionModel
+    leverage, modelmatrix, TableRegressionModel, hasintercept
 
 ## Reexports
 export coef,
@@ -55,6 +55,7 @@ export coef,
        dispersion,
        islinear,
        isfitted,
+       hasintercept,
        fitted,
        weights,
        leverage,

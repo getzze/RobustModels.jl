@@ -15,6 +15,7 @@
     islinear,
     Estimator,
     projectionmatrix,
+    hasintercept,
 ]
 
 fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
@@ -88,8 +89,6 @@ confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 ## TODO: specialize to make it faster
 leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
 
-
-
 ######
 ##    RobustLinearModel methods
 ######
@@ -117,7 +116,7 @@ It is consistent with the definition of the deviance for OLS.
 """
 deviance(m::RobustLinearModel) = deviance(m.resp)
 
-nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp)
+nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m.pred))
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
@@ -143,7 +142,7 @@ stderror(m::RobustLinearModel) =
 
 loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
 
-nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp)
+nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m.pred))
 
 weights(m::RobustLinearModel) = weights(m.resp)
 
@@ -182,6 +181,28 @@ The robust τ-scale that is minimized in τ-estimation.
 If `sqr` is `true`, the square of the τ-scale is returned.
 """
 tauscale(m::RobustLinearModel, args...; kwargs...) = tauscale(m.resp, args...; kwargs...)
+
+modelmatrix(m::RobustLinearModel) = modelmatrix(m.pred)
+
+vcov(m::RobustLinearModel) = vcov(m.pred, workingweights(m.resp))
+
+"""
+    projectionmatrix(m::RobustLinearModel)
+
+The robust projection matrix from the predictor: X (X' W X)⁻¹ X' W
+"""
+projectionmatrix(m::RobustLinearModel) = projectionmatrix(m.pred, workingweights(m.resp))
+
+function leverage_weights(m::RobustLinearModel)
+    w = weights(m.resp)
+    v = inv(Hermitian(float(modelmatrix(m)' * (w .* modelmatrix(m)))))
+    h = diag(Hermitian(modelmatrix(m) * v * modelmatrix(m)' .* w))
+    sqrt.(1 .- h)
+end
+
+hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
+
+## RobustLinearModel fit methods
 
 function predict(
     m::RobustLinearModel,
@@ -318,7 +339,7 @@ function fit(
         # With ridge regularization
         G = if isa(ridgeG, UniformScaling)
             # Has an intersect
-            if all(X[:, 1] .== 1)
+            if _hasintercept(X)
                 spdiagm(0 => [float(i != 1) for i in 1:p])
             else
                 I(p)

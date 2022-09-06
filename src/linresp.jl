@@ -207,10 +207,10 @@ end
 
 deviance(r::RobustResp) = sum(r.devresid)
 
-function nulldeviance(r::RobustResp)
+function nulldeviance(r::RobustResp; intercept::Bool=true)
     ## TODO: take wts into account
     y, σ = r.y, r.σ
-    μi = mean(y)
+    μi = intercept ? mean(y) : zero(eltype(y))
 
     dev = 0
     @inbounds for i in eachindex(y)
@@ -224,7 +224,9 @@ fullloglikelihood(r::RobustLinResp) = -log(r.scale) - log(estimator_norm(r.est))
 
 loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r) / 2
 
-nullloglikelihood(r::RobustResp) = fullloglikelihood(r) - nulldeviance(r) / 2
+function nullloglikelihood(r::RobustResp; intercept::Bool=true)
+    return fullloglikelihood(r) - nulldeviance(r; intercept=intercept) / 2
+end
 
 response(r::RobustResp) = r.y
 

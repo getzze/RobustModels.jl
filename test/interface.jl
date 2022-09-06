@@ -31,7 +31,8 @@ funcs = ( dof,
           modelmatrix,
           projectionmatrix,
           Estimator,
-          scale
+          scale,
+          hasintercept,
         )
 
 
