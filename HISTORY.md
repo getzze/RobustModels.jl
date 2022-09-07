@@ -1,3 +1,7 @@
+v0.4.5 (2022-09-07)
+-------------------
+* Update dependencies compat versions (Roots)
+
 v0.4.4 (2022-09-07)
 -------------------
 * Export `hasintercept` function
