@@ -453,7 +453,7 @@ function refit!(
                 :refit!,
                 "arguments, ridgeλ can be changed only if the predictor is a RidgePred",
                 RidgePred,
-                r.pred,
+                m.pred,
             ),
         )
         m.pred.λ = float(ridgeλ)

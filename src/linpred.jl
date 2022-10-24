@@ -323,7 +323,7 @@ end
 
 function Base.setproperty!(r::RidgePred, s::Symbol, v)
     if s ∈ (:λ, :lambda)
-        v >= 0 || throw(DomainError(λ, "the shrinkage parameter should be non-negative"))
+        v >= 0 || throw(DomainError(v, "the shrinkage parameter should be non-negative"))
         # Update the square root value
         r.sqrthalfλ = √(v / 2)
         postupdate_λ!(r)

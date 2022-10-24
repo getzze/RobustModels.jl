@@ -1100,7 +1100,7 @@ function tau_scale_estimate(
     bound::AbstractFloat=0.5,
 ) where {T<:AbstractFloat}
     t = if length(wts) == length(res)
-        mean(mscale_loss.(Ref(est.loss2), res ./ σ), weights(r.wts)) / bound
+        mean(mscale_loss.(Ref(est.loss2), res ./ σ), weights(wts)) / bound
     else
         mean(mscale_loss.(Ref(est.loss2), res ./ σ)) / bound
     end
