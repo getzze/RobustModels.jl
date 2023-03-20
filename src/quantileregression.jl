@@ -114,7 +114,7 @@ function fit(
     dofit::Bool=true,
     wts::FPVector=similar(y, 0),
     fitdispersion::Bool=false,
-    fitargs...,
+    fitargs...
 ) where {M<:QuantileRegression,T<:AbstractFloat}
 
     # Check that X and y have the same number of observations
@@ -133,10 +133,10 @@ end
 
 function fit(
     ::Type{M},
-    X::Union{AbstractMatrix,SparseMatrixCSC},
-    y::AbstractVector;
-    kwargs...,
-) where {M<:QuantileRegression}
+    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
+    y::AbstractVector{T2};
+    kwargs...
+) where {M<:QuantileRegression,T1<:Real,T2<:Real}
     fit(M, float(X), float(y); kwargs...)
 end
 
@@ -171,7 +171,7 @@ function refit!(
     m::QuantileRegression{T};
     quantile::Union{Nothing,AbstractFloat}=nothing,
     wts::Union{Nothing,FPVector}=nothing,
-    kwargs...,
+    kwargs...
 ) where {T}
 
     # Update wts
@@ -210,7 +210,7 @@ function fit!(
     verbose::Bool=false,
     quantile::Union{Nothing,AbstractFloat}=nothing,
     correct_leverage::Bool=false,
-    kwargs...,
+    kwargs...
 ) where {T}
 
     # Return early if model has the fit flag set
@@ -254,13 +254,13 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     u = Vector{Int}(undef, n)
     v = Vector{Int}(undef, n)
     for i in 1:p
-        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0 , -Inf , Inf, "β$i")
+        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0, -Inf, Inf, "β$i")
     end
     for i in 1:n
-        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ   ,  0.0 , Inf, "u$i")
+        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ, 0.0, Inf, "u$i")
     end
     for i in 1:n
-        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1-τ ,  0.0 , Inf, "v$i")
+        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1 - τ, 0.0, Inf, "v$i")
     end
     #    @variable(model, β[1:p])
     #    @variable(model, u[1:n] >= 0)
@@ -392,7 +392,7 @@ function sparcity(
     m::QuantileRegression;
     bw_method::Symbol=:jones,
     α::Real=0.05,
-    kernel::Symbol=:epanechnikov,
+    kernel::Symbol=:epanechnikov
 )
     u = m.τ
     n = nobs(m)
@@ -405,7 +405,7 @@ function sparcity(
         hall_sheather_bandwidth(u, n, α)
     else
         error(
-            "only :jones, :bofinger and :hall_sheather methods for estimating the"*
+            "only :jones, :bofinger and :hall_sheather methods for estimating the" *
             " optimal bandwidth are allowed: $(bw_method)",
         )
     end
@@ -442,7 +442,7 @@ function location_variance(
     sqr::Bool=false;
     bw_method::Symbol=:jones,
     α::Real=0.05,
-    kernel::Symbol=:epanechnikov,
+    kernel::Symbol=:epanechnikov
 )
     v = sparcity(m; bw_method=bw_method, α=α, kernel=kernel)^2
     v *= m.τ * (1 - m.τ)
