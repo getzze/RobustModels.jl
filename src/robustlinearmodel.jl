@@ -367,11 +367,11 @@ end
 
 function fit(
     ::Type{M},
-    X::Union{AbstractMatrix,SparseMatrixCSC},
-    y::AbstractVector,
+    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
+    y::AbstractVector{T2},
     est::AbstractEstimator;
     kwargs...,
-) where {M<:AbstractRobustModel}
+) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
     fit(M, float(X), float(y), est; kwargs...)
 end
 

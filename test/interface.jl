@@ -103,6 +103,14 @@ funcs = ( dof,
         @test all(0 .== coef(m2))
         fit!(m2; verbose=false, initial_scale=:mad)
         @test all(β .== coef(m2))
+
+        @testset "Handling of missing values" begin
+            # check that Missing eltype is routed correctly
+            X_missing=convert(Matrix{Union{Missing,eltype(X)}},X)
+            y_missing=convert(Vector{Union{Missing,eltype(y)}},y)
+            @test_throws MethodError fit(RobustLinearModel,X_missing,y,est1)
+            @test_throws MethodError fit(RobustLinearModel,X,y_missing,est1)
+        end
     end
 end
 
