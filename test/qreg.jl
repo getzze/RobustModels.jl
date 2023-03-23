@@ -55,6 +55,14 @@ end
         # leverage weights
         @test_nowarn refit!(m3; correct_leverage=true)
     end
+
+    @testset "Handling of missing values" begin
+        # check that Missing eltype is routed correctly
+        X_missing=convert(Matrix{Union{Missing,eltype(X)}},X)
+        y_missing=convert(Vector{Union{Missing,eltype(y)}},y)
+        @test_throws MethodError fit(QuantileRegression,X_missing,y)
+        @test_throws MethodError fit(QuantileRegression,X,y_missing)
+    end
 end
 
 @testset "Quantile regression: different quantiles" begin

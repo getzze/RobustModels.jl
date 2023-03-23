@@ -133,10 +133,10 @@ end
 
 function fit(
     ::Type{M},
-    X::Union{AbstractMatrix,SparseMatrixCSC},
-    y::AbstractVector;
+    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
+    y::AbstractVector{T2};
     kwargs...,
-) where {M<:QuantileRegression}
+) where {M<:QuantileRegression,T1<:Real,T2<:Real}
     fit(M, float(X), float(y); kwargs...)
 end
 
