@@ -455,11 +455,19 @@ end
     nobs(m::QuantileRegression)
 For linear and generalized linear models, returns the number of elements of the response.
 """
-function nobs(m::QuantileRegression)::Int
+StatsAPI.nobs(m::QuantileRegression)::Integer = length(m.y)
+
+"""
+    wobs(m::QuantileRegression)
+For unweighted linear models, equals to ``nobs``, it returns the number of elements of the response.
+For models with prior weights, return the sum of the weights.
+"""
+function wobs(m::QuantileRegression)
     if !isempty(m.wts)
-        count(!iszero, m.wts)
+        ## Suppose that the weights are probability weights
+        sum(m.wts)
     else
-        size(m.y, 1)
+        oftype(sum(one(eltype(m.wts))), nobs(m))
     end
 end
 
