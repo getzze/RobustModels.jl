@@ -167,7 +167,10 @@ end
 ###     Loss functions
 ########
 
-"The (convex) L2 loss function is that of the standard least squares problem."
+"""
+The (convex) L2 loss function is that of the standard least squares problem.
+ψ(r) = r
+"""
 struct L2Loss <: ConvexLossFunction end
 L2Loss(c) = L2Loss()
 rho(   ::L2Loss, r::Real) = r^2 / 2
@@ -184,6 +187,8 @@ tuning_constant(::L2Loss) = 1
 The standard L1 loss function takes the absolute value of the residual, and is
 convex but non-smooth. It is not a real L1 loss but a Huber loss
 with very small tuning constant.
+ψ(r) = sign(r)
+Use ``QuantileRegression`` for a correct implementation of the L1 loss.
 """
 struct L1Loss <: ConvexLossFunction end
 L1Loss(c) = L1Loss()
@@ -202,6 +207,7 @@ tuning_constant(::L1Loss) = 1
 """
 The convex Huber loss function switches from between quadratic and linear cost/loss
 function at a certain cutoff.
+ψ(r) = (abs(r) <= 1) ? r : sign(r)
 """
 struct HuberLoss <: ConvexLossFunction
     c::Float64
@@ -231,6 +237,7 @@ estimator_high_breakdown_point_constant(::Type{HuberLoss}) = 0.6745
 """
 The convex L1-L2 loss interpolates smoothly between L2 behaviour for small
 residuals and L1 for outliers.
+ψ(r) = r / √(1 + r^2)
 """
 struct L1L2Loss <: ConvexLossFunction
     c::Float64
@@ -254,6 +261,7 @@ estimator_high_breakdown_point_constant(::Type{L1L2Loss}) = 0.8252
 """
 The (convex) "fair" loss switches from between quadratic and linear
 cost/loss function at a certain cutoff, and is C3 but non-analytic.
+ψ(r) = r / (1 + abs(r))
 """
 struct FairLoss <: ConvexLossFunction
     c::Float64
@@ -275,7 +283,7 @@ estimator_high_breakdown_point_constant(::Type{FairLoss}) = 1.4503
 
 """
 The convex Log-Cosh loss function
-log(cosh(r))
+ψ(r) = tanh(r)
 """
 struct LogcoshLoss <: ConvexLossFunction
     c::Float64
@@ -298,7 +306,7 @@ estimator_high_breakdown_point_constant(::Type{LogcoshLoss}) = 0.7479
 
 """
 The convex Arctan loss function
-r * arctan(r) - 1/2*log(1 + r^2)
+ψ(r) = atan(r)
 """
 struct ArctanLoss <: ConvexLossFunction
     c::Float64
@@ -327,6 +335,7 @@ estimator_high_breakdown_point_constant(::Type{ArctanLoss}) = 0.612
 The non-convex Cauchy loss function switches from between quadratic behaviour to
 logarithmic tails. This rejects outliers but may result in multiple minima.
 For scale estimate, r.ψ(r) is used as a loss, which is the same as for Geman loss.
+ψ(r) = r / (1 + r^2)
 """
 struct CauchyLoss <: LossFunction
     c::Float64
@@ -352,6 +361,7 @@ estimator_high_breakdown_point_constant(::Type{CauchyLoss}) = 1.468
 """
 The non-convex Geman-McClure for strong supression of outliers and does not guarantee a unique solution.
 For the S-Estimator, it is equivalent to the Cauchy loss.
+ψ(r) = r / (1 + r^2)^2
 """
 struct GemanLoss <: BoundedLossFunction
     c::Float64
@@ -359,7 +369,7 @@ struct GemanLoss <: BoundedLossFunction
     GemanLoss(c::Real) = new(c)
     GemanLoss() = new(estimator_high_efficiency_constant(GemanLoss))
 end
-_rho(   l::GemanLoss, r::Real) = 1 / 2 * r^2 / (1 + r^2)
+_rho(   l::GemanLoss, r::Real) = 1/2 * r^2 / (1 + r^2)
 _psi(   l::GemanLoss, r::Real) = r / (1 + r^2)^2
 _psider(l::GemanLoss, r::Real) = (1 - 3 * r^2) / (1 + r^2)^3
 _weight(l::GemanLoss, r::Real) = 1 / (1 + r^2)^2
@@ -379,7 +389,8 @@ estimator_high_breakdown_point_constant(::Type{GemanLoss}) = 0.61200
 
 
 """
-The non-convex Welsch for strong supression of ourliers and does not guarantee a unique solution
+The non-convex Welsch for strong supression of outliers and does not guarantee a unique solution
+ψ(r) = r * exp(-r^2)
 """
 struct WelschLoss <: BoundedLossFunction
     c::Float64
@@ -407,7 +418,8 @@ estimator_high_breakdown_point_constant(::Type{WelschLoss}) = 0.8165
 
 """
 The non-convex Tukey biweight estimator which completely suppresses the outliers,
-and does not guaranty a unique solution
+and does not guaranty a unique solution.
+ψ(r) = (abs(r) <= 1) ? r * (1 - r^2)^2 : 0
 """
 struct TukeyLoss <: BoundedLossFunction
     c::Float64
