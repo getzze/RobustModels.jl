@@ -31,7 +31,7 @@ Solve the following minimization problem:
 - `wrkscaledres`: scaled residuals for IRLS
 
 """
-mutable struct RobustLinResp{T<:AbstractFloat,V<:AbstractVector{T},M<:AbstractEstimator} <:
+mutable struct RobustLinResp{T<:AbstractFloat,V<:AbstractVector{T},M<:AbstractMEstimator} <:
                RobustResp{T}
     "`est`: estimator used for the model"
     est::M
@@ -61,7 +61,7 @@ mutable struct RobustLinResp{T<:AbstractFloat,V<:AbstractVector{T},M<:AbstractEs
         off::V,
         wts::V,
         σ::Real=1,
-    ) where {V<:AbstractVector{T},M<:AbstractEstimator} where {T<:AbstractFloat}
+    ) where {V<:AbstractVector{T},M<:AbstractMEstimator} where {T<:AbstractFloat}
         n = length(y)
         length(μ) == n ||
             throw(DimensionMismatch("lengths of μ and y are not equal: $(length(μ)!=n)"))
@@ -87,7 +87,7 @@ end
 
 """
     RobustLinResp(est::M, y::V, off::V, wts::V, σ::Real=1)
-            where {V<:FPVector, M<:AbstractEstimator}
+            where {V<:FPVector, M<:AbstractMEstimator}
 
 Create a response structure by copying the value of `y` to the mean `μ`.
 
@@ -98,18 +98,18 @@ function RobustLinResp(
     off::V,
     wts::V,
     σ::Real=1,
-) where {V<:FPVector,M<:AbstractEstimator}
+) where {V<:FPVector,M<:AbstractMEstimator}
     r = RobustLinResp{eltype(y),V,M}(est, y, similar(y), off, wts, float(σ))
     initresp!(r)
     return r
 end
 
 """
-    RobustLinResp(est::M, y, off, wts) where {M<:AbstractEstimator}
+    RobustLinResp(est::M, y, off, wts) where {M<:AbstractMEstimator}
 
 Convert the arguments to float arrays
 """
-function RobustLinResp(est::M, y, off, wts) where {M<:AbstractEstimator}
+function RobustLinResp(est::M, y, off, wts) where {M<:AbstractMEstimator}
     RobustLinResp(
         est,
         float(collect(y)),
@@ -316,7 +316,7 @@ of the response `r`. The loss function for location estimation is used.
 """
 function _updateres!(
     r::RobustLinResp{T,V,M},
-) where {T<:AbstractFloat,V<:FPVector,M<:AbstractEstimator}
+) where {T<:AbstractFloat,V<:FPVector,M<:AbstractMEstimator}
     ## Add offset to the linear predictor, if offset is defined
     ## and copy the linear predictor to the mean
     if length(r.offset) != 0

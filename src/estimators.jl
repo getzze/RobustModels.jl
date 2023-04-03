@@ -729,7 +729,7 @@ end
 ###   M-Estimators
 ######
 """
-    MEstimator{L<:LossFunction} <: AbstractEstimator
+    MEstimator{L<:LossFunction} <: AbstractMEstimator
 
 M-estimator for a given loss function.
 
@@ -747,7 +747,7 @@ and a robust scale estimate ``\\hat{\\sigma}``.
 - `loss`: the [`LossFunction`](@ref) used for the robust estimation.
 
 """
-struct MEstimator{L<:LossFunction} <: AbstractEstimator
+struct MEstimator{L<:LossFunction} <: AbstractMEstimator
     loss::L
 end
 MEstimator{L}() where {L<:LossFunction} = MEstimator(efficient_loss(L))
@@ -787,7 +787,7 @@ const L2Estimator = MEstimator{L2Loss}
 ######
 
 """
-    SEstimator{L<:BoundedLossFunction} <: AbstractEstimator
+    SEstimator{L<:BoundedLossFunction} <: AbstractMEstimator
 
 S-estimator for a given bounded loss function.
 
@@ -813,7 +813,7 @@ with the residuals  ``\\mathbf{r} = \\mathbf{y} - \\mathbf{X} \\mathbf{\\beta}``
 - `loss`: the [`LossFunction`](@ref) used for the robust estimation.
 
 """
-struct SEstimator{L<:BoundedLossFunction} <: AbstractEstimator
+struct SEstimator{L<:BoundedLossFunction} <: AbstractMEstimator
     loss::L
 end
 SEstimator{L}() where {L<:BoundedLossFunction} = SEstimator(robust_loss(L))
@@ -847,7 +847,7 @@ scale_estimate(est::E, res; kwargs...) where {E<:SEstimator} =
 ######
 
 """
-    MMEstimator{L1<:BoundedLossFunction, L2<:LossFunction} <: AbstractEstimator
+    MMEstimator{L1<:BoundedLossFunction, L2<:LossFunction} <: AbstractMEstimator
 
 MM-estimator for the given loss functions.
 
@@ -864,7 +864,7 @@ The MM-estimator is obtained using a two-step process:
 or the M-estimation step (`false`).
 
 """
-mutable struct MMEstimator{L1<:BoundedLossFunction,L2<:LossFunction} <: AbstractEstimator
+mutable struct MMEstimator{L1<:BoundedLossFunction,L2<:LossFunction} <: AbstractMEstimator
     "high breakdown point loss function"
     loss1::L1
 
@@ -931,7 +931,7 @@ scale_estimate(est::E, res; kwargs...) where {E<:MMEstimator} =
 ######
 
 """
-    TauEstimator{L1<:BoundedLossFunction, L2<:BoundedLossFunction} <: AbstractEstimator
+    TauEstimator{L1<:BoundedLossFunction, L2<:BoundedLossFunction} <: AbstractMEstimator
 
 τ-estimator for the given loss functions.
 
@@ -948,7 +948,7 @@ every step of the Iteratively Reweighted Least Square, so the estimate is both r
 
 """
 mutable struct TauEstimator{L1<:BoundedLossFunction,L2<:BoundedLossFunction} <:
-               AbstractEstimator
+               AbstractMEstimator
     "high breakdown point loss function"
     loss1::L1
 

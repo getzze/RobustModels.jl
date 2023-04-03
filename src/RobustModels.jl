@@ -87,6 +87,7 @@ export LossFunction,
        TukeyLoss,
        YohaiZamarLoss,
        AbstractEstimator,
+       AbstractMEstimator,
        AbstractQuantileEstimator,
        MEstimator,
        SEstimator,
@@ -133,14 +134,15 @@ abstract type BoundedLossFunction <: LossFunction end
 abstract type ConvexLossFunction <: LossFunction end
 
 
-"""
-A robust estimator is a location or scale estimator associated to one (or more) loss function and
-solved using Iteratively Reweighted Least Square.
-"""
+"General location or scale estimator"
 abstract type AbstractEstimator end
 
+"Generalized M-estimator: location or scale estimator associated to one (or more) loss function and
+solved using Iteratively Reweighted Least Square."
+abstract type AbstractMEstimator <: AbstractEstimator end
+
 "Generalized M-Quantile estimator"
-abstract type AbstractQuantileEstimator <: AbstractEstimator end
+abstract type AbstractQuantileEstimator <: AbstractMEstimator end
 
 
 """
