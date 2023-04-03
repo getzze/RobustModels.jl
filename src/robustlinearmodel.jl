@@ -15,6 +15,7 @@
     islinear,
     Estimator,
     projectionmatrix,
+    wobs,
     hasintercept,
 ]
 
@@ -62,7 +63,7 @@ end
 
 StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
-StatsAPI.dof_residual(m::AbstractRobustModel) = nobs(m) - dof(m)
+StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
 
 StatsAPI.coefnames(m::AbstractRobustModel) = ["x$i" for i in 1:length(coef(m))]
 
@@ -128,13 +129,24 @@ The dispersion is the (weighted) sum of robust residuals. If `sqr` is true, retu
 """
 GLM.dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
 
-StatsAPI.nobs(m::RobustLinearModel)::Integer = nobs(m.resp)
-
 """
     coef(m::RobustLinearModel)
 The coefficients of the model.
 """
 StatsAPI.coef(m::RobustLinearModel) = coef(m.pred)
+
+"""
+    nobs(m::QuantileRegression)
+For linear and generalized linear models, returns the number of elements of the response.
+"""
+StatsAPI.nobs(m::RobustLinearModel)::Integer = nobs(m.resp)
+
+"""
+    wobs(m::RobustLinearModel)
+For unweighted linear models, equals to ``nobs``, it returns the number of elements of the response.
+For models with prior weights, return the sum of the weights.
+"""
+wobs(m::RobustLinearModel) = wobs(m.resp)
 
 """
     Estimator(m::RobustLinearModel)

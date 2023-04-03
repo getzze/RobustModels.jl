@@ -30,6 +30,7 @@ funcs = ( dof,
           leverage,
           modelmatrix,
           projectionmatrix,
+          wobs,
           Estimator,
           scale,
           hasintercept,
@@ -62,7 +63,7 @@ funcs = ( dof,
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
             if f in (Estimator, weights, workingweights, islinear, isfitted,
-                     leverage, modelmatrix, projectionmatrix, scale)
+                     leverage, modelmatrix, projectionmatrix, scale, wobs)
                 # method is not defined in GLM
                 @test_nowarn f(m)
             else

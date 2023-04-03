@@ -247,16 +247,22 @@ StatsAPI.residuals(r::RobustLinResp) = r.wrkres
 workingweights(r::RobustLinResp) = r.wrkwt
 
 """
-    nobs(obj::RobustResp)
-For linear and generalized linear models, returns the number of elements of the response
+    nobs(obj::RobustResp)::Integer
+For linear and generalized linear models, returns the number of elements of the response.
 """
-function nobs(r::RobustResp{T}) where {T}
+StatsAPI.nobs(r::RobustResp{T}) where {T} = length(r.y)
+
+"""
+    wobs(obj::RobustResp)
+For unweighted linear models, equals to ``nobs``, it returns the number of elements of the response.
+For models with prior weights, return the sum of the weights.
+"""
+function wobs(r::RobustResp{T}) where {T}
     if !isempty(r.wts)
         ## Suppose that the weights are probability weights
-        count(!iszero, r.wts)
-        # convert(T, sum(r.wts))
+        sum(r.wts)
     else
-        size(r.y, 1)
+        oftype(sum(one(eltype(r.wts))), nobs(r))
     end
 end
 
