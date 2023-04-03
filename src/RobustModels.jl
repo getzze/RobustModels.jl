@@ -8,7 +8,12 @@ include("compat.jl")
     replace(read(path, String), "```julia" => "```jldoctest; output = false")
 end RobustModels
 
+# Import with `using` to use the module names to prefix the methods
+# that are extended from these modules
+using GLM
+using StatsAPI
 
+# Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
 using SparseArrays: SparseMatrixCSC, spdiagm
 using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
@@ -22,19 +27,23 @@ using IterativeSolvers: lsqr!, cg!
 #import Tulip
 
 
-import Base: ==, show, broadcastable
+## Import to implement new methods
+import Base:
+    show, broadcastable, ==
 import GLM:
     dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
-import StatsBase: fit, fit!, deviance, nulldeviance, nobs, weights, Weights, confint,
-                  dof, dof_residual, loglikelihood, nullloglikelihood, stderror,
-                  vcov, residuals, predict, response, islinear, fitted, isfitted,
-                  mean, var, std, sem, mean_and_std, mean_and_var
+import StatsBase:
+    fit, fit!, deviance, nulldeviance, nobs, weights, Weights, confint,
+    dof, dof_residual, loglikelihood, nullloglikelihood, stderror,
+    vcov, residuals, predict, response, islinear, fitted, isfitted,
+    mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
-    @delegate, @formula, RegressionModel, coef, coeftable, CoefTable,
+    @delegate, @formula, RegressionModel, coef, coefnames, coeftable, CoefTable,
     leverage, modelmatrix, TableRegressionModel, hasintercept
 
 ## Reexports
 export coef,
+       coefnames,
        coeftable,
        confint,
        deviance,
@@ -69,7 +78,7 @@ export coef,
        mean_and_var,
        nothing  # stopper
 
-
+## Exports of the module
 export LossFunction,
        BoundedLossFunction,
        ConvexLossFunction,

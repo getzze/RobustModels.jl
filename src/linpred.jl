@@ -18,9 +18,9 @@ using LinearAlgebra:
 
 
 #################
-modelmatrix(p::LinPred) = p.X
+StatsAPI.modelmatrix(p::LinPred) = p.X
 
-vcov(p::LinPred, wt::AbstractVector) =
+StatsAPI.vcov(p::LinPred, wt::AbstractVector) =
     inv(Hermitian(float(Matrix(modelmatrix(p)' * (wt .* modelmatrix(p))))))
 
 projectionmatrix(p::LinPred, wt::AbstractVector) =
@@ -29,6 +29,7 @@ projectionmatrix(p::LinPred, wt::AbstractVector) =
 function _hasintercept(X::AbstractMatrix)
     return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
 end
+# StatsModels.hasintercept
 hasintercept(p::LinPred) = _hasintercept(modelmatrix(p))
 
 
@@ -187,11 +188,6 @@ function delbeta!(
     r::AbstractVector{T},
     wt::AbstractVector{T}
 ) where {T}
-    # scr = mul!(p.scratchm1, Diagonal(wt), p.X)
-    # cg!(p.delbeta,
-    #     Hermitian(mul!(transpose(scr), p.X), :U),
-    #     mul!(p.scratchr1, transpose(scr), r)
-    # )
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     cg!(p.delbeta,
         Hermitian(mul!(p.scratchm2, scr, p.X), :U),
@@ -468,9 +464,9 @@ function extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal
     end
 end
 
-modelmatrix(p::RidgePred) = p.X
+StatsAPI.modelmatrix(p::RidgePred) = p.X
 
-function vcov(p::RidgePred, wt::AbstractVector)
+function StatsAPI.vcov(p::RidgePred, wt::AbstractVector)
     pp = extendedmodelmatrix(p)' * (extendedweights(p, wt) .* extendedmodelmatrix(p))
     return inv(Hermitian(float(Matrix(pp))))
 end
@@ -480,5 +476,5 @@ function projectionmatrix(p::RidgePred, wt::AbstractVector)
     Hermitian(extendedmodelmatrix(p) * vcov(p, wwt) * extendedmodelmatrix(p)' .* wwt)
 end
 
-dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
+StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
     tr(projectionmatrix(m.pred, workingweights(m.resp)))

@@ -49,7 +49,7 @@ mutable struct QuantileRegression{
 end
 
 
-function show(io::IO, obj::QuantileRegression)
+function Base.show(io::IO, obj::QuantileRegression)
     println(
         io,
         "Quantile regression for quantile: $(obj.τ)\n\nCoefficients:\n",
@@ -57,7 +57,7 @@ function show(io::IO, obj::QuantileRegression)
     )
 end
 
-function show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:QuantileRegression}
+function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:QuantileRegression}
     println(
         io,
         "Quantile regression for quantile: $(obj.model.τ)\n\n$(obj.mf.f)\n\nCoefficients:\n",
@@ -106,7 +106,7 @@ It is solved using the exact interior method.
 the RobustLinearModel object.
 
 """
-function fit(
+function StatsAPI.fit(
     ::Type{M},
     X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     y::AbstractVector{T};
@@ -131,7 +131,7 @@ function fit(
     return dofit ? fit!(m; fitargs...) : m
 end
 
-function fit(
+function StatsAPI.fit(
     ::Type{M},
     X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
     y::AbstractVector{T2};
@@ -205,7 +205,7 @@ of the objective and the parameters are printed on stdout at each function evalu
 This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
-function fit!(
+function StatsAPI.fit!(
     m::QuantileRegression{T};
     verbose::Bool=false,
     quantile::Union{Nothing,AbstractFloat}=nothing,
@@ -463,13 +463,13 @@ function nobs(m::QuantileRegression)::Int
     end
 end
 
-coef(m::QuantileRegression) = m.β
+StatsAPI.coef(m::QuantileRegression) = m.β
 
-dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
+GLM.dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
 
-stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
+StatsAPI.stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
 
-function weights(m::QuantileRegression{T}) where {T<:AbstractFloat}
+function StatsAPI.weights(m::QuantileRegression{T}) where {T<:AbstractFloat}
     if isempty(m.wts)
         weights(ones(T, length(m.y)))
     else
@@ -479,20 +479,20 @@ end
 
 workingweights(m::QuantileRegression) = m.wrkres
 
-response(m::QuantileRegression) = m.y
+StatsAPI.response(m::QuantileRegression) = m.y
 
-isfitted(m::QuantileRegression) = m.fitted
+StatsAPI.isfitted(m::QuantileRegression) = m.fitted
 
-islinear(m::QuantileRegression) = true
+StatsAPI.islinear(m::QuantileRegression) = true
 
-fitted(m::QuantileRegression) = m.y - m.wrkres
+StatsAPI.fitted(m::QuantileRegression) = m.y - m.wrkres
 
-residuals(m::QuantileRegression) = m.wrkres
+StatsAPI.residuals(m::QuantileRegression) = m.wrkres
 
-predict(m::QuantileRegression, newX::AbstractMatrix) = newX * coef(m)
-predict(m::QuantileRegression) = fitted(m)
+StatsAPI.predict(m::QuantileRegression, newX::AbstractMatrix) = newX * coef(m)
+StatsAPI.predict(m::QuantileRegression) = fitted(m)
 
-function nulldeviance(m::QuantileRegression)
+function StatsAPI.nulldeviance(m::QuantileRegression)
     μ = quantile(m.y, m.τ)
     if isempty(m.wts)
         sum(_objective.(m.wrkres, Ref(m.τ)))
@@ -501,18 +501,18 @@ function nulldeviance(m::QuantileRegression)
     end
 end
 
-deviance(m::QuantileRegression) = sum(_objective.(m.wrkres, Ref(m.τ)))
+StatsAPI.deviance(m::QuantileRegression) = sum(_objective.(m.wrkres, Ref(m.τ)))
 
 ## TODO: define correctly the loglikelihood of the full model
 fullloglikelihood(m::QuantileRegression) = 0
 
-loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
+StatsAPI.loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
 
-nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m) / 2
+StatsAPI.nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m) / 2
 
-modelmatrix(m::QuantileRegression) = m.X
+StatsAPI.modelmatrix(m::QuantileRegression) = m.X
 
-vcov(m::QuantileRegression) =
+StatsAPI.vcov(m::QuantileRegression) =
     inv(Hermitian(float(Matrix(modelmatrix(m)' * (weights(m) .* modelmatrix(m))))))
 
 projectionmatrix(m::QuantileRegression) =
