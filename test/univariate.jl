@@ -1,51 +1,25 @@
 
+using Random: MersenneTwister
 using Statistics: median
-using RobustModels: mean_and_sem
+using RobustModels: mean_and_sem, compatdims
 
-funcs = (;
-          mean=mean,
-          std=std,
-          var=var,
-          sem=sem,
-          mean_and_std=mean_and_std,
-          mean_and_var=mean_and_var,
-          mean_and_sem=mean_and_sem
-        )
+funcs = (:mean, :std, :var, :sem, :mean_and_std, :mean_and_var, :mean_and_sem)
 
-xorig = [
-  0.529,
- -0.921,
- -0.247,
-  0.689,
- -0.254,
- -1.087,
-  0.067,
-  0.679,
-  0.089,
- -0.278,
-  1.327,
- -0.571,
- -0.559,
- -0.491,
-  0.237,
-  1.196,
- -0.807,
-  0.35 ,
-  0.259,
-  1.006,
-  0.257,
-]
-#x = randn(100)
+seed = 306
+#seed = rand(1:1000)
+#println("Random generator with MersenneTwister(seed=$(seed))")
 
+xorig = randn(MersenneTwister(seed), 100)
 x = copy(xorig)
-x[1:2] .= 50
+x[1:10] .= 50
 
 
 @testset "robust univariate statistics: MEstimator{$(lossname)}" for lossname in ("L2Loss", "L1Loss", "HuberLoss", "TukeyLoss")
     typeloss = getproperty(RobustModels, Symbol(lossname))
     est = MEstimator{typeloss}()
 
-    @testset "method: $(name)" for (name, func) in pairs(funcs)
+    @testset "method: $(name)" for name in funcs
+        func = getproperty(RobustModels, Symbol(name))
         if lossname == "L1Loss"
             @test_throws ArgumentError func(est, x)
             continue
@@ -65,46 +39,89 @@ x[1:2] .= 50
     end
 end
 
+
 @testset "robust univariate statistics: Bounded estimator $(typeest)" for typeest in (SEstimator, MMEstimator, TauEstimator)
     est = typeest{TukeyLoss}()
 
-    @testset "method: $(name)" for (name, func) in pairs(funcs)
-        s = func(est, x)
+    @testset "method: $(name)" for name in funcs
+        func = getproperty(RobustModels, Symbol(name))
+
+        resampling_options = Dict(:rng => MersenneTwister(seed))
+        s = func(est, x; resampling_options=resampling_options)
 #        println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
         @test all(isapprox.(s, func(xorig); rtol=2))
     end
 end
 
-# define the Estimator for the next tests
-est = MEstimator{L2Loss}()
 
-x1 = reshape(xorig, (21, 1))
-x2 = reshape(xorig, (1, 21))
-x3 = reshape(xorig, (1, 3, 7))
-x4 = reshape(xorig, (7, 3, 1))
-
-@testset "robust univariate statistics: Array size: $(size(a))" for a in (x, x1, x2, x3, x4)
-    @testset "method: $(name)" for (name, func) in pairs(funcs)
-        @testset "dims=$(dims)" for dims in (1, 2, (1,), (1,2), (3,1), 4, (:))
-            s = func(est, a; dims=dims)
-            if name in (:mean, :std, :var)
-                res = func(a; dims=dims)
-                @test all(isapprox.(s, res; rtol=1e-7, nans=true))
-            elseif name in (:mean_and_std, :mean_and_var)
-                # tuples are not allowed for the `dims` arg in StatsBase.mean_and_var
-                if isa(dims, Tuple) && length(dims) > 1
-                    continue
-                end
-                res = if dims===(:); func(a) else func(a, first(dims)) end
-                @test all(isapprox.(s, res; rtol=1e-7, nans=true))
-            end
-        end
-    end
-end
+########################################################################
+##  With iterables
+########################################################################
 
 d = Base.values(Dict(:a=>1, :b=>2, :c=>3))
 g = (i for i in 1:3)
+est = MEstimator{L2Loss}()
 
 @testset "robust univariate statistics: iterable $(typeof(a).name.name)" for a in (d, g)
     @test all(isapprox.(mean(est, a), mean(a); rtol=1e-7))
 end
+
+
+########################################################################
+##  Arrays and dims
+########################################################################
+
+# use the L2Loss to be directly compared to the non-robust functions
+# it should give exactly the same results
+est = MEstimator{L2Loss}()
+
+yorig = randn(MersenneTwister(seed), 306)
+y1 = reshape(yorig, (306, 1))
+y2 = reshape(yorig, (1, 306))
+y3 = reshape(yorig, (1, 3, 102))
+y4 = reshape(yorig, (17, 18, 1))
+
+@testset "robust univariate statistics: Array size: $(size(a))" for a in (y, y1, y2, y3, y4)
+    @testset "dims=$(dims)" for dims in (1, 2, (1,), (1,2), (3,1), 4, (:))
+        ## Mean
+        m = @test_nowarn mean(est, a; dims=dims)
+
+        # non-robust mean
+        res = mean(a; dims=dims)
+        @test all(isapprox.(m, res; rtol=1e-7, nans=true))
+
+        ## Dispersion: std, var, sem
+        for disp_name in (:std, :var, :sem)
+            func = getproperty(RobustModels, Symbol(disp_name))
+
+            ## Test only the dispersion
+            s = @test_nowarn func(est, a; dims=dims)
+
+            ## Test `mean_and_<dispersion> == (mean, <dispersion>)`
+            func_tup = getproperty(RobustModels, Symbol("mean_and_" * String(disp_name)))
+            ms = @test_nowarn func_tup(est, a; dims=dims)
+            @test length(ms) == 2
+            @test ms[1] ≈ m
+            @test ms[2] ≈ s  nans=true
+
+            # non-robust dispersion
+            if dims === Colon()
+                # apply on a flatten array
+                res = func(vec(a))
+            elseif disp_name == :sem
+                # `StatsBase.sem` does not allow the `dims` keyword
+                dims = compatdims(ndims(a), dims)
+                if isnothing(dims)
+                    continue
+                end
+                res = mapslices(func, a; dims=dims)
+            else
+                # call the non-robust version with dims
+                res = func(a; dims=dims)
+            end
+
+            @test all(isapprox.(s, res; rtol=1e-7, nans=true))
+        end
+    end
+end
+
