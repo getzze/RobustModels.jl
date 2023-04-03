@@ -308,7 +308,7 @@ function fit(
     βprior::AbstractVector=[],
     quantile::Union{Nothing,AbstractFloat}=nothing,
     fitargs...,
-) where {M<:RobustLinearModel,V<:AbstractEstimator,T<:AbstractFloat}
+) where {M<:RobustLinearModel,V<:AbstractMEstimator,T<:AbstractFloat}
 
     # Check that X and y have the same number of observations
     n, p = size(X)
@@ -369,7 +369,7 @@ function fit(
     ::Type{M},
     X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
     y::AbstractVector{T2},
-    est::AbstractEstimator;
+    est::AbstractMEstimator;
     kwargs...,
 ) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
     fit(M, float(X), float(y), est; kwargs...)
@@ -516,7 +516,7 @@ function fit!(
 end
 
 ## Error message
-function _fit!(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:AbstractEstimator}
+function _fit!(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:AbstractMEstimator}
     allowed_estimators =
         (MEstimator, SEstimator, MMEstimator, TauEstimator, GeneralizedQuantileEstimator)
     mess = "only types $(allowed_estimators) are allowed, "*

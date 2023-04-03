@@ -12,7 +12,7 @@ function check_l1loss(est)
 end
 
 function _model_from_univariate(
-    est::AbstractEstimator,
+    est::AbstractMEstimator,
     x::AbstractVector;
     method=:cg, # use :cg instead of :chol to avoid PosDefException
     dims=nothing, # explicit, so it is not passed to `rlm`
@@ -24,12 +24,12 @@ function _model_from_univariate(
     m = rlm(X, x, est; method=method, kwargs...)
 end
 
-function _mean(est::AbstractEstimator, x::AbstractVector; kwargs...)
+function _mean(est::AbstractMEstimator, x::AbstractVector; kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     coef(m)[1]
 end
 
-function _std(est::AbstractEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
+function _std(est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     n = dof_residual(m)
     if !corrected
@@ -38,7 +38,7 @@ function _std(est::AbstractEstimator, x::AbstractVector; corrected::Bool=true, k
     dispersion(m.resp, n, false)
 end
 
-function _var(est::AbstractEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
+function _var(est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     n = dof_residual(m)
     if !corrected
@@ -47,13 +47,13 @@ function _var(est::AbstractEstimator, x::AbstractVector; corrected::Bool=true, k
     dispersion(m.resp, n, true)
 end
 
-function _sem(est::AbstractEstimator, x::AbstractVector; kwargs...)
+function _sem(est::AbstractMEstimator, x::AbstractVector; kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     stderror(m)[1]
 end
 
 function _mean_and_std(
-    est::AbstractEstimator,
+    est::AbstractMEstimator,
     x::AbstractVector;
     corrected::Bool=true,
     kwargs...,
@@ -67,7 +67,7 @@ function _mean_and_std(
 end
 
 function _mean_and_var(
-    est::AbstractEstimator,
+    est::AbstractMEstimator,
     x::AbstractVector;
     corrected::Bool=true,
     kwargs...,
@@ -80,7 +80,7 @@ function _mean_and_var(
     coef(m)[1], dispersion(m.resp, n, true)
 end
 
-function _mean_and_sem(est::AbstractEstimator, x::AbstractVector; kwargs...)
+function _mean_and_sem(est::AbstractMEstimator, x::AbstractVector; kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     coef(m)[1], stderror(m)[1]
 end
@@ -109,7 +109,7 @@ for fun in (:mean, :std, :var, :sem)
     @eval begin
         # `where Dims` to allow Colon
         function $(fun)(
-            est::AbstractEstimator,
+            est::AbstractMEstimator,
             x::AbstractArray;
             dims::Dims=:,
             kwargs...,
@@ -134,7 +134,7 @@ for fun in (:mean_and_std, :mean_and_var, :mean_and_sem)
     @eval begin
         # `where Dims` to allow Colon
         function $(fun)(
-            est::AbstractEstimator,
+            est::AbstractMEstimator,
             x::AbstractArray;
             dims::Dims=:,
             kwargs...,
@@ -162,6 +162,6 @@ end
 ## For iterators
 for fun in (:mean, :std, :var, :sem, :mean_and_std, :mean_and_var, :mean_and_sem)
     _fun = Symbol("_$(fun)")
-    @eval $(fun)(est::AbstractEstimator, itr; kwargs...) =
+    @eval $(fun)(est::AbstractMEstimator, itr; kwargs...) =
         $(_fun)(est, collect(itr); kwargs...)
 end
