@@ -1,29 +1,55 @@
-using RobustModels: rho,
-                    psi,
-                    psider,
-                    weight,
-                    values,
-                    estimator_high_breakdown_point_constant,
-                    estimator_high_efficiency_constant,
-                    estimator_tau_efficient_constant,
-                    isbounded,
-                    isconvex,
-                    efficiency_tuning_constant,
-                    breakdown_point_tuning_constant,
-                    tau_efficiency_tuning_constant,
-                    nothing  # stopper
+using QuadGK: quadgk
+using RobustModels:
+    rho,
+    psi,
+    psider,
+    weight,
+    values,
+    estimator_high_breakdown_point_constant,
+    estimator_high_efficiency_constant,
+    estimator_tau_efficient_constant,
+    isbounded,
+    isconvex,
+    efficiency_tuning_constant,
+    breakdown_point_tuning_constant,
+    tau_efficiency_tuning_constant,
+    nothing  # stopper
+
+estimators = (
+    "L2",
+    "L1",
+    "Huber",
+    "L1L2",
+    "Fair",
+    "Logcosh",
+    "Arctan",
+    "CatoniWide",
+    "CatoniNarrow",
+    "Cauchy",
+    "Geman",
+    "Welsch",
+    "Tukey",
+    "YohaiZamar",
+)
+
+# norm
+emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf)[1]
 
 
-@testset "Methods loss functions: $(name)" for name in ("L2", "L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
+
+@testset "Methods loss functions: $(name)" for name in estimators
     typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
     l = typeloss()
 
     @testset "Methods estimators: $(estimator)" for estimator in (nothing, "M", "S", "MM", "Tau", "GeneralizedQuantile")
-        typest = if isnothing(estimator)
-            # Check LossFunction methods
-            typeloss
+        # Check LossFunction methods
+        if isnothing(estimator)
+            estimator_name = "Loss function"
+            typest = typeloss
+
+        # Check AbstractEstimator methods
         else
-            # Check AbstractEstimator methods
+            estimator_name = "$(estimator) Estimator"
             T = getproperty(RobustModels, Symbol(estimator * "Estimator"))
             if estimator in ("S", "MM", "Tau")
                 if !in(name, ("Geman", "Welsch", "Tukey", "YohaiZamar"))
@@ -31,7 +57,7 @@ using RobustModels: rho,
                     continue
                 end
             end
-            T{typeloss}
+            typest = T{typeloss}
         end
         est = typest()
         @test_nowarn println(est)
@@ -47,7 +73,7 @@ using RobustModels: rho,
             end
         end
 
-        @testset "Bounded $(estimator) estimators: $(name)" begin
+        @testset "Bounded $(estimator_name): $(name)" begin
             if name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
                 @test isbounded(est)
             else
@@ -55,7 +81,7 @@ using RobustModels: rho,
             end
         end
 
-        @testset "Convex $(estimator) estimators: $(name)" begin
+        @testset "Convex $(estimator_name): $(name)" begin
             if name in ("Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
                 @test !isconvex(est)
             else
@@ -63,7 +89,7 @@ using RobustModels: rho,
             end
         end
 
-        @testset "$(estimator) Estimator values: $(name)" begin
+        @testset "$(estimator_name) values: $(name)" begin
             ρ  = rho(est, 1)
             ψ  = psi(est, 1)
             ψp = psider(est, 1)
@@ -78,6 +104,12 @@ using RobustModels: rho,
 
         # Only for LossFunction
         if isnothing(estimator)
+            if !isbounded(est)
+                @testset "Estimator norm: $(name)" begin
+                    @test emp_norm(est) ≈ RobustModels.estimator_norm(est)  rtol=1e-5
+                end
+            end
+
             if !in(name, ("L2", "L1"))
                 @testset "Estimator high efficiency: $(name)" begin
                     vopt = estimator_high_efficiency_constant(typest)

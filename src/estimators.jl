@@ -75,10 +75,10 @@ psider(l::LossFunction, r) = _psider(l, r / tuning_constant(l))
 weight(l::LossFunction, r) = _weight(l, r / tuning_constant(l))
 
 "Faster version if you need ρ, ψ and w in the same call"
-function values(loss::LossFunction, r::Real)
-    c = tuning_constant(loss)
+function values(l::LossFunction, r::Real)
+    c = tuning_constant(l)
     rr = r / c
-    return (_rho(loss, rr), c * _psi(loss, rr), _weight(loss, rr))
+    return (_rho(l, rr), c * _psi(l, rr), _weight(l, rr))
 end
 
 
@@ -96,8 +96,8 @@ The M-estimator norm is computed with:
 Z = ∫  exp(-ρ(r))dr = c . ∫  exp(-ρ_1(r))dr    with ρ_1 the function for c=1
     -∞                    -∞
 """
-function estimator_norm(loss::L) where {L<:LossFunction}
-    2 * quadgk(x -> exp(-rho(loss, x)), 0, Inf)[1]
+function estimator_norm(l::L) where {L<:LossFunction}
+    2 * quadgk(x -> exp(-rho(l, x)), 0, Inf)[1]
 end
 
 
@@ -322,6 +322,95 @@ end
 estimator_norm(l::ArctanLoss) = l.c * 2.98151
 estimator_high_efficiency_constant(::Type{ArctanLoss}) = 0.919
 estimator_high_breakdown_point_constant(::Type{ArctanLoss}) = 0.612
+
+"""
+The convex (wide) Catoni loss function.
+See: "Catoni (2012) - Challenging the empirical mean and empirical variance: A deviation study"
+
+ψ(r) = sign(r) * log(1 + abs(r) + r^2/2)
+"""
+struct CatoniWideLoss <: ConvexLossFunction
+   c::Float64
+
+   CatoniWideLoss(c::Real) = new(c)
+   CatoniWideLoss() = new(estimator_high_efficiency_constant(CatoniWideLoss))
+end
+
+function _rho(l::CatoniWideLoss, r::Real)
+    (1 + abs(r)) * log(1 + abs(r) + r^2/2) - 2*abs(r) + 2*atan(1 + abs(r)) - π/2
+end
+_psi(   l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2/2)
+_psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2/2)
+_weight(l::CatoniWideLoss, r::Real) = (r < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2/2) / abs(r)
+function values(l::CatoniWideLoss, r::Real)
+    rr = abs(r / l.c)
+    lr = log(1 + rr + rr^2/2)
+    return (
+        (1 + rr) * lr - 2*rr + 2*atan(1 + rr) - π/2,
+        sign(r) * l.c * lr,
+        (r < DELTA) ? oftype(r, 1) : lr / rr,
+    )
+end
+estimator_norm(l::CatoniWideLoss) = l.c * 2.64542
+estimator_high_efficiency_constant(::Type{CatoniWideLoss}) = 0.21305
+estimator_high_breakdown_point_constant(::Type{CatoniWideLoss}) = 0.20587
+
+
+"""
+The convex (narrow) Catoni loss function.
+See: "Catoni (2012) - Challenging the empirical mean and empirical variance: A deviation study"
+
+ψ(r) = (abs(r) <= 1) ? -sign(r) * log(1 - abs(r) + r^2/2) : sign(r) * log(2)
+"""
+struct CatoniNarrowLoss <: ConvexLossFunction
+   c::Float64
+
+   CatoniNarrowLoss(c::Real) = new(c)
+   CatoniNarrowLoss() = new(estimator_high_efficiency_constant(CatoniNarrowLoss))
+end
+
+function _rho(l::CatoniNarrowLoss, r::Real)
+    if abs(r) <= 1
+        return (1 - abs(r)) * log(1 - abs(r) + r^2/2) + 2*abs(r) + 2*atan(1 - abs(r)) - π/2
+    end
+    return (abs(r) - 1) * log(2) + 2 - π/2
+end
+function _psi(l::CatoniNarrowLoss, r::Real)
+    if abs(r) <= 1
+        return -sign(r) * log(1 - abs(r) + r^2/2)
+    end
+    return sign(r) * log(2)
+end
+function _psider(l::CatoniNarrowLoss, r::Real)
+    if abs(r) <= 1
+        return (1 - abs(r)) / (1 - abs(r) + r^2/2)
+    end
+    return 0
+end
+function _weight(l::CatoniNarrowLoss, r::Real)
+    if r == 0
+        return oftype(r, 1)
+    elseif abs(r) <= 1
+        return -log(1 - abs(r) + r^2/2) / abs(r)
+    end
+    return log(2) / abs(r)
+end
+function values(l::CatoniNarrowLoss, r::Real)
+    rr = abs(r / l.c)
+    lr = log(1 - rr + rr^2/2)
+    if abs(r) <= 1
+        return (
+            (1 - rr) * lr + 2*rr + 2*atan(1 - rr) - π/2,
+            -sign(r) * l.c * lr,
+            -lr / rr,
+        )
+    end
+    return ((rr - 1) * log(2) + 2 - π/2, sign(r) * log(2), log(2) / rr)
+end
+estimator_norm(l::CatoniNarrowLoss) = l.c * 3.60857
+estimator_high_efficiency_constant(::Type{CatoniNarrowLoss}) = 1.7946
+estimator_high_breakdown_point_constant(::Type{CatoniNarrowLoss}) = 0.9949
+
 
 """
 The non-convex Cauchy loss function switches from between quadratic behaviour to
