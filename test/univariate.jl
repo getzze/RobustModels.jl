@@ -47,7 +47,7 @@ end
         func = getproperty(RobustModels, Symbol(name))
 
         resampling_options = Dict(:rng => MersenneTwister(seed))
-        s = func(est, x; resampling_options)
+        s = func(est, x; resampling_options=resampling_options)
 #        println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
         @test all(isapprox.(s, func(xorig); rtol=2))
     end
