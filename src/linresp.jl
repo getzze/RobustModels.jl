@@ -1,7 +1,7 @@
 
 
 
-function show(io::IO, obj::ConvergenceFailed)
+function Base.show(io::IO, obj::ConvergenceFailed)
     println(io, "failed to find a solution: $(obj.reason)")
 end
 
@@ -151,7 +151,7 @@ function Base.getproperty(r::RobustLinResp, s::Symbol)
     end
 end
 
-function dispersion(
+function GLM.dispersion(
     r::RobustResp,
     dof_residual::Real=(nobs(r) - 1),
     sqr::Bool=false,
@@ -205,9 +205,9 @@ function location_variance(
     return sqr ? v : sqrt(v)
 end
 
-deviance(r::RobustResp) = sum(r.devresid)
+StatsAPI.deviance(r::RobustResp) = sum(r.devresid)
 
-function nulldeviance(r::RobustResp; intercept::Bool=true)
+function StatsAPI.nulldeviance(r::RobustResp; intercept::Bool=true)
     ## TODO: take wts into account
     y, σ = r.y, r.σ
     μi = intercept ? mean(y) : zero(eltype(y))
@@ -222,17 +222,17 @@ end
 ## TODO: define correctly the loglikelihood of the full model
 fullloglikelihood(r::RobustLinResp) = -log(r.scale) - log(estimator_norm(r.est))
 
-loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r) / 2
+StatsAPI.loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r) / 2
 
-function nullloglikelihood(r::RobustResp; intercept::Bool=true)
+function StatsAPI.nullloglikelihood(r::RobustResp; intercept::Bool=true)
     return fullloglikelihood(r) - nulldeviance(r; intercept=intercept) / 2
 end
 
-response(r::RobustResp) = r.y
+StatsAPI.response(r::RobustResp) = r.y
 
 Estimator(r::RobustResp) = r.est
 
-function weights(r::RobustResp{T}) where {T<:AbstractFloat}
+function StatsAPI.weights(r::RobustResp{T}) where {T<:AbstractFloat}
     if isempty(r.wts)
         weights(ones(T, length(r.y)))
     else
@@ -240,9 +240,9 @@ function weights(r::RobustResp{T}) where {T<:AbstractFloat}
     end
 end
 
-fitted(r::RobustLinResp) = r.μ
+StatsAPI.fitted(r::RobustLinResp) = r.μ
 
-residuals(r::RobustLinResp) = r.wrkres
+StatsAPI.residuals(r::RobustLinResp) = r.wrkres
 
 workingweights(r::RobustLinResp) = r.wrkwt
 

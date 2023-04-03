@@ -60,44 +60,47 @@ end
 ##    AbstractRobustModel methods
 ######
 
-dof(m::AbstractRobustModel) = length(coef(m))
+StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
-dof_residual(m::AbstractRobustModel) = nobs(m) - dof(m)
+StatsAPI.dof_residual(m::AbstractRobustModel) = nobs(m) - dof(m)
 
-function coeftable(m::AbstractRobustModel; level::Real=0.95)
+StatsAPI.coefnames(m::AbstractRobustModel) = ["x$i" for i in 1:length(coef(m))]
+
+function StatsAPI.coeftable(m::AbstractRobustModel; level::Real=0.95)
     cc = coef(m)
     se = stderror(m)
     tt = cc ./ se
     ci = se * quantile(TDist(dof_residual(m)), (1 - level) / 2)
     p = ccdf.(Ref(FDist(1, dof_residual(m))), abs2.(tt))
     levstr = isinteger(level * 100) ? string(Integer(level * 100)) : string(level * 100)
+    cn = coefnames(m)
     CoefTable(
         hcat(cc, se, tt, p, cc + ci, cc - ci),
         ["Coef.", "Std. Error", "t", "Pr(>|t|)", "Lower $(levstr)%", "Upper $(levstr)%"],
-        ["x$i" for i in 1:length(cc)],
+        cn,
         4,
         3,
     )
 end
 
-function confint(m::AbstractRobustModel; level::Real=0.95)
+function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
     alpha = quantile(TDist(dof_residual(m)), (1 - level) / 2)
     hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
 end
-confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
+StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
 ## TODO: specialize to make it faster
-leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
+StatsAPI.leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
 
 ######
 ##    RobustLinearModel methods
 ######
 
-function show(io::IO, obj::RobustLinearModel)
+function Base.show(io::IO, obj::RobustLinearModel)
     println(io, "Robust regression with $(obj.resp.est)\n\nCoefficients:\n", coeftable(obj))
 end
 
-function show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearModel}
+function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearModel}
     println(
         io,
         "Robust regression with $(obj.model.resp.est)\n\n$(obj.mf.f)\n\nCoefficients:\n",
@@ -105,7 +108,7 @@ function show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearMo
     )
 end
 
-islinear(m::RobustLinearModel) = true
+StatsAPI.islinear(m::RobustLinearModel) = true
 
 """
     deviance(m::RobustLinearModel)
@@ -114,21 +117,24 @@ The sum of twice the loss/objective applied to the scaled residuals.
 
 It is consistent with the definition of the deviance for OLS.
 """
-deviance(m::RobustLinearModel) = deviance(m.resp)
+StatsAPI.deviance(m::RobustLinearModel) = deviance(m.resp)
 
-nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m.pred))
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
 
 The dispersion is the (weighted) sum of robust residuals. If `sqr` is true, return the squared dispersion.
 """
-dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
+GLM.dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
 
+StatsAPI.nobs(m::RobustLinearModel)::Integer = nobs(m.resp)
 
-nobs(m::RobustLinearModel)::Int = nobs(m.resp)
-
-coef(m::RobustLinearModel) = coef(m.pred)
+"""
+    coef(m::RobustLinearModel)
+The coefficients of the model.
+"""
+StatsAPI.coef(m::RobustLinearModel) = coef(m.pred)
 
 """
     Estimator(m::RobustLinearModel)
@@ -137,14 +143,14 @@ The robust estimator object used to fit the model.
 """
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
 
-stderror(m::RobustLinearModel) =
+StatsAPI.stderror(m::RobustLinearModel) =
     location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 
-loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
+StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
 
-nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m.pred))
 
-weights(m::RobustLinearModel) = weights(m.resp)
+StatsAPI.weights(m::RobustLinearModel) = weights(m.resp)
 
 """
     workingweights(m::RobustLinearModel)
@@ -156,13 +162,13 @@ weights of valid data points.
 """
 workingweights(m::RobustLinearModel) = workingweights(m.resp)
 
-response(m::RobustLinearModel) = response(m.resp)
+StatsAPI.response(m::RobustLinearModel) = response(m.resp)
 
-isfitted(m::RobustLinearModel) = m.fitted
+StatsAPI.isfitted(m::RobustLinearModel) = m.fitted
 
-fitted(m::RobustLinearModel) = fitted(m.resp)
+StatsAPI.fitted(m::RobustLinearModel) = fitted(m.resp)
 
-residuals(m::RobustLinearModel) = residuals(m.resp)
+StatsAPI.residuals(m::RobustLinearModel) = residuals(m.resp)
 
 """
     scale(m::RobustLinearModel, sqr::Bool=false)
@@ -182,9 +188,9 @@ If `sqr` is `true`, the square of the τ-scale is returned.
 """
 tauscale(m::RobustLinearModel, args...; kwargs...) = tauscale(m.resp, args...; kwargs...)
 
-modelmatrix(m::RobustLinearModel) = modelmatrix(m.pred)
+StatsAPI.modelmatrix(m::RobustLinearModel) = modelmatrix(m.pred)
 
-vcov(m::RobustLinearModel) = vcov(m.pred, workingweights(m.resp))
+StatsAPI.vcov(m::RobustLinearModel) = vcov(m.pred, workingweights(m.resp))
 
 """
     projectionmatrix(m::RobustLinearModel)
@@ -200,11 +206,12 @@ function leverage_weights(m::RobustLinearModel)
     sqrt.(1 .- h)
 end
 
+# StatsModels.hasintercept
 hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
 
 ## RobustLinearModel fit methods
 
-function predict(
+function StatsAPI.predict(
     m::RobustLinearModel,
     newX::AbstractMatrix;
     offset::FPVector=eltype(newX)[],
@@ -226,7 +233,7 @@ function predict(
     end
     mu
 end
-predict(m::RobustLinearModel) = fitted(m)
+StatsAPI.predict(m::RobustLinearModel) = fitted(m)
 
 
 """
@@ -293,7 +300,7 @@ using a robust estimator.
 the RobustLinearModel object.
 
 """
-function fit(
+function StatsAPI.fit(
     ::Type{M},
     X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     y::AbstractVector{T},
@@ -365,7 +372,7 @@ function fit(
     return dofit ? fit!(m; fitargs...) : m
 end
 
-function fit(
+function StatsAPI.fit(
     ::Type{M},
     X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
     y::AbstractVector{T2},
@@ -484,7 +491,7 @@ This function assumes that `m` was correctly initialized.
 
 This function returns early if the model was already fitted, instead call `refit!`.
 """
-function fit!(
+function StatsAPI.fit!(
     m::RobustLinearModel;
     initial_scale::Union{Symbol,Real}=:mad,
     σ0::Union{Nothing,Symbol,Real}=initial_scale,
