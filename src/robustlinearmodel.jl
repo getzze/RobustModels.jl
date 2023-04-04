@@ -1167,7 +1167,7 @@ function resampling_best_estimate(
     βis = zeros(dof(m), Nsamples)
     for i in 1:Nsamples
         # TODO: to parallelize, make a deepcopy of m
-        inds = sample(rng, 1:nobs(m), Npoints; replace=false, ordered=false)
+        inds = sample(rng, axes(response(m), 1), Npoints; replace=false, ordered=false)
         # Find OLS fit of the subsample
         βi = resampling_initialcoef(m, inds)
         verbose && println("Sample $(i)/$(Nsamples): β0 = $(βi)")
