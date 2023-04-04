@@ -1,4 +1,8 @@
 
+using Tables
+using Missings
+using StatsModels: FormulaTerm
+
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
 
@@ -45,7 +49,7 @@ funcs = ( dof,
     println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (X, y), (sX, y)), method in (:cg, :chol)
+    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y)), method in (:cg, :chol)
         name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
         name *= if method==:cg; ",  cg" else ",chol" end
         # use the dispersion from GLM to ensure that the loglikelihood is correct
@@ -105,12 +109,24 @@ funcs = ( dof,
         fit!(m2; verbose=false, initial_scale=:mad)
         @test all(β .== coef(m2))
 
-        @testset "Handling of missing values" begin
+        @testset "Handling of $(typemod) values" for (typemod, conv_func) in (("missing", allowmissing), ("complex", complex))
             # check that Missing eltype is routed correctly
-            X_missing=convert(Matrix{Union{Missing,eltype(X)}},X)
-            y_missing=convert(Vector{Union{Missing,eltype(y)}},y)
-            @test_throws MethodError fit(RobustLinearModel,X_missing,y,est1)
-            @test_throws MethodError fit(RobustLinearModel,X,y_missing,est1)
+            if isa(A, FormulaTerm)
+                if isa(b, NamedTuple)
+                    b_mod = NamedTuple(k=>conv_func(v) for (k,v) in pairs(b))
+                elseif isa(b, DataFrame)
+                    b_mod = DataFrame((v = Tables.getcolumn(b, k); k=>(eltype(v) <: Real ? conv_func(v) : v)) for k in Tables.columnnames(b))
+                else
+                    b_mod = nothing
+                end
+                @test_throws ArgumentError fit(RobustLinearModel, A, b_mod, est1)
+            else
+                A_mod = conv_func(A)
+                b_mod = conv_func(b)
+                @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
+                @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
+                @test_throws MethodError fit(RobustLinearModel, A_mod, b_mod, est1)
+            end
         end
     end
 end

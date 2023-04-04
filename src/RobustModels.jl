@@ -12,24 +12,8 @@ end RobustModels
 # that are extended from these modules
 using GLM
 using StatsAPI
+using StatsBase
 using StatsModels
-
-# Import functions that are called (not extended)
-using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
-using SparseArrays: SparseMatrixCSC, spdiagm
-using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
-using Random: AbstractRNG, GLOBAL_RNG
-using Printf: @printf, @sprintf
-using GLM: Link, canonicallink, FPVector, lm, SparsePredChol, DensePredChol
-using StatsBase: mean, mad, ConvergenceException, sample, quantile
-using StatsModels: @delegate, @formula, RegressionModel, modelcols, apply_schema, schema,
-    missing_omit, checknamesexist, CoefTable
-using IterativeSolvers: lsqr!, cg!
-using Table
-#using Roots: find_zero, Order1, ConvergenceFailed
-#using QuadGK: quadgk
-#import Tulip
-
 
 ## Import to implement new methods
 import Base:
@@ -43,6 +27,23 @@ import StatsBase:
     mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
     coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename
+
+# Import functions that are called (not extended)
+using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
+using SparseArrays: SparseMatrixCSC, spdiagm
+using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
+using Random: AbstractRNG, GLOBAL_RNG
+using Printf: @printf, @sprintf
+using GLM: FPVector, lm, SparsePredChol, DensePredChol
+using StatsBase: mad, ConvergenceException, sample, quantile
+using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, CoefTable, modelcols,
+    ModelFrame, apply_schema, schema, checknamesexist, checkcol, termvars, TableRegressionModel
+using IterativeSolvers: lsqr!, cg!
+using Tables
+#using Roots: find_zero, Order1, ConvergenceFailed
+#using QuadGK: quadgk
+#import Tulip
+
 
 ## Reexports
 export coef,
@@ -184,5 +185,6 @@ include("linpred.jl")
 include("linresp.jl")
 include("univariate.jl")
 include("quantileregression.jl")
+include("deprecated.jl")
 
 end # module

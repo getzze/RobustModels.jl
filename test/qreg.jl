@@ -1,24 +1,25 @@
 
-funcs = ( dof,
-          dof_residual,
-          confint,
-          deviance,
-          nulldeviance,
-          loglikelihood,
-          nullloglikelihood,
-          dispersion,
-          nobs,
-          stderror,
-          vcov,
-          residuals,
-          predict,
-          response,
-          modelmatrix,
-          weights,
-          leverage
-        )
+funcs = (
+    dof,
+    dof_residual,
+    confint,
+    deviance,
+    nulldeviance,
+    loglikelihood,
+    nullloglikelihood,
+    dispersion,
+    nobs,
+    stderror,
+    vcov,
+    residuals,
+    predict,
+    response,
+    modelmatrix,
+    weights,
+    leverage,
+)
 
-@testset "Quantile regression: high-level function" begin
+@testset "Quantile regression: low-level function" begin
     τs = range(0.1, 0.9, step=0.1)
     βs = hcat(map(τ->RobustModels.interiormethod(X, y, τ)[1], τs)...)
     println("Coefficients: $(vcat(τs', βs))")
@@ -29,7 +30,7 @@ end
 @testset "Quantile regression: fit method" begin
     τ = 0.5
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (X, y), (sX, y))
+    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y))
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
         @test_nowarn println(m2)
@@ -86,16 +87,16 @@ end
 
 @testset "Quantile regression: sparsity estimation" begin
     m2 = fit(QuantileRegression, form, data; quantile=0.25, verbose=false)
-    s = RobustModels.location_variance(m2.model, false)
+    s = RobustModels.location_variance(m2, false)
 
     τs = range(0.25, 0.75, step=0.25)
     @testset "(q, method, kernel): $(τ), $(method), $(kernel)" for τ in τs, method in (:jones, :bofinger, :hall_sheather), kernel in (:epanechnikov, :triangle, :window)
-        if τ != m2.model.τ
+        if τ != m2.τ
             refit!(m2; quantile=τ)
-            s = RobustModels.location_variance(m2.model, false)
+            s = RobustModels.location_variance(m2, false)
         end
 
-        si = RobustModels.location_variance(m2.model, false; bw_method=method, α=0.05, kernel=kernel)
+        si = RobustModels.location_variance(m2, false; bw_method=method, α=0.05, kernel=kernel)
         if method==:jones && kernel==:epanechnikov
             @test isapprox(s, si; rtol=1e-4)
         else

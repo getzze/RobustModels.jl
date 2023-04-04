@@ -16,6 +16,7 @@ Quantile regression representation
 * `y`: the response vector
 * `wts`: the weights
 * `wrkres`: the working residuals
+* `formula`: either a `FormulaTerm` object or `nothing`
 * `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
 * `fitted`: if true, the model was already fitted
 """
@@ -30,6 +31,7 @@ mutable struct QuantileRegression{
     y::V
     wts::V
     wrkres::V
+    formula::Union{FormulaTerm,Nothing}
     fitdispersion::Bool
     fitted::Bool
 
@@ -38,33 +40,43 @@ mutable struct QuantileRegression{
         X::M,
         y::V,
         wts::V,
+        formula::Union{FormulaTerm,Nothing},
     ) where {V<:AbstractVector{T},M<:AbstractMatrix{T}} where {T<:AbstractFloat}
         n = length(y)
         m, p = size(X)
         ll = length(wts)
         ll == 0 || ll == n || error("length of wts is $ll, must be $n or 0")
         m == n || error("X has $m rows, must be like y, $n")
-        new{T,M,V}(τ, X, zeros(T, p), y, wts, similar(y), false, false)
+        new{T,M,V}(τ, X, zeros(T, p), y, wts, similar(y), formula, false, false)
     end
 end
 
 
 function Base.show(io::IO, obj::QuantileRegression)
-    println(
-        io,
-        "Quantile regression for quantile: $(obj.τ)\n\nCoefficients:\n",
-        coeftable(obj),
-    )
+    msg = "Quantile regression for quantile: $(obj.τ)\n\n"
+    if hasformula(obj)
+        msg *= "$(formula(obj))\n\n"
+    end
+    msg *= "Coefficients:\n"
+    println(io, msg, coeftable(obj))
 end
 
 function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:QuantileRegression}
-    println(
-        io,
-        "Quantile regression for quantile: $(obj.model.τ)\n\n$(obj.mf.f)\n\nCoefficients:\n",
-        coeftable(obj),
-    )
+    msg = "Quantile regression for quantile: $(obj.τ)\n\n"
+    if hasformula(obj)
+        msg *= "$(formula(obj))\n\n"
+    end
+    msg *= "Coefficients:\n"
+    println(io, msg, coeftable(obj))
 end
 
+function Base.getproperty(mm::TableRegressionModel{M}, f::Symbol) where {M<:QuantileRegression}
+    if f == :τ
+        return mm.model.τ
+    else
+        return getfield(mm, f)
+    end
+end
 
 """
     quantreg(X, y, args...; kwargs...)
@@ -114,6 +126,8 @@ function StatsAPI.fit(
     dofit::Bool=true,
     wts::FPVector=similar(y, 0),
     fitdispersion::Bool=false,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),  # placeholder
+    __formula::Union{Nothing,FormulaTerm}=nothing,
     fitargs...,
 ) where {M<:QuantileRegression,T<:AbstractFloat}
 
@@ -127,17 +141,22 @@ function StatsAPI.fit(
     (0 < quantile < 1) ||
         error("quantile should be a number between 0 and 1 excluded: $(quantile)")
 
-    m = QuantileRegression(quantile, X, y, wts)
+    m = QuantileRegression(quantile, X, y, wts, __formula)
     return dofit ? fit!(m; fitargs...) : m
 end
 
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
-    y::AbstractVector{T2};
+    f::FormulaTerm,
+    data;
+    wts::Union{Nothing,Symbol,FPVector}=nothing,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
     kwargs...,
-) where {M<:QuantileRegression,T1<:Real,T2<:Real}
-    fit(M, float(X), float(y); kwargs...)
+) where {M<:QuantileRegression}
+    # Extract arrays from data using formula
+    f, y, X, extra = modelframe(f, data, contrasts, M; wts=wts)
+    # Call the `fit` method with arrays
+    fit(M, X, y; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
 end
 
 
@@ -529,3 +548,12 @@ projectionmatrix(m::QuantileRegression) =
 leverage_weights(m::QuantileRegression) = sqrt.(1 .- leverage(m))
 
 StatsModels.hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
+
+hasformula(m::QuantileRegression) = isnothing(m.formula) ? false : true
+
+function StatsModels.formula(m::QuantileRegression)
+    if !hasformula(m)
+        throw(ArgumentError("model was fitted without a formula"))
+    end
+    return m.formula
+end

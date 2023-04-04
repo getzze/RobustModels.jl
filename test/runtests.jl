@@ -22,7 +22,7 @@ form = @formula(logBrain ~ 1 + logBody)
 X = hcat(ones(size(data, 1)), data.logBody)
 sX = SparseMatrixCSC(X)
 y = data.logBrain
-
+nt = (; logBrain=data.logBrain, logBody=data.logBody)
 
 # Include tests
 include("estimators.jl")
