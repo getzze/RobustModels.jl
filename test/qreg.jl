@@ -1,4 +1,6 @@
 
+using StatsModels: TableRegressionModel
+
 funcs = (
     dof,
     dof_residual,
@@ -35,6 +37,10 @@ end
         m2 = quantreg(A, b; quantile=τ, verbose=false)
         @test_nowarn println(m2)
         @test all(coef(m1) .== coef(m2))
+
+        # make sure that it is not a TableRegressionModel
+        @test !isa(m1, TableRegressionModel)
+        @test !isa(m2, TableRegressionModel)
 
         # refit
         β = copy(coef(m2))

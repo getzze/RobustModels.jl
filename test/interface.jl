@@ -1,44 +1,45 @@
 
 using Tables
 using Missings
-using StatsModels: FormulaTerm
+using StatsModels: FormulaTerm, TableRegressionModel
 
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
 
-loss1 = RobustModels.L2Loss()
-loss2 = RobustModels.TukeyLoss()
+loss1 = L2Loss()
+loss2 = TukeyLoss()
 est1 = MEstimator(loss1)
 est2 = MEstimator(loss2)
 
-funcs = ( dof,
-          dof_residual,
-          confint,
-          deviance,
-          nulldeviance,
-          loglikelihood,
-          nullloglikelihood,
-          dispersion,
-          nobs,
-          stderror,
-          vcov,
-          residuals,
-          predict,
-          response,
-          weights,
-          workingweights,
-          fitted,
-          predict,
-          isfitted,
-          islinear,
-          leverage,
-          modelmatrix,
-          projectionmatrix,
-          wobs,
-          Estimator,
-          scale,
-          hasintercept,
-        )
+funcs = (
+    dof,
+    dof_residual,
+    confint,
+    deviance,
+    nulldeviance,
+    loglikelihood,
+    nullloglikelihood,
+    dispersion,
+    nobs,
+    stderror,
+    vcov,
+    residuals,
+    predict,
+    response,
+    weights,
+    workingweights,
+    fitted,
+    predict,
+    isfitted,
+    islinear,
+    leverage,
+    modelmatrix,
+    projectionmatrix,
+    wobs,
+    Estimator,
+    scale,
+    hasintercept,
+)
 
 
 @testset "linear: L2 estimator" begin
@@ -58,6 +59,9 @@ funcs = ( dof,
         println("rlm($name): ", β)
         @test_nowarn println(m)
         @test isapprox(coef(m1), β; rtol=1e-5)
+
+        # make sure that it is not a TableRegressionModel
+        @test !isa(m, TableRegressionModel)
 
         # refit
         refit!(m, y; verbose=false, initial_scale=:extrema)

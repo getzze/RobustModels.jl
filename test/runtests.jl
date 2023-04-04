@@ -8,6 +8,25 @@ using Test
 
 using RobustModels
 
+
+## Delegate methods from TableRegressionModel for GLM models
+using StatsModels: @delegate, TableRegressionModel
+import RobustModels: dispersion, weights, islinear, fitted, isfitted, leverage,
+    hasintercept, nulldeviance, deviance
+
+@delegate TableRegressionModel.model [
+    leverage,
+    weights,
+    dispersion,
+    deviance,
+    nulldeviance,
+    fitted,
+    isfitted,
+    islinear,
+    hasintercept,
+]
+
+
 # Import data
 #data = dataset("robustbase", "Animals2")
 

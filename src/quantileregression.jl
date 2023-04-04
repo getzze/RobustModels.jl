@@ -61,23 +61,6 @@ function Base.show(io::IO, obj::QuantileRegression)
     println(io, msg, coeftable(obj))
 end
 
-function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:QuantileRegression}
-    msg = "Quantile regression for quantile: $(obj.τ)\n\n"
-    if hasformula(obj)
-        msg *= "$(formula(obj))\n\n"
-    end
-    msg *= "Coefficients:\n"
-    println(io, msg, coeftable(obj))
-end
-
-function Base.getproperty(mm::TableRegressionModel{M}, f::Symbol) where {M<:QuantileRegression}
-    if f == :τ
-        return mm.model.τ
-    else
-        return getfield(mm, f)
-    end
-end
-
 """
     quantreg(X, y, args...; kwargs...)
 

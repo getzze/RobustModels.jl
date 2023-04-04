@@ -61,33 +61,8 @@ end
 
 
 ######
-##    TableRegressionModel methods to forward
+##    TableRegressionModel methods
 ######
-@delegate TableRegressionModel.model [
-    leverage,
-    weights,
-    workingweights,
-    dispersion,
-    scale,
-    tauscale,
-    fitted,
-    isfitted,
-    islinear,
-    Estimator,
-    projectionmatrix,
-    wobs,
-    hasintercept,
-    location_variance,
-    responsename,
-]
-
-fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
-
-refit!(p::TableRegressionModel, args...; kwargs...) =
-    (refit!(p.model, args...; kwargs...); p)
-
-hasformula(p::TableRegressionModel{M}) where {M<:AbstractRobustModel} = true
-
 
 const ModelFrameType =
     Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
@@ -145,6 +120,7 @@ function modelframe(
     sch = schema(f, t, contrasts)
     f = apply_schema(f, sch, M)
     # response and model matrix
+    ## Do not copy the arrays!
     y, X = modelcols(f, t)
     extra_vec = NamedTuple(
         var => (
@@ -183,26 +159,6 @@ mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <
     formula::Union{FormulaTerm,Nothing}
     fitdispersion::Bool
     fitted::Bool
-end
-
-function Base.getproperty(
-    r::TableRegressionModel{M},
-    s::Symbol,
-) where {M<:RobustLinearModel}
-    if s ∈ (:resp, :pred, :fitdispersion, :fitted)
-        getproperty(r.model, s)
-    else
-        getfield(r, s)
-    end
-end
-
-function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearModel}
-    msg = "Robust regression with $(Estimator(obj))\n\n"
-    if hasformula(obj)
-        msg *= "$(formula(obj))\n\n"
-    end
-    msg *= "Coefficients:\n"
-    println(io, msg, coeftable(obj))
 end
 
 ######
