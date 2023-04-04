@@ -1,69 +1,16 @@
 
 
 ######
-##    TableRegressionModel methods to forward
-######
-@delegate TableRegressionModel.model [
-    leverage,
-    weights,
-    workingweights,
-    dispersion,
-    scale,
-    tauscale,
-    fitted,
-    isfitted,
-    islinear,
-    Estimator,
-    projectionmatrix,
-    wobs,
-    hasintercept,
-]
-
-fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
-refit!(p::TableRegressionModel, args...; kwargs...) =
-    (refit!(p.model, args...; kwargs...); p)
-
-
-
-"""
-    RobustLinearModel
-
-Robust linear model representation
-
-## Fields
-
-* `resp`: the [`RobustLinResp`](@ref) structure.
-* `pred`: the predictor structure, of type [`DensePredChol`](@ref), [`SparsePredChol`](@ref), [`DensePredCG`](@ref), [`SparsePredCG`](@ref) or [`RidgePred`](@ref).
-* `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
-* `fitted`: if true, the model was already fitted
-"""
-mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <:
-               AbstractRobustModel{T}
-    resp::R
-    pred::L
-    fitdispersion::Bool
-    fitted::Bool
-end
-
-function Base.getproperty(
-    r::TableRegressionModel{M},
-    s::Symbol,
-) where {M<:RobustLinearModel}
-    if s ∈ (:resp, :pred, :fitdispersion, :fitted)
-        getproperty(r.model, s)
-    else
-        getfield(r, s)
-    end
-end
-
-
-######
 ##    AbstractRobustModel methods
 ######
 
 StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
 StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
+
+StatsModels.formula(m::AbstractRobustModel) = nothing
+
+StatsModels.responsename(m::AbstractRobustModel) = "y"
 
 StatsAPI.coefnames(m::AbstractRobustModel) = ["x$i" for i in 1:length(coef(m))]
 
@@ -93,12 +40,39 @@ StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 ## TODO: specialize to make it faster
 StatsAPI.leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
 
-######
-##    RobustLinearModel methods
-######
 
-function Base.show(io::IO, obj::RobustLinearModel)
-    println(io, "Robust regression with $(obj.resp.est)\n\nCoefficients:\n", coeftable(obj))
+######
+##    TableRegressionModel methods to forward
+######
+@delegate TableRegressionModel.model [
+    leverage,
+    weights,
+    workingweights,
+    dispersion,
+    scale,
+    tauscale,
+    fitted,
+    isfitted,
+    islinear,
+    Estimator,
+    projectionmatrix,
+    wobs,
+    hasintercept,
+]
+
+fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
+refit!(p::TableRegressionModel, args...; kwargs...) =
+    (refit!(p.model, args...; kwargs...); p)
+
+function Base.getproperty(
+    r::TableRegressionModel{M},
+    s::Symbol,
+) where {M<:RobustLinearModel}
+    if s ∈ (:resp, :pred, :fitdispersion, :fitted)
+        getproperty(r.model, s)
+    else
+        getfield(r, s)
+    end
 end
 
 function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearModel}
@@ -107,6 +81,48 @@ function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLin
         "Robust regression with $(obj.model.resp.est)\n\n$(obj.mf.f)\n\nCoefficients:\n",
         coeftable(obj),
     )
+end
+
+function modelframe(f::FormulaTerm, data, contrasts::AbstractDict, ::Type{M}) where M
+    Tables.istable(data) ||
+        throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
+    t = Tables.columntable(data)
+    msg = checknamesexist(f, t)
+    msg != "" && throw(ArgumentError(msg))
+    data, _ = missing_omit(t, f)
+    sch = schema(f, data, contrasts)
+    f = apply_schema(f, sch, M)
+    return f, modelcols(f, data)
+end
+
+
+
+"""
+    RobustLinearModel
+
+Robust linear model representation
+
+## Fields
+
+* `resp`: the [`RobustLinResp`](@ref) structure.
+* `pred`: the predictor structure, of type [`DensePredChol`](@ref), [`SparsePredChol`](@ref), [`DensePredCG`](@ref), [`SparsePredCG`](@ref) or [`RidgePred`](@ref).
+* `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
+* `fitted`: if true, the model was already fitted
+"""
+mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <:
+               AbstractRobustModel{T}
+    resp::R
+    pred::L
+    fitdispersion::Bool
+    fitted::Bool
+end
+
+######
+##    RobustLinearModel methods
+######
+
+function Base.show(io::IO, obj::RobustLinearModel)
+    println(io, "Robust regression with $(obj.resp.est)\n\nCoefficients:\n", coeftable(obj))
 end
 
 StatsAPI.islinear(m::RobustLinearModel) = true
@@ -218,8 +234,7 @@ function leverage_weights(m::RobustLinearModel)
     sqrt.(1 .- h)
 end
 
-# StatsModels.hasintercept
-hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
+StatsModels.hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
 
 ## RobustLinearModel fit methods
 

@@ -12,6 +12,7 @@ end RobustModels
 # that are extended from these modules
 using GLM
 using StatsAPI
+using StatsModels
 
 # Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
@@ -21,7 +22,10 @@ using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: Link, canonicallink, FPVector, lm, SparsePredChol, DensePredChol
 using StatsBase: mean, mad, ConvergenceException, sample, quantile
+using StatsModels: @delegate, @formula, RegressionModel, modelcols, apply_schema, schema,
+    missing_omit, checknamesexist, CoefTable
 using IterativeSolvers: lsqr!, cg!
+using Table
 #using Roots: find_zero, Order1, ConvergenceFailed
 #using QuadGK: quadgk
 #import Tulip
@@ -38,8 +42,7 @@ import StatsBase:
     vcov, residuals, predict, response, islinear, fitted, isfitted,
     mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
-    @delegate, @formula, RegressionModel, coef, coefnames, coeftable, CoefTable,
-    leverage, modelmatrix, TableRegressionModel, hasintercept
+    coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename
 
 ## Reexports
 export coef,
@@ -65,6 +68,7 @@ export coef,
        islinear,
        isfitted,
        hasintercept,
+       responsename,
        fitted,
        weights,
        leverage,

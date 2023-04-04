@@ -527,3 +527,5 @@ projectionmatrix(m::QuantileRegression) =
     Hermitian(modelmatrix(m) * vcov(m) * modelmatrix(m)') .* weights(m)
 
 leverage_weights(m::QuantileRegression) = sqrt.(1 .- leverage(m))
+
+StatsModels.hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))

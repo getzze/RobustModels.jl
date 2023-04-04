@@ -29,8 +29,8 @@ projectionmatrix(p::LinPred, wt::AbstractVector) =
 function _hasintercept(X::AbstractMatrix)
     return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
 end
-# StatsModels.hasintercept
-hasintercept(p::LinPred) = _hasintercept(modelmatrix(p))
+
+StatsModels.hasintercept(p::LinPred) = _hasintercept(modelmatrix(p))
 
 
 ###
