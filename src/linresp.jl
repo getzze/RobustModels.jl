@@ -119,28 +119,6 @@ function RobustLinResp(est::M, y, off, wts) where {M<:AbstractMEstimator}
     )
 end
 
-
-function initresp!(r::RobustResp{T}) where {T}
-    # Set μ to 0
-    fill!(r.μ, 0)
-
-    # Reset the factor of the TauEstimator
-    if isa(r.est, TauEstimator)
-        update_weight!(r.est, 0)
-    end
-
-    # Set residual (without offset)
-    broadcast!(-, r.wrkres, r.y, r.μ)
-
-    # Set working weights to the data weights
-    if !isempty(r.wts)
-        copyto!(r.wrkwt, r.wts)
-    else
-        fill!(r.wrkwt, 1)
-    end
-end
-
-
 function Base.getproperty(r::RobustLinResp, s::Symbol)
     if s ∈ (:mu, :η, :eta)
         r.μ
@@ -150,6 +128,10 @@ function Base.getproperty(r::RobustLinResp, s::Symbol)
         getfield(r, s)
     end
 end
+
+####################################
+### Interface
+####################################
 
 function GLM.dispersion(
     r::RobustResp,
@@ -220,7 +202,7 @@ function StatsAPI.nulldeviance(r::RobustResp; intercept::Bool=true)
 end
 
 ## TODO: define correctly the loglikelihood of the full model
-fullloglikelihood(r::RobustLinResp) = -log(r.scale) - log(estimator_norm(r.est))
+fullloglikelihood(r::RobustResp) = -log(r.scale) - log(estimator_norm(r.est))
 
 StatsAPI.loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r) / 2
 
@@ -240,11 +222,11 @@ function StatsAPI.weights(r::RobustResp{T}) where {T<:AbstractFloat}
     end
 end
 
-StatsAPI.fitted(r::RobustLinResp) = r.μ
+StatsAPI.fitted(r::RobustResp) = r.μ
 
-StatsAPI.residuals(r::RobustLinResp) = r.wrkres
+StatsAPI.residuals(r::RobustResp) = r.wrkres
 
-workingweights(r::RobustLinResp) = r.wrkwt
+workingweights(r::RobustResp) = r.wrkwt
 
 """
     nobs(obj::RobustResp)::Integer
@@ -263,6 +245,30 @@ function wobs(r::RobustResp{T}) where {T}
         sum(r.wts)
     else
         oftype(sum(one(eltype(r.wts))), nobs(r))
+    end
+end
+
+####################################
+### In-place state operations
+####################################
+
+function initresp!(r::RobustLinResp{T}) where {T}
+    # Set μ to 0
+    fill!(r.μ, 0)
+
+    # Reset the factor of the TauEstimator
+    if isa(r.est, TauEstimator)
+        update_weight!(r.est, 0)
+    end
+
+    # Set residual (without offset)
+    broadcast!(-, r.wrkres, r.y, r.μ)
+
+    # Set working weights to the data weights
+    if !isempty(r.wts)
+        copyto!(r.wrkwt, r.wts)
+    else
+        fill!(r.wrkwt, 1)
     end
 end
 
@@ -518,7 +524,7 @@ function madresidualscale(
     end
     return σ
 end
-function madresidualscale(r::RobustLinResp; factor::AbstractFloat=1.0)
+function madresidualscale(r::RobustResp; factor::AbstractFloat=1.0)
     madresidualscale(r.wrkres; factor=factor, wts=r.wts)
 end
 
