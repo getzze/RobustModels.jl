@@ -232,13 +232,7 @@ StatsAPI.response(r::RobustResp) = r.y
 
 Estimator(r::RobustResp) = r.est
 
-function StatsAPI.weights(r::RobustResp{T}) where {T<:AbstractFloat}
-    if isempty(r.wts)
-        weights(ones(T, length(r.y)))
-    else
-        weights(r.wts)
-    end
-end
+StatsAPI.weights(r::RobustResp) = r.wts
 
 StatsAPI.fitted(r::RobustLinResp) = r.μ
 

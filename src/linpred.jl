@@ -20,11 +20,19 @@ using LinearAlgebra:
 #################
 StatsAPI.modelmatrix(p::LinPred) = p.X
 
-StatsAPI.vcov(p::LinPred, wt::AbstractVector) =
-    inv(Hermitian(float(Matrix(modelmatrix(p)' * (wt .* modelmatrix(p))))))
+function StatsAPI.vcov(p::LinPred, wt::AbstractVector)
+    wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
+    return inv(Hermitian(float(Matrix(wXt * modelmatrix(p)))))
+end
 
-projectionmatrix(p::LinPred, wt::AbstractVector) =
-    Hermitian(modelmatrix(p) * vcov(p, wt) * modelmatrix(p)' .* wt)
+function projectionmatrix(p::LinPred, wt::AbstractVector)
+    wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
+    return Hermitian(modelmatrix(p) * vcov(p, wt) * wXt)
+end
+
+StatsAPI.leverage(p::LinPred, wt::AbstractVector) = diag(projectionmatrix(p, wt))
+
+leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 
 function _hasintercept(X::AbstractMatrix)
     return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
@@ -448,13 +456,26 @@ function delbeta!(
     p
 end
 
+"""
+    extendedmatrix(p::RidgePred{T})
+
+Returns the extended model matrix for a Ridge predictor, of size `(n+m) x m`, where
+`n` is the number of observations and `m` the number of coefficients.
+"""
 extendedmodelmatrix(p::RidgePred) = p.pred.X
 
+"""
+    extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
+
+Returns a weights vector to multiply with `extendedmodelmatrix(p::RidgePred)`.
+It has a size of 0 or `n + m`, where `n` is the number of observations and
+`m` the number of coefficients.
+"""
 function extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
     n, m = size(p.X)
     k = length(wt)
     if k == 0
-        return ones(T, n + m)
+        return similar(wt, 0)
     elseif k == n
         return vcat(Vector{T}(wt), ones(T, m))
     elseif k == n + m
@@ -467,13 +488,10 @@ end
 StatsAPI.modelmatrix(p::RidgePred) = p.X
 
 function StatsAPI.vcov(p::RidgePred, wt::AbstractVector)
-    pp = extendedmodelmatrix(p)' * (extendedweights(p, wt) .* extendedmodelmatrix(p))
-    return inv(Hermitian(float(Matrix(pp))))
-end
-
-function projectionmatrix(p::RidgePred, wt::AbstractVector)
+    # returns (XᵀWX + λGᵀG)⁻¹  = (extXᵀ . extW . extX)⁻¹
     wwt = extendedweights(p, wt)
-    Hermitian(extendedmodelmatrix(p) * vcov(p, wwt) * extendedmodelmatrix(p)' .* wwt)
+    wXt = isempty(wwt) ? extendedmodelmatrix(p)' : (extendedmodelmatrix(p) .* wwt)'
+    return inv(Hermitian(float(Matrix(wXt * extendedmodelmatrix(p)))))
 end
 
 StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
