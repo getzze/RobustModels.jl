@@ -48,96 +48,52 @@ StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 ## TODO: specialize to make it faster
 StatsAPI.leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
 
-## Convert arrays to float
+### Convert arrays to float
+#function StatsAPI.fit(
+#    ::Type{M},
+#    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
+#    y::AbstractVector{T2},
+#    args...;
+#    kwargs...,
+#) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
+#    fit(M, float(X), float(y), args...; kwargs...)
+#end
+
+## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
-    y::AbstractVector{T2},
+    X::Union{AbstractMatrix{T1}, AbstractMatrix{M1}},
+    y::Union{AbstractVector{T2}, AbstractVector{M2}},
     args...;
+    dropmissing::Bool=false,
     kwargs...,
-) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
+) where {
+    M<:AbstractRobustModel,
+    T1<:Real,
+    T2<:Real,
+    M1<:Union{Missing,<:Real},
+    M2<:Union{Missing,<:Real},
+}
+    X_ismissing = eltype(X) >: Missing
+    y_ismissing = eltype(y) >: Missing
+    if any([y_ismissing, X_ismissing])
+        if !dropmissing
+            msg = (
+                "X and y eltypes need to be Real, to allow missing values use `dropmissing=true`: "*
+                "typeof(X)=$(typeof(X)), typeof(y)=$(typeof(y))"
+            )
+            throw(ArgumentError(msg))
+        end
+        X, y, _ = missing_omit(X, y)
+    end
+
     fit(M, float(X), float(y), args...; kwargs...)
 end
 
 
 ######
-##    TableRegressionModel methods
+##    RobustLinearModel methods
 ######
-
-const ModelFrameType =
-    Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
-
-"""
-    modelframe(f::FormulaTerm, data, contrasts::AbstractDict, ::Type{M}; kwargs...) where M
-
-Returns a 4-Tuple with the formula, the response, the model matrix and a NamedTuple with the
-extra columns specified by name as keyword arguments. The response, model matrix and extra columns
-are extracted from the `data` Table using the formula `f`.
-
-Adapted from GLM.jl
-"""
-function modelframe(
-    f::FormulaTerm,
-    data,
-    contrasts::AbstractDict,
-    ::Type{M};
-    kwargs...,
-)::ModelFrameType where {M<:AbstractRobustModel}
-    # Check is a Table
-    Tables.istable(data) ||
-        throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
-    t = Tables.columntable(data)
-
-    # Check columns exist
-    cols = collect(termvars(f))
-    msg = ""
-    for col in cols
-        msg *= checkcol(t, col)
-        if msg != ""
-            msg *= "\n"
-        end
-    end
-    msg != "" && throw(ArgumentError("Error with formula term names. " * msg))
-    for val in Base.values(kwargs)
-        if isa(val, Symbol)
-            msg = checkcol(t, val)
-            msg != "" && throw(ArgumentError("Error with extra column name. " * msg))
-            push!(cols, val)
-        end
-    end
-    
-    # Check columns have no missing or complex values
-    msg = ""
-    for col in cols
-        typ = eltype(t[col])
-        if !(typ <: Real)
-            msg *= "Column $(col) does not have only Real values: $(typ).\n"
-        end
-    end
-    msg != "" && throw(ArgumentError(msg))
-    
-    # Get formula, response and model matrix
-    sch = schema(f, t, contrasts)
-    f = apply_schema(f, sch, M)
-    # response and model matrix
-    ## Do not copy the arrays!
-    y, X = modelcols(f, t)
-    extra_vec = NamedTuple(
-        var => (
-            if isa(val, Symbol)
-                t[val]
-            elseif isnothing(val)
-                similar(y, 0)
-            else
-                val
-            end
-        ) for (var, val) in pairs(kwargs)
-    )
-
-    return f, y, X, extra_vec
-end
-
-
 
 """
     RobustLinearModel
@@ -160,10 +116,6 @@ mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <
     fitdispersion::Bool
     fitted::Bool
 end
-
-######
-##    RobustLinearModel methods
-######
 
 function Base.show(io::IO, obj::RobustLinearModel)
     msg = "Robust regression with $(Estimator(obj))\n\n"
@@ -367,6 +319,8 @@ using a robust estimator.
 - `method::Symbol = :chol`: the method to use for solving the weighted linear system,
     `chol` (default) or `cg`;
 - `dofit::Bool = true`: if false, return the model object without fitting;
+- `dropmissing::Bool = false`: if true, drop the rows with missing values (and convert to Non-Missing type).
+    With `dropmissing=true` the number of observations may be smaller than the size of the input arrays;
 - `wts::Vector = similar(y, 0)`: Prior probability weights of observations.
     Can be empty (length 0) if no weights are used (default);
 - `offset::Vector = similar(y, 0)`: an offset vector, should be empty if no offset is used;
@@ -404,6 +358,7 @@ function StatsAPI.fit(
     est::AbstractMEstimator;
     method::Symbol=:chol, # :cg
     dofit::Bool=true,
+    dropmissing::Bool=false,  # placeholder
     wts::FPVector=similar(y, 0),
     offset::FPVector=similar(y, 0),
     fitdispersion::Bool=false,
@@ -478,13 +433,14 @@ function StatsAPI.fit(
     f::FormulaTerm,
     data,
     est::AbstractMEstimator;
+    dropmissing::Bool=false,
     wts::Union{Nothing,Symbol,FPVector}=nothing,
     offset::Union{Nothing,Symbol,FPVector}=nothing,
     contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
     kwargs...,
 ) where {M<:RobustLinearModel}
     # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, M; wts=wts, offset=offset)
+    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts, offset=offset)
     # Call the `fit` method with arrays
     fit(M, X, y, est;
         wts=extra.wts, offset=extra.offset, contrasts=contrasts, __formula=f, kwargs...)

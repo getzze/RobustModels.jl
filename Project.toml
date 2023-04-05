@@ -9,6 +9,7 @@ Future = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
 IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Missings = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -25,6 +26,7 @@ Tulip = "6dd1b50a-3aae-11e9-10b5-ef983d2400fa"
 Distributions = "0.16, 0.17, 0.18, 0.19, 0.20, 0.21, 0.22, 0.23, 0.24, 0.25"
 GLM = "1"
 IterativeSolvers = "0.9"
+Missings = "1"
 QuadGK = "2"
 Roots = "1, 2"
 StatsAPI = "1.3"
@@ -36,8 +38,7 @@ julia = "1.3"
 
 [extras]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-Missings = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["DataFrames", "Missings", "Test"]
+test = ["DataFrames", "Test"]

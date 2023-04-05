@@ -26,7 +26,7 @@ import StatsBase:
     vcov, residuals, predict, response, islinear, fitted, isfitted,
     mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
-    coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename
+    coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename, missing_omit
 
 # Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
@@ -179,6 +179,7 @@ abstract type AbstractRegularizedPred{T} <: LinPred end
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 
+include("tools.jl")
 include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")

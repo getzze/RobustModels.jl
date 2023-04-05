@@ -132,12 +132,13 @@ function StatsAPI.fit(
     ::Type{M},
     f::FormulaTerm,
     data;
+    dropmissing::Bool=false,
     wts::Union{Nothing,Symbol,FPVector}=nothing,
     contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
     kwargs...,
 ) where {M<:QuantileRegression}
     # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, M; wts=wts)
+    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
     # Call the `fit` method with arrays
     fit(M, X, y; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
 end

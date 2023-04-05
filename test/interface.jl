@@ -113,23 +113,43 @@ funcs = (
         fit!(m2; verbose=false, initial_scale=:mad)
         @test all(β .== coef(m2))
 
-        @testset "Handling of $(typemod) values" for (typemod, conv_func) in (("missing", allowmissing), ("complex", complex))
+        # Handle Missing values and non-real values
+        @testset "Handling of $(typemod) values" for (typemod, conv_func) in (
+            ("missing", allowmissing),
+            ("complex", complex),
+        )
             # check that Missing eltype is routed correctly
             if isa(A, FormulaTerm)
                 if isa(b, NamedTuple)
                     b_mod = NamedTuple(k=>conv_func(v) for (k,v) in pairs(b))
                 elseif isa(b, DataFrame)
-                    b_mod = DataFrame((v = Tables.getcolumn(b, k); k=>(eltype(v) <: Real ? conv_func(v) : v)) for k in Tables.columnnames(b))
+                    b_mod = DataFrame(Dict(
+                        k=>(v=Tables.getcolumn(b, k); eltype(v) <: Real ? conv_func(v) : v)
+                        for k in Tables.columnnames(b)
+                    ))
                 else
                     b_mod = nothing
                 end
                 @test_throws ArgumentError fit(RobustLinearModel, A, b_mod, est1)
+                if typemod == "missing"
+                    @test_nowarn fit(RobustLinearModel, A, b_mod, est1; dropmissing=true)
+                end
             else
                 A_mod = conv_func(A)
                 b_mod = conv_func(b)
-                @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
-                @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
-                @test_throws MethodError fit(RobustLinearModel, A_mod, b_mod, est1)
+                if typemod == "missing"
+                    @test_throws ArgumentError fit(RobustLinearModel, A_mod, b, est1)
+                    @test_throws ArgumentError fit(RobustLinearModel, A, b_mod, est1)
+                    @test_throws ArgumentError fit(RobustLinearModel, A_mod, b_mod, est1)
+
+                    @test_nowarn fit(RobustLinearModel, A_mod, b, est1; dropmissing=true)
+                    @test_nowarn fit(RobustLinearModel, A, b_mod, est1; dropmissing=true)
+                    @test_nowarn fit(RobustLinearModel, A_mod, b_mod, est1; dropmissing=true)
+                else
+                    @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
+                    @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
+                    @test_throws MethodError fit(RobustLinearModel, A_mod, b_mod, est1)
+                end
             end
         end
     end

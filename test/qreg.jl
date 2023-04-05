@@ -1,5 +1,5 @@
 
-using StatsModels: TableRegressionModel
+using StatsModels: FormulaTerm, TableRegressionModel
 
 funcs = (
     dof,
@@ -61,14 +61,32 @@ end
 
         # leverage weights
         @test_nowarn refit!(m3; correct_leverage=true)
-    end
 
-    @testset "Handling of missing values" begin
-        # check that Missing eltype is routed correctly
-        X_missing=convert(Matrix{Union{Missing,eltype(X)}},X)
-        y_missing=convert(Vector{Union{Missing,eltype(y)}},y)
-        @test_throws MethodError fit(QuantileRegression,X_missing,y)
-        @test_throws MethodError fit(QuantileRegression,X,y_missing)
+        # handling of missing values
+        @testset "Handling of missing values" begin
+            # check that Missing eltype is routed correctly
+            if isa(A, FormulaTerm)
+                if isa(b, NamedTuple)
+                    b_missing = NamedTuple(k=>allowmissing(v) for (k,v) in pairs(b))
+                elseif isa(b, DataFrame)
+                    b_missing = allowmissing(b)
+                else
+                    b_missing = nothing
+                end
+                @test_throws ArgumentError fit(QuantileRegression, A, b_missing)
+                @test_nowarn fit(QuantileRegression, A, b_missing; dropmissing=true)
+            else
+                A_missing = allowmissing(A)
+                b_missing = allowmissing(b)
+                @test_throws ArgumentError fit(QuantileRegression, A_missing, b)
+                @test_throws ArgumentError fit(QuantileRegression, A, b_missing)
+                @test_throws ArgumentError fit(QuantileRegression, A_missing, b_missing)
+
+                @test_nowarn fit(QuantileRegression, A_missing, b; dropmissing=true)
+                @test_nowarn fit(QuantileRegression, A, b_missing; dropmissing=true)
+                @test_nowarn fit(QuantileRegression, A_missing, b_missing; dropmissing=true)
+            end
+        end
     end
 end
 
