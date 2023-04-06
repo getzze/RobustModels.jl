@@ -477,13 +477,7 @@ GLM.dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
 
 StatsAPI.stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
 
-function StatsAPI.weights(m::QuantileRegression{T}) where {T<:AbstractFloat}
-    if isempty(m.wts)
-        weights(ones(T, length(m.y)))
-    else
-        weights(m.wts)
-    end
-end
+StatsAPI.weights(m::QuantileRegression) = m.wts
 
 workingweights(m::QuantileRegression) = m.wrkres
 
@@ -520,10 +514,14 @@ StatsAPI.nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulld
 
 StatsAPI.modelmatrix(m::QuantileRegression) = m.X
 
-StatsAPI.vcov(m::QuantileRegression) =
-    inv(Hermitian(float(Matrix(modelmatrix(m)' * (weights(m) .* modelmatrix(m))))))
+function StatsAPI.vcov(m::QuantileRegression)
+    X = modelmatrix(m)
+    wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
+    return inv(Hermitian(float(Matrix(wXt * X))))
+end
 
-projectionmatrix(m::QuantileRegression) =
-    Hermitian(modelmatrix(m) * vcov(m) * modelmatrix(m)') .* weights(m)
-
-leverage_weights(m::QuantileRegression) = sqrt.(1 .- leverage(m))
+function projectionmatrix(m::QuantileRegression)
+    X = modelmatrix(m)
+    wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
+    return Hermitian(X * vcov(m) * wXt)
+end

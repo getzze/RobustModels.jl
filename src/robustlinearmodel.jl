@@ -5,6 +5,7 @@
 ######
 @delegate TableRegressionModel.model [
     leverage,
+    leverage_weights,
     weights,
     workingweights,
     dispersion,
@@ -91,7 +92,9 @@ end
 StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
 ## TODO: specialize to make it faster
-StatsAPI.leverage(p::AbstractRobustModel) = diag(projectionmatrix(p))
+StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
+
+leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
 
 ######
 ##    RobustLinearModel methods
@@ -207,21 +210,43 @@ StatsAPI.vcov(m::RobustLinearModel) = vcov(m.pred, workingweights(m.resp))
 """
     projectionmatrix(m::RobustLinearModel)
 
-The robust projection matrix from the predictor: X (X' W X)⁻¹ X' W
+The robust projection matrix from the predictor: X (X' W X)⁻¹ X' W,
+where W are the working weights.
 """
 projectionmatrix(m::RobustLinearModel) = projectionmatrix(m.pred, workingweights(m.resp))
 
-function leverage_weights(m::RobustLinearModel)
-    w = weights(m.resp)
-    v = inv(Hermitian(float(modelmatrix(m)' * (w .* modelmatrix(m)))))
-    h = diag(Hermitian(modelmatrix(m) * v * modelmatrix(m)' .* w))
-    sqrt.(1 .- h)
+function check_variant(variant::Symbol, allowed::Tuple)
+    if !(variant in allowed)
+        msg = "`variant` argument can only take a value in $(allowed): $(variant)"
+        throw(ArgumentError(msg))
+    end
+end
+
+for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
+    @eval begin
+        @doc """
+            $($(fun))(m::RobustLinearModel, variant::Symbol)
+
+        Returns `$($(fun))` for the model using a different weights vector depending on the variant:
+            - `variant = :original`: use the user-defined weights, if no weights were used
+                (size of the weights vector is 0), no weights are used.
+            - `variant = :fitter`: use the working weights of the fitted model from the IRLS
+                procedure.
+        """
+        function $(fun)(m::RobustLinearModel, variant::Symbol)
+            check_variant(variant, (:original, :fitted))
+            if variant == :original
+                w = weights(m)
+            else  # variant == :fitted
+                w = workingweights(m.resp)
+            end
+            return $(fun)(m.pred, w)
+        end
+    end
 end
 
 # StatsModels.hasintercept
 hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
-
-## RobustLinearModel fit methods
 
 function StatsAPI.predict(
     m::RobustLinearModel,
@@ -247,6 +272,9 @@ function StatsAPI.predict(
 end
 StatsAPI.predict(m::RobustLinearModel) = fitted(m)
 
+########################################################################
+## RobustLinearModel fit methods
+########################################################################
 
 """
     rlm(X, y, args...; kwargs...)
@@ -521,8 +549,7 @@ function StatsAPI.fit!(
 
     if correct_leverage
         wts = m.resp.wts
-        copy!(wts, leverage_weights(m))
-        ## TODO: maybe multiply by the old wts?
+        copy!(wts, leverage_weights(m, :original))
     end
 
     # Get type
@@ -700,15 +727,12 @@ function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::Abstrac
     factor > 0 || error("factor should be positive")
 
     y = response(m)
-    wts = Vector(weights(m))
+    wts = weights(m)
 
     allowed_methods = (:mad, :extrema, :L1)
     if method == :mad
-        σ = if length(wts) == length(y)
-            factor * mad(wts .* y; normalize=true)
-        else
-            factor * mad(y; normalize=true)
-        end
+        wy = isempty(wts) ? y : wts .* y
+        σ = factor * mad(wy; normalize=true)
     elseif method == :L1
         X = modelmatrix(m)
         σ = dispersion(quantreg(X, y; wts=wts))
@@ -1121,14 +1145,19 @@ function resampling_minN(p::Int, α::Real=0.05, ε::Real=0.5)
 end
 
 
-function resampling_initialcoef(m, inds)
+function resampling_initialcoef(m::RobustLinearModel, inds::AbstractVector{<:Integer})
     # Get the subsampled model matrix, response and weights
     Xi = modelmatrix(m)[inds, :]
     yi = response(m)[inds]
-    wi = Vector(weights(m)[inds])
-
-    # Fit with OLS
-    coef(lm(Xi, yi; wts=wi))
+    w = weights(m)
+    if isempty(w)
+        # Fit with OLS
+        return coef(lm(Xi, yi))
+    else
+        wi = w[inds]
+        # Fit with OLS
+        return coef(lm(Xi, yi; wts=wi))
+    end
 end
 
 """
