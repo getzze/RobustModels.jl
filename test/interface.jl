@@ -7,34 +7,36 @@ loss2 = RobustModels.TukeyLoss()
 est1 = MEstimator(loss1)
 est2 = MEstimator(loss2)
 
-funcs = ( dof,
-          dof_residual,
-          confint,
-          deviance,
-          nulldeviance,
-          loglikelihood,
-          nullloglikelihood,
-          dispersion,
-          nobs,
-          stderror,
-          vcov,
-          residuals,
-          predict,
-          response,
-          weights,
-          workingweights,
-          fitted,
-          predict,
-          isfitted,
-          islinear,
-          leverage,
-          modelmatrix,
-          projectionmatrix,
-          wobs,
-          Estimator,
-          scale,
-          hasintercept,
-        )
+funcs = (
+    dof,
+    dof_residual,
+    confint,
+    deviance,
+    nulldeviance,
+    loglikelihood,
+    nullloglikelihood,
+    dispersion,
+    nobs,
+    stderror,
+    vcov,
+    residuals,
+    predict,
+    response,
+    weights,
+    workingweights,
+    fitted,
+    predict,
+    isfitted,
+    islinear,
+    leverage,
+    leverage_weights,
+    modelmatrix,
+    projectionmatrix,
+    wobs,
+    Estimator,
+    scale,
+    hasintercept,
+)
 
 
 @testset "linear: L2 estimator" begin
@@ -62,8 +64,8 @@ funcs = ( dof,
 
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
-            if f in (Estimator, weights, workingweights, islinear, isfitted,
-                     leverage, modelmatrix, projectionmatrix, scale, wobs)
+            if f in (Estimator, weights, workingweights, islinear, isfitted, scale, wobs,
+                     leverage, leverage_weights, modelmatrix, projectionmatrix)
                 # method is not defined in GLM
                 @test_nowarn f(m)
             else
