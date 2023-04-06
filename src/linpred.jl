@@ -329,10 +329,8 @@ function Base.setproperty!(r::RidgePred, s::Symbol, v)
     if s ∈ (:λ, :lambda)
         v >= 0 || throw(DomainError(v, "the shrinkage parameter should be non-negative"))
         # Update the square root value
-        r.sqrthalfλ = √(v / 2)
+        setfield!(r, :sqrthalfλ, √(v / 2))
         postupdate_λ!(r)
-    elseif s ∈ (:sqrthalfλ,)
-        setfield!(r, s, v)
     else
         error(
             "cannot set any property of RidgePred except" *
