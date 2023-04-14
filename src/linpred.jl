@@ -244,7 +244,7 @@ Regularized predictor using ridge regression on the `p` features.
 mutable struct RidgePred{T<:BlasReal,M<:AbstractMatrix,P<:LinPred} <:
                AbstractRegularizedPred{T}
     X::M                    # model matrix
-    sqrthalfλ::T            # sqrt of half of the shrinkage parameter λ
+    sqrtλ::T                # sqrt of the shrinkage parameter λ
     G::M                    # regularizer matrix
     βprior::Vector{T}       # coefficients prior
     pred::P                 # predictor
@@ -277,16 +277,16 @@ function RidgePred(
     ll = size(βprior, 1)
     ll in (0, m) || throw(DimensionMismatch("length of βprior is $ll, must be $m or 0"))
 
-    sqrthalfλ = √(λ / 2)
+    sqrtλ = √λ
     pred = if P == DensePredChol
-        P(cat_ridge_matrix(X, sqrthalfλ, G), pivot)
+        P(cat_ridge_matrix(X, sqrtλ, G), pivot)
     else
-        P(cat_ridge_matrix(X, sqrthalfλ, G))
+        P(cat_ridge_matrix(X, sqrtλ, G))
     end
 
     return RidgePred{T,typeof(X),typeof(pred)}(
         X,
-        sqrthalfλ,
+        sqrtλ,
         G,
         (ll == 0) ? zeros(T, m) : βprior,
         pred,
@@ -300,7 +300,7 @@ end
 function postupdate_λ!(r::RidgePred)
     n, m = size(r.X)
     # Update the extended model matrix with the new value
-    GG = r.sqrthalfλ * r.G
+    GG = r.sqrtλ * r.G
     @views r.pred.X[n+1:n+m, :] .= GG
     if isa(r.pred, DensePredChol)
         # Recompute the cholesky decomposition
@@ -317,7 +317,7 @@ end
 
 function Base.getproperty(r::RidgePred, s::Symbol)
     if s ∈ (:λ, :lambda)
-        2 * (r.sqrthalfλ)^2
+        (r.sqrtλ)^2
     elseif s ∈ (:beta0, :delbeta)
         getproperty(r.pred, s)
     else
@@ -329,7 +329,7 @@ function Base.setproperty!(r::RidgePred, s::Symbol, v)
     if s ∈ (:λ, :lambda)
         v >= 0 || throw(DomainError(v, "the shrinkage parameter should be non-negative"))
         # Update the square root value
-        setfield!(r, :sqrthalfλ, √(v / 2))
+        setfield!(r, :sqrtλ, √v)
         postupdate_λ!(r)
     else
         error(
@@ -352,7 +352,7 @@ function Base.propertynames(r::RidgePred, private=false)
             :beta0,
             :delbeta,
             :pivot,
-            :sqrthalfλ,
+            :sqrtλ,
             :scratchbeta,
             :scratchy,
             :scratchwt,
@@ -443,7 +443,7 @@ function delbeta!(
     copyto!(p.scratchy, r)
     # yprior = sqrt(p.λ/2) * p.G * (p.βprior - p.pred.beta0)
     broadcast!(-, p.scratchbeta, p.βprior, p.pred.beta0)
-    @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrthalfλ, 0)
+    @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrtλ, 0)
 
     # Fill weights
     copyto!(p.scratchwt, wt)
@@ -494,3 +494,11 @@ end
 
 StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
     tr(projectionmatrix(m.pred, workingweights(m.resp)))
+
+function StatsAPI.stderror(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred}
+    wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
+    Σ = Hermitian(wXt * modelmatrix(m.pred))
+    M = vcov(m) * Σ * vcov(m)'
+    s = location_variance(m.resp, dof_residual(m), false)
+    return s .* sqrt.(diag(M))
+end
