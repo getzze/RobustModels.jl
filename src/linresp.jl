@@ -153,7 +153,7 @@ end
 
 function GLM.dispersion(
     r::RobustResp,
-    dof_residual::Real=(nobs(r) - 1),
+    dof_residual::Real=(wobs(r) - 1),
     sqr::Bool=false,
     robust::Bool=true,
 )
@@ -180,7 +180,7 @@ From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
 function location_variance(
     r::RobustLinResp,
-    dof_residual::Real=(nobs(r) - 1),
+    dof_residual::Real=(wobs(r) - 1),
     sqr::Bool=false,
 )
     lpsi(x) = psi(r.est, x)
@@ -200,7 +200,7 @@ function location_variance(
         v /= (mean(lpsider.(r.wrkscaledres), wts))^2
     end
     v *= r.σ^2
-    v *= (nobs(r) / dof_residual)
+    v *= (wobs(r) / dof_residual)
 
     return sqr ? v : sqrt(v)
 end
