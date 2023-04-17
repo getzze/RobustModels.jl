@@ -701,6 +701,24 @@ function _fit!(
     m
 end
 
+
+"""
+    weightedmad(x::AbstractArray, w::AbstractWeights; dims::Union{Colon,Int}=:, normalize::Bool=true)
+
+Compute Median Absolute Deviation with weights.
+"""
+# StatsBase.mad
+function weightedmad(x::AbstractVector, w::AbstractWeights; normalize::Bool=true)
+    med = median(x, w)
+    m = median(abs.(x .- med), w)
+    if normalize
+        m * mad_constant
+    else
+        m
+    end
+end
+
+
 function process_σ0β0(
     m::RobustLinearModel,
     σ0::Union{Real,Symbol}=scale(m),
@@ -731,8 +749,12 @@ function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::Abstrac
 
     allowed_methods = (:mad, :extrema, :L1)
     if method == :mad
-        wy = isempty(wts) ? y : wts .* y
-        σ = factor * mad(wy; normalize=true)
+        if isempty(wts)
+            σ = factor * mad(y; normalize=true)
+        else
+            # StatsBase.mad does not allow weights
+            σ = factor * weightedmad(y, weights(wts); normalize=true)
+        end
     elseif method == :L1
         X = modelmatrix(m)
         σ = dispersion(quantreg(X, y; wts=wts))
