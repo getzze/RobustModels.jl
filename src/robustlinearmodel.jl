@@ -754,8 +754,6 @@ function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::Abstrac
         else
             # StatsBase.mad does not allow weights
             σ = factor * weightedmad(y, weights(wts); normalize=true)
-#            med = median(y, weights(wts))
-#            σ = factor * 1.4826 * median(abs.(y .- med), weights(wts))
         end
     elseif method == :L1
         X = modelmatrix(m)
