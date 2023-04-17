@@ -20,7 +20,6 @@ funcs = (
     stderror,
     vcov,
     residuals,
-    predict,
     response,
     weights,
     workingweights,
