@@ -1,22 +1,34 @@
 
-funcs = ( dof,
-          dof_residual,
-          confint,
-          deviance,
-          nulldeviance,
-          loglikelihood,
-          nullloglikelihood,
-          dispersion,
-          nobs,
-          stderror,
-          vcov,
-          residuals,
-          predict,
-          response,
-          modelmatrix,
-          weights,
-          leverage
-        )
+funcs = (
+    dof,
+    dof_residual,
+    confint,
+    deviance,
+    nulldeviance,
+    loglikelihood,
+    nullloglikelihood,
+    dispersion,
+    nobs,
+    stderror,
+    vcov,
+    residuals,
+    predict,
+    response,
+    weights,
+    workingweights,
+    fitted,
+    predict,
+    isfitted,
+    islinear,
+    leverage,
+    leverage_weights,
+    modelmatrix,
+    projectionmatrix,
+    wobs,
+    scale,
+    hasintercept,
+)
+
 
 @testset "Quantile regression: high-level function" begin
     τs = range(0.1, 0.9, step=0.1)

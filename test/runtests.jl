@@ -27,9 +27,9 @@ y = data.logBrain
 # Include tests
 include("estimators.jl")
 include("interface.jl")
-include("weights.jl")
 include("linearfit.jl")
 include("mquantile.jl")
 include("robustridge.jl")
 include("qreg.jl")
+include("weights.jl")
 include("univariate.jl")

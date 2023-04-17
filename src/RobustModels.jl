@@ -20,7 +20,7 @@ using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: Link, canonicallink, FPVector, lm, SparsePredChol, DensePredChol
-using StatsBase: mean, median, mad_constant, AbstractWeights, ConvergenceException, sample, quantile
+using StatsBase: mean, median, mad, mad_constant, AbstractWeights, ConvergenceException, sample, quantile
 using IterativeSolvers: lsqr!, cg!
 #using Roots: find_zero, Order1, ConvergenceFailed
 #using QuadGK: quadgk
