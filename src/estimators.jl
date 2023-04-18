@@ -41,7 +41,7 @@ function weight end
 function estimator_norm end
 
 "The limit at ∞ of the loss function. Used for scale estimation of bounded loss."
-estimator_bound(::Type{<:LossFunction}) = Inf
+estimator_bound(f::LossFunction) = Inf
 
 "The tuning constant of the loss function, can be optimized to get efficient or robust estimates."
 tuning_constant(loss::L) where {L<:LossFunction} = loss.c
@@ -80,6 +80,13 @@ function values(l::LossFunction, r::Real)
     rr = r / c
     return (_rho(l, rr), c * _psi(l, rr), _weight(l, rr))
 end
+
+"""
+    threshold(l::LossFunction, x, λ) = x / λ - psi(l, x / λ)
+
+Threshold function associated with the loss, with optional factor.
+"""
+threshold(l::LossFunction, x, λ::Real = 1.0) = x / λ - psi(l, x / λ)
 
 
 ##
@@ -127,13 +134,12 @@ end
 
 The rho-function that is used for M-scale estimation.
 
-For monotone (convex) functions, χ(r) = r.ψ(r).
+For monotone (convex) functions, χ(r) = r.ψ(r)/c^2.
 
 For bounded functions, χ(r) = ρ(r)/ρ(∞) so χ(∞) = 1.
 """
-mscale_loss(loss::L, x) where {L<:LossFunction} = x * RobustModels.psi(loss, x)
-mscale_loss(loss::L, x) where {L<:BoundedLossFunction} =
-    RobustModels.rho(loss, x) / estimator_bound(L)
+mscale_loss(l::LossFunction, x) = x * RobustModels.psi(l, x) / (tuning_constant(l))^2
+mscale_loss(l::BoundedLossFunction, x) = RobustModels.rho(l, x) / estimator_bound(l)
 
 
 """
@@ -156,7 +162,7 @@ function breakdown_point_tuning_constant(
 ) where {L<:LossFunction}
     (0 < bp <= 1 / 2) || error("breakdown-point should be between 0 and 1/2")
 
-    I(c) = quadgk(x -> mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
+    I(c) = quadgk(x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     copt = find_zero(c -> I(c) - bp, c0, Order1())
 end
 
@@ -231,7 +237,6 @@ end
 estimator_norm(l::HuberLoss) = l.c * 2.92431
 estimator_high_efficiency_constant(::Type{HuberLoss}) = 1.345
 estimator_high_breakdown_point_constant(::Type{HuberLoss}) = 0.6745
-
 
 
 """
@@ -441,6 +446,7 @@ function values(l::CauchyLoss, r::Real)
     return (-log(ir), r * ir, ir)
 end
 estimator_norm(l::CauchyLoss) = l.c * π
+estimator_bound(l::CauchyLoss) = 1.0
 isconvex(::CauchyLoss) = false
 isbounded(::CauchyLoss) = false
 
@@ -468,10 +474,10 @@ function values(l::GemanLoss, r::Real)
     return (1 / 2 * rr2 * ir, r * ir^2, ir^2)
 end
 estimator_norm(::GemanLoss) = Inf
+estimator_bound(::GemanLoss) = 1 / 2
 isconvex(::GemanLoss) = false
 isbounded(::GemanLoss) = true
 
-estimator_bound(::Type{GemanLoss}) = 1 / 2
 estimator_high_efficiency_constant(::Type{GemanLoss}) = 3.787
 estimator_high_breakdown_point_constant(::Type{GemanLoss}) = 0.61200
 
@@ -497,10 +503,10 @@ function values(l::WelschLoss, r::Real)
     return (-1 / 2 * Base.expm1(-rr2), r * er, er)
 end
 estimator_norm(::WelschLoss) = Inf
+estimator_bound(::WelschLoss) = 1 / 2
 isconvex(::WelschLoss) = false
 isbounded(::WelschLoss) = true
 
-estimator_bound(::Type{WelschLoss}) = 1 / 2
 estimator_high_efficiency_constant(::Type{WelschLoss}) = 2.985
 estimator_high_breakdown_point_constant(::Type{WelschLoss}) = 0.8165
 
@@ -525,10 +531,10 @@ function values(l::TukeyLoss, r::Real)
     return (1 / 6 * (1 - pr^3), r * pr^2, pr^2)
 end
 estimator_norm(::TukeyLoss) = Inf
+estimator_bound(::TukeyLoss) = 1 / 6
 isconvex(::TukeyLoss) = false
 isbounded(::TukeyLoss) = true
 
-estimator_bound(::Type{TukeyLoss}) = 1 / 6
 estimator_high_efficiency_constant(::Type{TukeyLoss}) = 4.685
 estimator_high_breakdown_point_constant(::Type{TukeyLoss}) = 1.5476
 
@@ -598,12 +604,131 @@ function values(l::YohaiZamarLoss, r::Real)
     end
 end
 estimator_norm(::YohaiZamarLoss) = Inf
+estimator_bound(::YohaiZamarLoss) = 1
 isconvex(::YohaiZamarLoss) = false
 isbounded(::YohaiZamarLoss) = true
 
-estimator_bound(::Type{YohaiZamarLoss}) = 1
 estimator_high_efficiency_constant(::Type{YohaiZamarLoss}) = 3.1806
 estimator_high_breakdown_point_constant(::Type{YohaiZamarLoss}) = 1.2139
+
+
+"""
+The non-convex hard-threshold loss function, or saturated L2 loss. Non-smooth.
+ψ(r) = (abs(r) <= 1) ? r : 0
+"""
+struct HardThresholdLoss <: BoundedLossFunction
+    c::Float64
+
+    HardThresholdLoss(c::Real) = new(c)
+    HardThresholdLoss() = new(estimator_high_efficiency_constant(HardThresholdLoss))
+end
+_rho(   l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2 : oftype(r, 1/2)
+_psi(   l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r : oftype(r, 0)
+function _psider(l::HardThresholdLoss, r::Real)
+    if abs(r) <= 1
+        return oftype(r, 1)
+    elseif abs(r) < 1 + DELTA
+        return -L1WDELTA
+    else
+        return oftype(r, 0)
+    end
+end
+_weight(l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : oftype(r, 0)
+function values(l::HardThresholdLoss, r::Real)
+    ar = abs(r / l.c)
+    if ar <= 1
+        return (ar^2 / 2, r, oftype(r, 1))
+    else
+        return (oftype(r, 1), oftype(r, 0), oftype(r, 0))
+    end
+end
+estimator_norm(::HardThresholdLoss) = Inf
+estimator_bound(::HardThresholdLoss) = 1/2
+isconvex(::HardThresholdLoss) = false
+isbounded(::HardThresholdLoss) = true
+
+## Computed with `find_zero(c -> I1(c) - 0.95, 2.8, Order1())` after simplification (fun_eff = I1)
+estimator_high_efficiency_constant(::Type{HardThresholdLoss}) = 2.795
+estimator_high_breakdown_point_constant(::Type{HardThresholdLoss}) = 1.041
+
+
+#################################
+### Two (or more) parameters loss functions
+#################################
+
+"""
+The 3-parameter non-convex bounded Hampel's loss function.
+ψ(r) = (abs(r) <= 1) ? r : (
+       (abs(r) <= l.ν1) ? sign(r) : (
+       (abs(r) <= l.ν2) ? (l.ν2 - abs(r)) / (l.ν2 - l.ν1) * sign(r) : 0))
+"""
+struct HampelLoss <: BoundedLossFunction
+    c::Float64
+    ν1::Float64
+    ν2::Float64
+
+    function HampelLoss(c::Real, ν1::Real, ν2::Real)
+        c >= 0 || throw(ArgumentError("constant c must be non-negative: $c"))
+        ν1 >= 1 || throw(ArgumentError("constant ν1 must be greater than 1: $ν1"))
+        ν2 >= ν1 || throw(ArgumentError("constant ν2 must be greater than ν1: $ν2 >= ν1=$ν1"))
+        new(c, ν1, ν2)
+    end
+    HampelLoss(c::Real) = new(c, 2.0, 4.0)
+    HampelLoss() = new(estimator_high_efficiency_constant(HampelLoss))
+end
+function _rho(l::HampelLoss, r::Real)
+    if (abs(r) <= 1)
+        return r^2 / 2
+    elseif (abs(r) <= l.ν1)
+        return abs(r) - 1 / 2
+    elseif (abs(r) < l.ν2)
+        return - (l.ν2 - abs(r))^2 / (2 * (l.ν2 - l.ν1)) + (l.ν1 + l.ν2 - 1) / 2
+    else
+        return (l.ν1 + l.ν2 - 1) / 2
+    end
+end
+function _psi(l::HampelLoss, r::Real)
+    if (abs(r) <= 1)
+        return r
+    elseif (abs(r) <= l.ν1)
+        return sign(r)
+    elseif (abs(r) < l.ν2)
+        return (l.ν2 - abs(r)) / (l.ν2 - l.ν1) * sign(r)
+    else
+        return oftype(r, 0)
+    end
+end
+function _psider(l::HampelLoss, r::Real)
+    if (abs(r) <= 1)
+        return oftype(r, 1)
+    elseif (abs(r) <= l.ν1)
+        return oftype(r, 0)
+    elseif (abs(r) < l.ν2)
+        return - 1 / (l.ν2 - l.ν1)
+    else
+        return oftype(r, 0)
+    end
+end
+function _weight(l::HampelLoss, r::Real)
+    if (abs(r) <= 1)
+        return oftype(r, 1)
+    elseif (abs(r) <= l.ν1)
+        return 1 / abs(r)
+    elseif (abs(r) < l.ν2)
+        return (l.ν2 / abs(r) - 1) / (l.ν2 - l.ν1)
+    else
+        return oftype(r, 0)
+    end
+end
+estimator_norm(::HampelLoss) = Inf
+estimator_bound(l::HampelLoss) = (l.ν1 + l.ν2 - 1) / 2
+isconvex(::HampelLoss) = false
+isbounded(::HampelLoss) = true
+
+# Values of `c` for (ν1, ν2) = (2, 4)
+estimator_high_efficiency_constant(::Type{HampelLoss}) = 1.382
+estimator_high_breakdown_point_constant(::Type{HampelLoss}) = 0.396
+
 
 ######
 ###   Convex sum of loss functions
@@ -649,9 +774,12 @@ isconvex(e::CompositeLossFunction) = isconvex(e.loss1) && isconvex(e.loss2)
 
 estimator_norm(e::CompositeLossFunction) =
     e.α1 * estimator_norm(e.loss1) + e.α2 * estimator_norm(e.loss2)
+estimator_bound(e::CompositeLossFunction) =
+    e.α1 * estimator_bound(e.loss1) * (tuning_constant(e.loss1))^2 +
+    e.α2 * estimator_bound(e.loss2) * (tuning_constant(e.loss2))^2
 rho(e::CompositeLossFunction, r::Real) =
-    e.α1 * rho(e.loss1) * (tuning_constant(E.loss1))^2 +
-    e.α2 * rho(e.loss2) * (tuning_constant(E.loss2))^2
+    e.α1 * rho(e.loss1, r) * (tuning_constant(e.loss1))^2 +
+    e.α2 * rho(e.loss2, r) * (tuning_constant(e.loss2))^2
 psi(e::CompositeLossFunction, r::Real) = e.α1 * psi(e.loss1) + e.α2 * psi(e.loss2)
 psider(e::CompositeLossFunction, r::Real) =
     e.α1 * psider(e.loss1) + e.α2 * psider(e.loss2)
@@ -659,7 +787,12 @@ weight(e::CompositeLossFunction, r::Real) =
     e.α1 * weight(e.loss1) + e.α2 * weight(e.loss2)
 values(e::CompositeLossFunction, r::Real) =
     @.(e.α1 * values(e.loss1) + e.α2 * values(e.loss2))
-
+function mscale_loss(e::CompositeLossFunction, x)
+    if !isa(e.loss1, BoundedLossFunction) || !isa(e.loss2, BoundedLossFunction)
+        throw(MethodError("mscale_loss for CompositeLossFunction is defined only if both losses are bounded"))
+    end
+    return rho(e, x) / estimator_bound(e)
+end
 
 ######
 ###   Scale estimation
@@ -772,7 +905,7 @@ function scale_estimate(
 
     # Approximate the solution with `nmax` iterations
     if !approx && order >= 2
-        bb = tuning_constant(l)^2 * estimator_bound(L) * bound
+        bb = tuning_constant(l)^2 * estimator_bound(l) * bound
     end
     σn = σ0
     converged = false
@@ -867,7 +1000,7 @@ psider(e::MEstimator, r::Real) = psider(e.loss, r)
 weight(e::MEstimator, r::Real) = weight(e.loss, r)
 values(e::MEstimator, r::Real) = values(e.loss, r)
 estimator_norm(e::MEstimator, args...) = estimator_norm(e.loss, args...)
-estimator_bound(e::MEstimator) = estimator_bound(typeof(e.loss))
+estimator_bound(e::MEstimator) = estimator_bound(e.loss)
 
 isbounded(e::MEstimator) = isbounded(e.loss)
 isconvex(e::MEstimator) = isconvex(e.loss)
@@ -933,7 +1066,7 @@ psider(e::SEstimator, r::Real) = psider(e.loss, r)
 weight(e::SEstimator, r::Real) = weight(e.loss, r)
 values(e::SEstimator, r::Real) = values(e.loss, r)
 estimator_norm(e::SEstimator, args...) = Inf
-estimator_bound(e::SEstimator) = estimator_bound(typeof(e.loss))
+estimator_bound(e::SEstimator) = estimator_bound(e.loss)
 isbounded(e::SEstimator) = true
 isconvex(e::SEstimator) = false
 
@@ -1016,7 +1149,7 @@ values(E::MMEstimator, r::Real) = values(loss(E), r)
 
 # For these methods, only the SEstimator loss is useful,
 # not the MEstimator, so E.loss1 is used instead of loss(E)
-estimator_bound(E::MMEstimator) = estimator_bound(typeof(E.loss1))
+estimator_bound(E::MMEstimator) = estimator_bound(E.loss1)
 # For these methods, only the MEstimator loss is useful,
 # not the SEstimator, so E.loss2 is used instead of loss(E)
 estimator_norm(E::MMEstimator, args...) = estimator_norm(E.loss2, args...)
@@ -1178,7 +1311,7 @@ function values(E::TauEstimator, r::Real)
     )
 end
 estimator_norm(E::TauEstimator, args...) = Inf
-estimator_bound(E::TauEstimator) = estimator_bound(typeof(E.loss1))
+estimator_bound(E::TauEstimator) = estimator_bound(E.loss1)
 isbounded(E::TauEstimator) = true
 isconvex(E::TauEstimator) = false
 
@@ -1300,7 +1433,7 @@ function values(e::GeneralizedQuantileEstimator, r::Real)
     Tuple([x * w for x in vals])
 end
 estimator_norm(e::GeneralizedQuantileEstimator, args...) = estimator_norm(e.loss, args...)
-estimator_bound(e::GeneralizedQuantileEstimator) = estimator_bound(loss(e))
+estimator_bound(e::GeneralizedQuantileEstimator) = estimator_bound(e.loss)
 isbounded(e::GeneralizedQuantileEstimator) = isbounded(e.loss)
 isconvex(e::GeneralizedQuantileEstimator) = isconvex(e.loss)
 
