@@ -97,6 +97,8 @@ export LossFunction,
        WelschLoss,
        TukeyLoss,
        YohaiZamarLoss,
+       HardThresholdLoss,
+       HampelLoss,
        AbstractEstimator,
        AbstractMEstimator,
        AbstractQuantileEstimator,
@@ -175,6 +177,7 @@ abstract type AbstractRegularizedPred{T} <: LinPred end
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 
+include("losses.jl")
 include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")
