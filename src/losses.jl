@@ -666,7 +666,7 @@ struct HampelLoss <: BoundedLossFunction
         new(c, ν1, ν2)
     end
     HampelLoss(c::Real) = new(c, 2.0, 4.0)
-    HampelLoss() = new(estimator_high_efficiency_constant(HampelLoss))
+    HampelLoss() = new(estimator_high_efficiency_constant(HampelLoss), 2.0, 4.0)
 end
 function _rho(l::HampelLoss, r::Real)
     if (abs(r) <= 1)

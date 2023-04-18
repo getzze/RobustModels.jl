@@ -30,7 +30,12 @@ estimators = (
     "Welsch",
     "Tukey",
     "YohaiZamar",
+    "HardThreshold",
+    "Hampel",
 )
+
+
+bounded_losses = ("Geman", "Welsch", "Tukey", "YohaiZamar", "HardThreshold", "Hampel")
 
 # norm
 emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf)[1]
@@ -52,7 +57,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
             estimator_name = "$(estimator) Estimator"
             T = getproperty(RobustModels, Symbol(estimator * "Estimator"))
             if estimator in ("S", "MM", "Tau")
-                if !in(name, ("Geman", "Welsch", "Tukey", "YohaiZamar"))
+                if !in(name, bounded_losses)
                     @test_throws TypeError T{typeloss}
                     continue
                 end
@@ -74,7 +79,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
         end
 
         @testset "Bounded $(estimator_name): $(name)" begin
-            if name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
+            if name in bounded_losses
                 @test isbounded(est)
             else
                 @test !isbounded(est)
@@ -82,7 +87,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
         end
 
         @testset "Convex $(estimator_name): $(name)" begin
-            if name in ("Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
+            if name == "Cauchy" || name in bounded_losses
                 @test !isconvex(est)
             else
                 @test isconvex(est)
@@ -113,8 +118,10 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
             if !in(name, ("L2", "L1"))
                 @testset "Estimator high efficiency: $(name)" begin
                     vopt = estimator_high_efficiency_constant(typest)
-                    v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9*vopt)
-                    @test isapprox(v, vopt; rtol=1e-3)
+                    if name != "HardThreshold"
+                        v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9*vopt)
+                        @test isapprox(v, vopt; rtol=1e-3)
+                    end
                 end
             end
 
@@ -127,8 +134,10 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
 
                 @testset "τ-Estimator high efficiency: $(name)" begin
                     vopt = estimator_tau_efficient_constant(typest)
-                    v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1*vopt)
-                    @test isapprox(v, vopt; rtol=1e-3)
+                    if name != "HardThreshold"
+                        v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1*vopt)
+                        @test isapprox(v, vopt; rtol=1e-3)
+                    end
                 end
             end
         end
