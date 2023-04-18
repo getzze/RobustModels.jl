@@ -75,7 +75,7 @@ psider(l::LossFunction, r) = _psider(l, r / tuning_constant(l))
 weight(l::LossFunction, r) = _weight(l, r / tuning_constant(l))
 
 "Faster version if you need ρ, ψ and w in the same call"
-function values(l::LossFunction, r::Real)
+function estimator_values(l::LossFunction, r::Real)
     c = tuning_constant(l)
     rr = r / c
     return (_rho(l, rr), c * _psi(l, rr), _weight(l, rr))
@@ -183,7 +183,7 @@ rho(   ::L2Loss, r::Real) = r^2 / 2
 psi(   ::L2Loss, r::Real) = r
 psider(::L2Loss, r::Real) = oftype(r, 1)
 weight(::L2Loss, r::Real) = oftype(r, 1)
-values(::L2Loss, r::Real) = (r^2 / 2, r, oftype(r, 1))
+estimator_values(::L2Loss, r::Real) = (r^2 / 2, r, oftype(r, 1))
 estimator_norm(::L2Loss) = √(2 * π)
 tuning_constant(::L2Loss) = 1
 
@@ -202,7 +202,7 @@ rho(   ::L1Loss, r::Real) = abs(r)
 psi(   ::L1Loss, r::Real) = sign(r)
 psider(::L1Loss, r::Real) = (abs(r) < DELTA) ? oftype(r, 1) : oftype(r, 0)
 weight(::L1Loss, r::Real) = (abs(r) < DELTA) ? L1WDELTA     : 1 / abs(r)
-function values(est::L1Loss, r::Real)
+function estimator_values(est::L1Loss, r::Real)
     rr = abs(r)
     return (rr, sign(r), ((rr < DELTA) ? L1WDELTA : 1 / rr))
 end
@@ -226,7 +226,7 @@ _rho(   l::HuberLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2      : (abs(r) - 1 / 2)
 _psi(   l::HuberLoss, r::Real) = (abs(r) <= 1) ? r            : sign(r)
 _psider(l::HuberLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : oftype(r, 0)
 _weight(l::HuberLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : 1 / abs(r)
-function values(l::HuberLoss, r::Real)
+function estimator_values(l::HuberLoss, r::Real)
     rr = abs(r)
     if rr <= l.c
         return ((rr / l.c)^2 / 2, r, oftype(r, 1))
@@ -254,7 +254,7 @@ _rho(   l::L1L2Loss, r::Real) = (sqrt(1 + r^2) - 1)
 _psi(   l::L1L2Loss, r::Real) = r / sqrt(1 + r^2)
 _psider(l::L1L2Loss, r::Real) = 1 / (1 + r^2)^(3 / 2)
 _weight(l::L1L2Loss, r::Real) = 1 / sqrt(1 + r^2)
-function values(l::L1L2Loss, r::Real)
+function estimator_values(l::L1L2Loss, r::Real)
     sqr = sqrt(1 + (r / l.c)^2)
     return ((sqr - 1), r / sqr, 1 / sqr)
 end
@@ -278,7 +278,7 @@ _rho(   l::FairLoss, r::Real) = abs(r) - log(1 + abs(r))
 _psi(   l::FairLoss, r::Real) = r / (1 + abs(r))
 _psider(l::FairLoss, r::Real) = 1 / (1 + abs(r))^2
 _weight(l::FairLoss, r::Real) = 1 / (1 + abs(r))
-function values(l::FairLoss, r::Real)
+function estimator_values(l::FairLoss, r::Real)
     ir = 1 / (1 + abs(r / l.c))
     return (abs(r) / l.c + log(ir), r * ir, ir)
 end
@@ -300,7 +300,7 @@ _rho(   l::LogcoshLoss, r::Real) = log(cosh(r))
 _psi(   l::LogcoshLoss, r::Real) = tanh(r)
 _psider(l::LogcoshLoss, r::Real) = 1 / (cosh(r))^2
 _weight(l::LogcoshLoss, r::Real) = (abs(r) < DELTA) ? (1 - (r)^2 / 3) : tanh(r) / r
-function values(l::LogcoshLoss, r::Real)
+function estimator_values(l::LogcoshLoss, r::Real)
     tr = l.c * tanh(r / l.c)
     rr = abs(r / l.c)
     return (log(cosh(rr)), tr, ((rr < DELTA) ? (1 - rr^2 / 3) : tr / r))
@@ -323,7 +323,7 @@ _rho(   l::ArctanLoss, r::Real) = r * atan(r) - 1 / 2 * log(1 + r^2)
 _psi(   l::ArctanLoss, r::Real) = atan(r)
 _psider(l::ArctanLoss, r::Real) = 1 / (1 + r^2)
 _weight(l::ArctanLoss, r::Real) = (abs(r) < DELTA) ? (1 - r^2 / 3) : atan(r) / r
-function values(l::ArctanLoss, r::Real)
+function estimator_values(l::ArctanLoss, r::Real)
     ar = atan(r / l.c)
     rr = abs(r / l.c)
     return (
@@ -355,7 +355,7 @@ end
 _psi(   l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2/2)
 _psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2/2)
 _weight(l::CatoniWideLoss, r::Real) = (r < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2/2) / abs(r)
-function values(l::CatoniWideLoss, r::Real)
+function estimator_values(l::CatoniWideLoss, r::Real)
     rr = abs(r / l.c)
     lr = log(1 + rr + rr^2/2)
     return (
@@ -408,7 +408,7 @@ function _weight(l::CatoniNarrowLoss, r::Real)
     end
     return log(2) / abs(r)
 end
-function values(l::CatoniNarrowLoss, r::Real)
+function estimator_values(l::CatoniNarrowLoss, r::Real)
     rr = abs(r / l.c)
     lr = log(1 - rr + rr^2/2)
     if abs(r) <= 1
@@ -441,7 +441,7 @@ _rho(   l::CauchyLoss, r::Real) = log(1 + r^2) # * 1/2  # remove factor 1/2 so t
 _psi(   l::CauchyLoss, r::Real) = r / (1 + r^2)
 _psider(l::CauchyLoss, r::Real) = (1 - r^2) / (1 + r^2)^2
 _weight(l::CauchyLoss, r::Real) = 1 / (1 + r^2)
-function values(l::CauchyLoss, r::Real)
+function estimator_values(l::CauchyLoss, r::Real)
     ir = 1 / (1 + (r / l.c)^2)
     return (-log(ir), r * ir, ir)
 end
@@ -468,7 +468,7 @@ _rho(   l::GemanLoss, r::Real) = 1/2 * r^2 / (1 + r^2)
 _psi(   l::GemanLoss, r::Real) = r / (1 + r^2)^2
 _psider(l::GemanLoss, r::Real) = (1 - 3 * r^2) / (1 + r^2)^3
 _weight(l::GemanLoss, r::Real) = 1 / (1 + r^2)^2
-function values(l::GemanLoss, r::Real)
+function estimator_values(l::GemanLoss, r::Real)
     rr2 = (r / l.c)^2
     ir = 1 / (1 + rr2)
     return (1 / 2 * rr2 * ir, r * ir^2, ir^2)
@@ -497,7 +497,7 @@ _rho(   l::WelschLoss, r::Real) = -1 / 2 * Base.expm1(-r^2)
 _psi(   l::WelschLoss, r::Real) = r * exp(-r^2)
 _psider(l::WelschLoss, r::Real) = (1 - 2 * r^2) * exp(-r^2)
 _weight(l::WelschLoss, r::Real) = exp(-r^2)
-function values(l::WelschLoss, r::Real)
+function estimator_values(l::WelschLoss, r::Real)
     rr2 = (r / l.c)^2
     er = exp(-rr2)
     return (-1 / 2 * Base.expm1(-rr2), r * er, er)
@@ -526,7 +526,7 @@ _rho(   l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 / 6 * (1 - (1 - r^2)^3) : 1 /
 _psi(   l::TukeyLoss, r::Real) = (abs(r) <= 1) ? r * (1 - r^2)^2           : oftype(r, 0)
 _psider(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 - 6 * r^2 + 5 * r^4     : oftype(r, 0)
 _weight(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? (1 - r^2)^2               : oftype(r, 0)
-function values(l::TukeyLoss, r::Real)
+function estimator_values(l::TukeyLoss, r::Real)
     pr = (abs(r) <= l.c) * (1 - (r / l.c)^2)
     return (1 / 6 * (1 - pr^3), r * pr^2, pr^2)
 end
@@ -591,7 +591,7 @@ function weight(l::YohaiZamarLoss, r::Real)
         oftype(r, 0)
     end
 end
-function values(l::YohaiZamarLoss, r::Real)
+function estimator_values(l::YohaiZamarLoss, r::Real)
     z = (r / l.c)^2
     if (z <= 4 / 9)
         return (1.3846 * z, 2.7692 * r, 2.7692)
@@ -634,7 +634,7 @@ function _psider(l::HardThresholdLoss, r::Real)
     end
 end
 _weight(l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : oftype(r, 0)
-function values(l::HardThresholdLoss, r::Real)
+function estimator_values(l::HardThresholdLoss, r::Real)
     ar = abs(r / l.c)
     if ar <= 1
         return (ar^2 / 2, r, oftype(r, 1))
@@ -785,8 +785,8 @@ psider(e::CompositeLossFunction, r::Real) =
     e.α1 * psider(e.loss1) + e.α2 * psider(e.loss2)
 weight(e::CompositeLossFunction, r::Real) =
     e.α1 * weight(e.loss1) + e.α2 * weight(e.loss2)
-values(e::CompositeLossFunction, r::Real) =
-    @.(e.α1 * values(e.loss1) + e.α2 * values(e.loss2))
+estimator_values(e::CompositeLossFunction, r::Real) =
+    @.(e.α1 * estimator_values(e.loss1) + e.α2 * estimator_values(e.loss2))
 function mscale_loss(e::CompositeLossFunction, x)
     if !isa(e.loss1, BoundedLossFunction) || !isa(e.loss2, BoundedLossFunction)
         throw(MethodError("mscale_loss for CompositeLossFunction is defined only if both losses are bounded"))
@@ -998,7 +998,7 @@ rho(e::MEstimator, r::Real) = rho(e.loss, r)
 psi(e::MEstimator, r::Real) = psi(e.loss, r)
 psider(e::MEstimator, r::Real) = psider(e.loss, r)
 weight(e::MEstimator, r::Real) = weight(e.loss, r)
-values(e::MEstimator, r::Real) = values(e.loss, r)
+estimator_values(e::MEstimator, r::Real) = estimator_values(e.loss, r)
 estimator_norm(e::MEstimator, args...) = estimator_norm(e.loss, args...)
 estimator_bound(e::MEstimator) = estimator_bound(e.loss)
 
@@ -1064,7 +1064,7 @@ rho(e::SEstimator, r::Real) = rho(e.loss, r)
 psi(e::SEstimator, r::Real) = psi(e.loss, r)
 psider(e::SEstimator, r::Real) = psider(e.loss, r)
 weight(e::SEstimator, r::Real) = weight(e.loss, r)
-values(e::SEstimator, r::Real) = values(e.loss, r)
+estimator_values(e::SEstimator, r::Real) = estimator_values(e.loss, r)
 estimator_norm(e::SEstimator, args...) = Inf
 estimator_bound(e::SEstimator) = estimator_bound(e.loss)
 isbounded(e::SEstimator) = true
@@ -1145,7 +1145,7 @@ rho(E::MMEstimator, r::Real) = rho(loss(E), r)
 psi(E::MMEstimator, r::Real) = psi(loss(E), r)
 psider(E::MMEstimator, r::Real) = psider(loss(E), r)
 weight(E::MMEstimator, r::Real) = weight(loss(E), r)
-values(E::MMEstimator, r::Real) = values(loss(E), r)
+estimator_values(E::MMEstimator, r::Real) = estimator_values(loss(E), r)
 
 # For these methods, only the SEstimator loss is useful,
 # not the MEstimator, so E.loss1 is used instead of loss(E)
@@ -1300,9 +1300,9 @@ rho(E::TauEstimator, r::Real) =
 psi(E::TauEstimator, r::Real) = E.w * psi(E.loss1, r) + psi(E.loss2, r)
 psider(E::TauEstimator, r::Real) = E.w * psider(E.loss1, r) + psider(E.loss2, r)
 weight(E::TauEstimator, r::Real) = E.w * weight(E.loss1, r) + weight(E.loss2, r)
-function values(E::TauEstimator, r::Real)
-    vals1 = values(E.loss1, r)
-    vals2 = values(E.loss2, r)
+function estimator_values(E::TauEstimator, r::Real)
+    vals1 = estimator_values(E.loss1, r)
+    vals2 = estimator_values(E.loss2, r)
     c12, c22 = (tuning_constant(E.loss1))^2, (tuning_constant(E.loss2))^2
     return (
         E.w * vals1[1] * c12 + vals2[1] * c22,
@@ -1427,9 +1427,9 @@ psider(e::GeneralizedQuantileEstimator, r::Real) =
     quantile_weight(e.τ, r) * psider(e.loss, r)
 weight(e::GeneralizedQuantileEstimator, r::Real) =
     quantile_weight(e.τ, r) * weight(e.loss, r)
-function values(e::GeneralizedQuantileEstimator, r::Real)
+function estimator_values(e::GeneralizedQuantileEstimator, r::Real)
     w = quantile_weight(e.τ, r)
-    vals = values(e.loss, r)
+    vals = estimator_values(e.loss, r)
     Tuple([x * w for x in vals])
 end
 estimator_norm(e::GeneralizedQuantileEstimator, args...) = estimator_norm(e.loss, args...)

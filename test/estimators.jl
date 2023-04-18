@@ -4,7 +4,7 @@ using RobustModels:
     psi,
     psider,
     weight,
-    values,
+    estimator_values,
     estimator_high_breakdown_point_constant,
     estimator_high_efficiency_constant,
     estimator_tau_efficient_constant,
@@ -95,7 +95,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
             ψp = psider(est, 1)
             w  = weight(est, 1)
 
-            vals = values(est, 1)
+            vals = estimator_values(est, 1)
             @test length(vals) == 3
             @test vals[1] ≈ ρ  rtol=1e-6
             @test vals[2] ≈ ψ  rtol=1e-6
