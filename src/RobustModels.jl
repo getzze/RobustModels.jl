@@ -35,7 +35,7 @@ using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol
-using StatsBase: mad, ConvergenceException, sample, quantile
+using StatsBase: mean, median, mad, mad_constant, AbstractWeights, ConvergenceException, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, CoefTable, modelcols,
     ModelFrame, apply_schema, schema, checknamesexist, checkcol, termvars, TableRegressionModel
 using IterativeSolvers: lsqr!, cg!
@@ -102,6 +102,8 @@ export LossFunction,
        WelschLoss,
        TukeyLoss,
        YohaiZamarLoss,
+       HardThresholdLoss,
+       HampelLoss,
        AbstractEstimator,
        AbstractMEstimator,
        AbstractQuantileEstimator,
@@ -127,6 +129,7 @@ export LossFunction,
        refit!,
        projectionmatrix,
        wobs,
+       leverage_weights,
        workingweights,
        scale,
        tauscale,
@@ -180,6 +183,7 @@ Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 
 include("tools.jl")
+include("losses.jl")
 include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")

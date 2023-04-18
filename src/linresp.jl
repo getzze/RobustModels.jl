@@ -135,7 +135,7 @@ end
 
 function GLM.dispersion(
     r::RobustResp,
-    dof_residual::Real=(nobs(r) - 1),
+    dof_residual::Real=(wobs(r) - 1),
     sqr::Bool=false,
     robust::Bool=true,
 )
@@ -162,7 +162,7 @@ From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
 function location_variance(
     r::RobustLinResp,
-    dof_residual::Real=(nobs(r) - 1),
+    dof_residual::Real=(wobs(r) - 1),
     sqr::Bool=false,
 )
     lpsi(x) = psi(r.est, x)
@@ -182,7 +182,7 @@ function location_variance(
         v /= (mean(lpsider.(r.wrkscaledres), wts))^2
     end
     v *= r.σ^2
-    v *= (nobs(r) / dof_residual)
+    v *= (wobs(r) / dof_residual)
 
     return sqr ? v : sqrt(v)
 end
@@ -192,11 +192,25 @@ StatsAPI.deviance(r::RobustResp) = sum(r.devresid)
 function StatsAPI.nulldeviance(r::RobustResp; intercept::Bool=true)
     ## TODO: take wts into account
     y, σ = r.y, r.σ
-    μi = intercept ? mean(y) : zero(eltype(y))
+    μi = if intercept
+        if isempty(r.wts)
+            mean(y)
+        else
+            mean(y, weights(r.wts))
+        end
+    else
+        zero(eltype(y))
+    end
 
     dev = 0
-    @inbounds for i in eachindex(y)
-        dev += 2 * rho(r.est, (y[i] - μi) / σ)
+    if isempty(r.wts)
+        @inbounds for i in eachindex(y)
+            dev += 2 * rho(r.est, (y[i] - μi) / σ)
+        end
+    else
+        @inbounds for i in eachindex(y, r.wts)
+            dev += 2 * r.wts[i] * rho(r.est, (y[i] - μi) / σ)
+        end
     end
     dev
 end
@@ -214,13 +228,7 @@ StatsAPI.response(r::RobustResp) = r.y
 
 Estimator(r::RobustResp) = r.est
 
-function StatsAPI.weights(r::RobustResp{T}) where {T<:AbstractFloat}
-    if isempty(r.wts)
-        weights(ones(T, length(r.y)))
-    else
-        weights(r.wts)
-    end
-end
+StatsAPI.weights(r::RobustResp) = r.wts
 
 StatsAPI.fitted(r::RobustResp) = r.μ
 
@@ -231,8 +239,16 @@ workingweights(r::RobustResp) = r.wrkwt
 """
     nobs(obj::RobustResp)::Integer
 For linear and generalized linear models, returns the number of elements of the response.
+For models with prior weights, return the number of non-zero weights.
 """
-StatsAPI.nobs(r::RobustResp{T}) where {T} = length(r.y)
+function StatsAPI.nobs(r::RobustResp{T}) where {T}
+    if !isempty(r.wts)
+        ## Suppose that the weights are probability weights
+        count(!iszero, r.wts)
+    else
+        length(r.y)
+    end
+end
 
 """
     wobs(obj::RobustResp)
@@ -505,6 +521,7 @@ function tauscale(
     tau_scale_estimate(r.est, r.wrkres, r.σ, sqr; wts=r.wts, bound=bound)
 end
 
+
 """
     madresidualscale(res)
 
@@ -518,7 +535,8 @@ function madresidualscale(
     factor > 0 || error("factor should be positive")
 
     σ = if length(wts) == length(res)
-        factor * mad(wts .* abs.(res); normalize=true)
+        # StatsBase.mad does not allow weights
+        factor * weightedmad(abs.(res), weights(wts); normalize=true)
     else
         factor * mad(abs.(res); normalize=true)
     end

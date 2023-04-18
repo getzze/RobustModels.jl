@@ -1,4 +1,7 @@
 using Random: MersenneTwister
+using LinearAlgebra: inv, Hermitian, I, tr, diag
+
+seed = 123987
 
 funcs = ( dof,
           dof_residual,
@@ -89,4 +92,30 @@ end
     @test isapprox(βs[:, 1], coef(m2); rtol=1e-5)
     @test sort(dofs; rev=true)==dofs
     @test all(sort(βs[r, :]; rev=true)==βs[r, :] for r in 2:L)  # not the intercept
+end
+
+
+@testset "linear: Ridge L2 exact solution" begin
+    rng = MersenneTwister(seed)
+
+    n = 10_000
+    p = 4
+    σ = 0.5
+    λ = 1000
+    Xt = randn(rng, n, p)
+    βt = randn(rng, p)
+    yt = Xt * βt + σ * randn(rng, n)
+
+    vc = inv(Hermitian(Xt'Xt + λ*I(p)))
+
+    βsol = vc * (Xt' * yt)
+    dofsol = tr(Xt * vc * Xt')
+    stdβsol = σ * √(n / (n - p)) * .√(diag(vc * Xt'Xt * vc'))
+
+    m = rlm(Xt, yt, est1; method=:chol, ridgeλ=λ)
+
+    @test coef(m) ≈ βsol
+    @test dof(m) ≈ dofsol
+    @test vcov(m) ≈ vc
+    @test_skip stderror(m) ≈ stdβsol
 end

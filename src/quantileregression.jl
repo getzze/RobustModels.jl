@@ -398,7 +398,12 @@ function sparcity(
     kernel::Symbol=:epanechnikov,
 )
     u = m.τ
-    n = nobs(m)
+    n = if isempty(m.wts)
+        length(m.y)
+    else
+        count(!iszero, m.wts)
+    end
+
     ## Select the optimal bandwidth from different methods
     h = if bw_method == :jones
         jones_bandwidth(u, n; kernel=kernel)
@@ -424,7 +429,12 @@ function sparcity(
         error("only :epanechnikov, :triangle and :window kernels are allowed: $(kernel)")
     end
 
-    r = sort(residuals(m))
+    r = copy(residuals(m))
+    if !isempty(m.wts)
+        inds = findall(!iszero, m.wts)
+        r = r[inds] .* m.wts[inds]
+    end
+    sort!(r)
 
     s0 = 0
     for i in eachindex(r)
@@ -449,16 +459,24 @@ function location_variance(
 )
     v = sparcity(m; bw_method=bw_method, α=α, kernel=kernel)^2
     v *= m.τ * (1 - m.τ)
-    v *= (nobs(m) / dof_residual(m))
+    v *= (wobs(m) / dof_residual(m))
     return sqr ? v : sqrt(v)
 end
 
 
 """
-    nobs(m::QuantileRegression)
-For linear and generalized linear models, returns the number of elements of the response.
+    nobs(m::QuantileRegression)::Integer
+Returns the number of elements of the response.
+For models with prior weights, return the number of non-zero weights.
 """
-StatsAPI.nobs(m::QuantileRegression)::Integer = length(m.y)
+function StatsAPI.nobs(m::QuantileRegression)::Integer
+    if !isempty(m.wts)
+        ## Suppose that the weights are probability weights
+        count(!iszero, m.wts)
+    else
+        length(m.y)
+    end
+end
 
 """
     wobs(m::QuantileRegression)
@@ -476,17 +494,17 @@ end
 
 StatsAPI.coef(m::QuantileRegression) = m.β
 
-GLM.dispersion(m::QuantileRegression) = mean(abs.(residuals(m)))
+function GLM.dispersion(m::QuantileRegression)
+    if isempty(m.wts)
+        mean(abs.(residuals(m)))
+    else
+        mean(abs.(residuals(m)), weights(m.wts))
+    end
+end
 
 StatsAPI.stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
 
-function StatsAPI.weights(m::QuantileRegression{T}) where {T<:AbstractFloat}
-    if isempty(m.wts)
-        weights(ones(T, length(m.y)))
-    else
-        weights(m.wts)
-    end
-end
+StatsAPI.weights(m::QuantileRegression) = m.wts
 
 workingweights(m::QuantileRegression) = m.wrkres
 
@@ -502,6 +520,20 @@ StatsAPI.residuals(m::QuantileRegression) = m.wrkres
 
 StatsAPI.predict(m::QuantileRegression, newX::AbstractMatrix) = newX * coef(m)
 StatsAPI.predict(m::QuantileRegression) = fitted(m)
+
+scale(m::QuantileRegression) = dispersion(m)
+
+# StatsModels.hasintercept
+hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
+
+hasformula(m::QuantileRegression) = isnothing(m.formula) ? false : true
+
+function StatsModels.formula(m::QuantileRegression)
+    if !hasformula(m)
+        throw(ArgumentError("model was fitted without a formula"))
+    end
+    return m.formula
+end
 
 function StatsAPI.nulldeviance(m::QuantileRegression)
     μ = quantile(m.y, m.τ)
@@ -523,21 +555,14 @@ StatsAPI.nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulld
 
 StatsAPI.modelmatrix(m::QuantileRegression) = m.X
 
-StatsAPI.vcov(m::QuantileRegression) =
-    inv(Hermitian(float(Matrix(modelmatrix(m)' * (weights(m) .* modelmatrix(m))))))
+function StatsAPI.vcov(m::QuantileRegression)
+    X = modelmatrix(m)
+    wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
+    return inv(Hermitian(float(Matrix(wXt * X))))
+end
 
-projectionmatrix(m::QuantileRegression) =
-    Hermitian(modelmatrix(m) * vcov(m) * modelmatrix(m)') .* weights(m)
-
-leverage_weights(m::QuantileRegression) = sqrt.(1 .- leverage(m))
-
-StatsModels.hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
-
-hasformula(m::QuantileRegression) = isnothing(m.formula) ? false : true
-
-function StatsModels.formula(m::QuantileRegression)
-    if !hasformula(m)
-        throw(ArgumentError("model was fitted without a formula"))
-    end
-    return m.formula
+function projectionmatrix(m::QuantileRegression)
+    X = modelmatrix(m)
+    wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
+    return Hermitian(X * vcov(m) * wXt)
 end

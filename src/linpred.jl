@@ -20,11 +20,19 @@ using LinearAlgebra:
 #################
 StatsAPI.modelmatrix(p::LinPred) = p.X
 
-StatsAPI.vcov(p::LinPred, wt::AbstractVector) =
-    inv(Hermitian(float(Matrix(modelmatrix(p)' * (wt .* modelmatrix(p))))))
+function StatsAPI.vcov(p::LinPred, wt::AbstractVector)
+    wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
+    return inv(Hermitian(float(Matrix(wXt * modelmatrix(p)))))
+end
 
-projectionmatrix(p::LinPred, wt::AbstractVector) =
-    Hermitian(modelmatrix(p) * vcov(p, wt) * modelmatrix(p)' .* wt)
+function projectionmatrix(p::LinPred, wt::AbstractVector)
+    wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
+    return Hermitian(modelmatrix(p) * vcov(p, wt) * wXt)
+end
+
+StatsAPI.leverage(p::LinPred, wt::AbstractVector) = diag(projectionmatrix(p, wt))
+
+leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 
 function _hasintercept(X::AbstractMatrix)
     return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
@@ -236,7 +244,7 @@ Regularized predictor using ridge regression on the `p` features.
 mutable struct RidgePred{T<:BlasReal,M<:AbstractMatrix,P<:LinPred} <:
                AbstractRegularizedPred{T}
     X::M                    # model matrix
-    sqrthalfλ::T            # sqrt of half of the shrinkage parameter λ
+    sqrtλ::T                # sqrt of the shrinkage parameter λ
     G::M                    # regularizer matrix
     βprior::Vector{T}       # coefficients prior
     pred::P                 # predictor
@@ -269,16 +277,16 @@ function RidgePred(
     ll = size(βprior, 1)
     ll in (0, m) || throw(DimensionMismatch("length of βprior is $ll, must be $m or 0"))
 
-    sqrthalfλ = √(λ / 2)
+    sqrtλ = √λ
     pred = if P == DensePredChol
-        P(cat_ridge_matrix(X, sqrthalfλ, G), pivot)
+        P(cat_ridge_matrix(X, sqrtλ, G), pivot)
     else
-        P(cat_ridge_matrix(X, sqrthalfλ, G))
+        P(cat_ridge_matrix(X, sqrtλ, G))
     end
 
     return RidgePred{T,typeof(X),typeof(pred)}(
         X,
-        sqrthalfλ,
+        sqrtλ,
         G,
         (ll == 0) ? zeros(T, m) : βprior,
         pred,
@@ -292,7 +300,7 @@ end
 function postupdate_λ!(r::RidgePred)
     n, m = size(r.X)
     # Update the extended model matrix with the new value
-    GG = r.sqrthalfλ * r.G
+    GG = r.sqrtλ * r.G
     @views r.pred.X[n+1:n+m, :] .= GG
     if isa(r.pred, DensePredChol)
         # Recompute the cholesky decomposition
@@ -309,7 +317,7 @@ end
 
 function Base.getproperty(r::RidgePred, s::Symbol)
     if s ∈ (:λ, :lambda)
-        2 * (r.sqrthalfλ)^2
+        (r.sqrtλ)^2
     elseif s ∈ (:beta0, :delbeta)
         getproperty(r.pred, s)
     else
@@ -321,10 +329,8 @@ function Base.setproperty!(r::RidgePred, s::Symbol, v)
     if s ∈ (:λ, :lambda)
         v >= 0 || throw(DomainError(v, "the shrinkage parameter should be non-negative"))
         # Update the square root value
-        r.sqrthalfλ = √(v / 2)
+        setfield!(r, :sqrtλ, √v)
         postupdate_λ!(r)
-    elseif s ∈ (:sqrthalfλ,)
-        setfield!(r, s, v)
     else
         error(
             "cannot set any property of RidgePred except" *
@@ -346,7 +352,7 @@ function Base.propertynames(r::RidgePred, private=false)
             :beta0,
             :delbeta,
             :pivot,
-            :sqrthalfλ,
+            :sqrtλ,
             :scratchbeta,
             :scratchy,
             :scratchwt,
@@ -437,7 +443,7 @@ function delbeta!(
     copyto!(p.scratchy, r)
     # yprior = sqrt(p.λ/2) * p.G * (p.βprior - p.pred.beta0)
     broadcast!(-, p.scratchbeta, p.βprior, p.pred.beta0)
-    @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrthalfλ, 0)
+    @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrtλ, 0)
 
     # Fill weights
     copyto!(p.scratchwt, wt)
@@ -448,13 +454,26 @@ function delbeta!(
     p
 end
 
+"""
+    extendedmatrix(p::RidgePred{T})
+
+Returns the extended model matrix for a Ridge predictor, of size `(n+m) x m`, where
+`n` is the number of observations and `m` the number of coefficients.
+"""
 extendedmodelmatrix(p::RidgePred) = p.pred.X
 
+"""
+    extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
+
+Returns a weights vector to multiply with `extendedmodelmatrix(p::RidgePred)`.
+It has a size of 0 or `n + m`, where `n` is the number of observations and
+`m` the number of coefficients.
+"""
 function extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
     n, m = size(p.X)
     k = length(wt)
     if k == 0
-        return ones(T, n + m)
+        return similar(wt, 0)
     elseif k == n
         return vcat(Vector{T}(wt), ones(T, m))
     elseif k == n + m
@@ -467,14 +486,19 @@ end
 StatsAPI.modelmatrix(p::RidgePred) = p.X
 
 function StatsAPI.vcov(p::RidgePred, wt::AbstractVector)
-    pp = extendedmodelmatrix(p)' * (extendedweights(p, wt) .* extendedmodelmatrix(p))
-    return inv(Hermitian(float(Matrix(pp))))
-end
-
-function projectionmatrix(p::RidgePred, wt::AbstractVector)
+    # returns (XᵀWX + λGᵀG)⁻¹  = (extXᵀ . extW . extX)⁻¹
     wwt = extendedweights(p, wt)
-    Hermitian(extendedmodelmatrix(p) * vcov(p, wwt) * extendedmodelmatrix(p)' .* wwt)
+    wXt = isempty(wwt) ? extendedmodelmatrix(p)' : (extendedmodelmatrix(p) .* wwt)'
+    return inv(Hermitian(float(Matrix(wXt * extendedmodelmatrix(p)))))
 end
 
 StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
     tr(projectionmatrix(m.pred, workingweights(m.resp)))
+
+function StatsAPI.stderror(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred}
+    wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
+    Σ = Hermitian(wXt * modelmatrix(m.pred))
+    M = vcov(m) * Σ * vcov(m)'
+    s = location_variance(m.resp, dof_residual(m), false)
+    return s .* sqrt.(diag(M))
+end

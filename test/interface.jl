@@ -24,7 +24,6 @@ funcs = (
     stderror,
     vcov,
     residuals,
-    predict,
     response,
     weights,
     workingweights,
@@ -33,6 +32,7 @@ funcs = (
     isfitted,
     islinear,
     leverage,
+    leverage_weights,
     modelmatrix,
     projectionmatrix,
     wobs,
@@ -70,8 +70,8 @@ funcs = (
 
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
-            if f in (Estimator, weights, workingweights, islinear, isfitted,
-                     leverage, modelmatrix, projectionmatrix, scale, wobs)
+            if f in (Estimator, weights, workingweights, islinear, isfitted, scale, wobs,
+                     leverage, leverage_weights, modelmatrix, projectionmatrix)
                 # method is not defined in GLM
                 @test_nowarn f(m)
             else
