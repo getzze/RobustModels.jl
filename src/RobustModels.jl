@@ -35,7 +35,7 @@ using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol
-using StatsBase: mean, median, mad, mad_constant, AbstractWeights, ConvergenceException, sample
+using StatsBase: median, mad, mad_constant, AbstractWeights, ConvergenceException, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, CoefTable, modelcols,
     ModelFrame, apply_schema, schema, checknamesexist, checkcol, termvars, TableRegressionModel
 using IterativeSolvers: lsqr!, cg!

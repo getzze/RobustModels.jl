@@ -523,8 +523,7 @@ StatsAPI.predict(m::QuantileRegression) = fitted(m)
 
 scale(m::QuantileRegression) = dispersion(m)
 
-# StatsModels.hasintercept
-hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
+StatsModels.hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
 
 hasformula(m::QuantileRegression) = isnothing(m.formula) ? false : true
 
