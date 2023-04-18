@@ -1265,6 +1265,8 @@ estimator_tau_efficient_constant(::Type{GemanLoss}) = 5.632
 estimator_tau_efficient_constant(::Type{WelschLoss}) = 4.043
 estimator_tau_efficient_constant(::Type{TukeyLoss}) = 6.040
 estimator_tau_efficient_constant(::Type{YohaiZamarLoss}) = 3.270
+estimator_tau_efficient_constant(::Type{HardThresholdLoss}) = 1.0328  # Found after analytical simplifications
+estimator_tau_efficient_constant(::Type{HampelLoss}) = 1.631
 
 
 """
