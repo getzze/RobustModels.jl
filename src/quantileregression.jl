@@ -222,7 +222,6 @@ function StatsAPI.fit!(
     if correct_leverage
         wts = m.wts
         copy!(wts, leverage_weights(m))
-        ## TODO: maybe multiply by the old wts?
     end
 
     # Update quantile
@@ -523,8 +522,6 @@ StatsAPI.predict(m::QuantileRegression) = fitted(m)
 
 scale(m::QuantileRegression) = dispersion(m)
 
-StatsModels.hasintercept(m::QuantileRegression) = _hasintercept(modelmatrix(m))
-
 hasformula(m::QuantileRegression) = isnothing(m.formula) ? false : true
 
 function StatsModels.formula(m::QuantileRegression)
@@ -535,18 +532,34 @@ function StatsModels.formula(m::QuantileRegression)
 end
 
 function StatsAPI.nulldeviance(m::QuantileRegression)
-    μ = quantile(m.y, m.τ)
-    if isempty(m.wts)
-        sum(_objective.(m.wrkres, Ref(m.τ)))
+    # Compute location of the null model
+    μ = if !hasintercept(m)
+        zero(eltype(m.y))
+    elseif isempty(m.wts)
+        quantile(m.y, m.τ)
     else
-        sum(m.wts .* _objective.(m.wrkres, Ref(m.τ)))
+        quantile(m.y, weights(m.wts), m.τ)
     end
+
+    # Sum deviance for each observation
+    dev = 0
+    if isempty(m.wts)
+        @inbounds for i in eachindex(m.y)
+            dev += 2 * _objective(m.y[i] - μ, m.τ)
+        end
+    else
+        @inbounds for i in eachindex(m.y, m.wts)
+            dev += 2 * m.wts[i] * _objective(m.y[i] - μ, m.τ)
+        end
+    end
+    dev
 end
 
-StatsAPI.deviance(m::QuantileRegression) = sum(_objective.(m.wrkres, Ref(m.τ)))
+StatsAPI.deviance(m::QuantileRegression) = 2 * sum(_objective.(m.wrkres, Ref(m.τ)))
 
-## TODO: define correctly the loglikelihood of the full model
-fullloglikelihood(m::QuantileRegression) = 0
+## Loglikelihood of the full model
+## l = Σi log fi = Σi log ( τ*(1-τ)  exp(-objective(xi)) ) = n log (τ*(1-τ)) - Σi objective(xi)
+fullloglikelihood(m::QuantileRegression) = wobs(m) * log(m.τ * (1 - m.τ))
 
 StatsAPI.loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
 
@@ -565,3 +578,5 @@ function projectionmatrix(m::QuantileRegression)
     wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
     return Hermitian(X * vcov(m) * wXt)
 end
+
+

@@ -39,6 +39,7 @@ funcs = (
     Estimator,
     scale,
     hasintercept,
+    hasformula,
 )
 
 
@@ -53,7 +54,7 @@ funcs = (
     @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y)), method in (:cg, :chol)
         name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
         name *= if method==:cg; ",  cg" else ",chol" end
-        # use the dispersion from GLM to ensure that the loglikelihood is correct
+        # use the dispersion from GLM to ensure that the nulldeviance/deviance is correct
         m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm)
         β = copy(coef(m))
         println("rlm($name): ", β)
@@ -71,7 +72,7 @@ funcs = (
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in funcs
             if f in (Estimator, weights, workingweights, islinear, isfitted, scale, wobs,
-                     leverage, leverage_weights, modelmatrix, projectionmatrix)
+                     leverage, leverage_weights, modelmatrix, projectionmatrix, hasformula)
                 # method is not defined in GLM
                 @test_nowarn f(m)
             else

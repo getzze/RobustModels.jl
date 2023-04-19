@@ -12,6 +12,8 @@ hasformula(m::AbstractRobustModel) = false
 
 StatsModels.formula(m::AbstractRobustModel) = throw(ArgumentError("model was fitted without a formula"))
 
+StatsModels.hasintercept(m::AbstractRobustModel) = hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
+
 StatsModels.responsename(m::AbstractRobustModel) = !hasformula(m) ? "y" : coefnames(formula(m).lhs)
 
 function StatsAPI.coefnames(m::AbstractRobustModel)
@@ -148,7 +150,7 @@ It is consistent with the definition of the deviance for OLS.
 """
 StatsAPI.deviance(m::RobustLinearModel) = deviance(m.resp)
 
-StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m))
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
@@ -188,7 +190,7 @@ StatsAPI.stderror(m::RobustLinearModel) =
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
 
-StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m))
 
 StatsAPI.weights(m::RobustLinearModel) = weights(m.resp)
 
@@ -255,7 +257,7 @@ for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
         Returns `$($(fun))` for the model using a different weights vector depending on the variant:
             - `variant = :original`: use the user-defined weights, if no weights were used
                 (size of the weights vector is 0), no weights are used.
-            - `variant = :fitter`: use the working weights of the fitted model from the IRLS
+            - `variant = :fitted`: use the working weights of the fitted model from the IRLS
                 procedure.
         """
         function $(fun)(m::RobustLinearModel, variant::Symbol)
@@ -269,8 +271,6 @@ for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
         end
     end
 end
-
-StatsModels.hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
 
 function StatsAPI.predict(
     m::RobustLinearModel,
@@ -427,8 +427,9 @@ function StatsAPI.fit(
         # With ridge regularization
         G = if isa(ridgeG, UniformScaling)
             # Has an intersect
-            if _hasintercept(X)
-                spdiagm(0 => [float(i != 1) for i in 1:p])
+            intercept_col = get_intercept_col(X, __formula)
+            if !isnothing(intercept_col)
+                spdiagm(0 => [float(i != intercept_col) for i in 1:p])
             else
                 I(p)
             end

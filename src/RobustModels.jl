@@ -37,7 +37,7 @@ using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol
 using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
-    apply_schema, schema, checknamesexist, checkcol, termvars, TableRegressionModel
+    apply_schema, schema, checknamesexist, checkcol, termvars
 using IterativeSolvers: lsqr!, cg!
 using Tables
 #using Roots: find_zero, Order1, ConvergenceFailed
@@ -75,6 +75,7 @@ export coef,
        leverage,
        quantile,
        @formula,
+       formula,
        mean,
        var,
        std,
@@ -134,6 +135,7 @@ export LossFunction,
        scale,
        tauscale,
        mean_and_sem,
+       hasformula,
        nothing  # stopper
 
 

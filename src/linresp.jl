@@ -190,33 +190,32 @@ end
 StatsAPI.deviance(r::RobustResp) = sum(r.devresid)
 
 function StatsAPI.nulldeviance(r::RobustResp; intercept::Bool=true)
-    ## TODO: take wts into account
-    y, σ = r.y, r.σ
-    μi = if intercept
-        if isempty(r.wts)
-            mean(y)
-        else
-            mean(y, weights(r.wts))
-        end
+    # Compute location of the null model
+    μ = if !intercept
+        zero(eltype(r.y))
+    elseif isempty(r.wts)
+        mean(r.y)
     else
-        zero(eltype(y))
+        mean(r.y, weights(r.wts))
     end
 
+    # Sum deviance for each observation
     dev = 0
     if isempty(r.wts)
-        @inbounds for i in eachindex(y)
-            dev += 2 * rho(r.est, (y[i] - μi) / σ)
+        @inbounds for i in eachindex(r.y)
+            dev += 2 * rho(r.est, (r.y[i] - μ) / r.σ)
         end
     else
-        @inbounds for i in eachindex(y, r.wts)
-            dev += 2 * r.wts[i] * rho(r.est, (y[i] - μi) / σ)
+        @inbounds for i in eachindex(r.y, r.wts)
+            dev += 2 * r.wts[i] * rho(r.est, (r.y[i] - μ) / r.σ)
         end
     end
     dev
 end
 
-## TODO: define correctly the loglikelihood of the full model
-fullloglikelihood(r::RobustResp) = -log(r.scale) - log(estimator_norm(r.est))
+## Loglikelihood of the full model
+## l = Σi log fi = Σi log ( 1/(σ * Z) exp( - ρ(ri/σ) ) = -n (log σ + log Z) - Σi ρ(ri/σ)
+fullloglikelihood(r::RobustResp) = -wobs(r) * (log(r.scale) + log(estimator_norm(r.est)))
 
 StatsAPI.loglikelihood(r::RobustResp) = fullloglikelihood(r) - deviance(r) / 2
 

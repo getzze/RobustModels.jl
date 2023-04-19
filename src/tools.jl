@@ -33,6 +33,21 @@ function missing_omit(X::AbstractMatrix, y::AbstractVector)
     X_nonmissing, y_nonmissing, nonmissings
 end
 
+
+function _hasintercept(X::AbstractMatrix)
+    return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
+end
+
+function get_intercept_col(X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=nothing)::Union{Nothing, Integer}
+    if !isnothing(f) && hasintercept(f)
+        return findfirst(isa.(f.rhs.terms, InterceptTerm))
+    elseif isnothing(f)
+        return findfirst(c->all(==(1), c), eachcol(X))
+    end
+    return nothing
+end
+
+
 ######
 ##    TableRegressionModel methods
 ######
@@ -79,7 +94,7 @@ function modelframe(
             push!(cols, val)
         end
     end
-    
+
     if dropmissing
         # Drop rows with missing values
         t, _ = missing_omit(t[cols])
@@ -95,7 +110,7 @@ function modelframe(
         end
         msg != "" && throw(ArgumentError(msg))
     end
-    
+
     # Get formula, response and model matrix
     sch = schema(f, t, contrasts)
     f = apply_schema(f, sch, M)

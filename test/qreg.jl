@@ -26,6 +26,7 @@ funcs = (
     wobs,
     scale,
     hasintercept,
+    hasformula,
 )
 
 
@@ -58,7 +59,7 @@ end
         # interface
         @testset "interface method: $(f)" for f in funcs
             # make sure the method is defined
-            robvar = f(m1)
+            @test_nowarn robvar = f(m1)
         end
 
         # later fit!
