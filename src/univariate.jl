@@ -108,7 +108,7 @@ for fun in (:mean, :std, :var, :sem)
     _fun = Symbol("_$(fun)")
     @eval begin
         # `where Dims` to allow Colon
-        function $(fun)(
+        function StatsBase.$(fun)(
             est::AbstractMEstimator,
             x::AbstractArray;
             dims::Dims=:,

@@ -34,13 +34,6 @@ StatsAPI.leverage(p::LinPred, wt::AbstractVector) = diag(projectionmatrix(p, wt)
 
 leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 
-function _hasintercept(X::AbstractMatrix)
-    return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
-end
-# StatsModels.hasintercept
-hasintercept(p::LinPred) = _hasintercept(modelmatrix(p))
-
-
 ###
 ### From GLM, for information
 ###

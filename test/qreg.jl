@@ -12,7 +12,6 @@ funcs = (
     stderror,
     vcov,
     residuals,
-    predict,
     response,
     weights,
     workingweights,
@@ -27,10 +26,11 @@ funcs = (
     wobs,
     scale,
     hasintercept,
+    hasformula,
 )
 
 
-@testset "Quantile regression: high-level function" begin
+@testset "Quantile regression: low-level function" begin
     τs = range(0.1, 0.9, step=0.1)
     βs = hcat(map(τ->RobustModels.interiormethod(X, y, τ)[1], τs)...)
     println("Coefficients: $(vcat(τs', βs))")
@@ -41,11 +41,15 @@ end
 @testset "Quantile regression: fit method" begin
     τ = 0.5
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (X, y), (sX, y))
+    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y))
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
         @test_nowarn println(m2)
         @test all(coef(m1) .== coef(m2))
+
+        # make sure that it is not a TableRegressionModel
+        @test !isa(m1, TableRegressionModel)
+        @test !isa(m2, TableRegressionModel)
 
         # refit
         β = copy(coef(m2))
@@ -55,7 +59,7 @@ end
         # interface
         @testset "interface method: $(f)" for f in funcs
             # make sure the method is defined
-            robvar = f(m1)
+            @test_nowarn robvar = f(m1)
         end
 
         # later fit!
@@ -66,14 +70,32 @@ end
 
         # leverage weights
         @test_nowarn refit!(m3; correct_leverage=true)
-    end
 
-    @testset "Handling of missing values" begin
-        # check that Missing eltype is routed correctly
-        X_missing=convert(Matrix{Union{Missing,eltype(X)}},X)
-        y_missing=convert(Vector{Union{Missing,eltype(y)}},y)
-        @test_throws MethodError fit(QuantileRegression,X_missing,y)
-        @test_throws MethodError fit(QuantileRegression,X,y_missing)
+        # handling of missing values
+        @testset "Handling of missing values" begin
+            # check that Missing eltype is routed correctly
+            if isa(A, FormulaTerm)
+                if isa(b, NamedTuple)
+                    b_missing = NamedTuple(k=>allowmissing(v) for (k,v) in pairs(b))
+                elseif isa(b, DataFrame)
+                    b_missing = allowmissing(b)
+                else
+                    b_missing = nothing
+                end
+                @test_throws ArgumentError fit(QuantileRegression, A, b_missing)
+                @test_nowarn fit(QuantileRegression, A, b_missing; dropmissing=true)
+            else
+                A_missing = allowmissing(A)
+                b_missing = allowmissing(b)
+                @test_throws ArgumentError fit(QuantileRegression, A_missing, b)
+                @test_throws ArgumentError fit(QuantileRegression, A, b_missing)
+                @test_throws ArgumentError fit(QuantileRegression, A_missing, b_missing)
+
+                @test_nowarn fit(QuantileRegression, A_missing, b; dropmissing=true)
+                @test_nowarn fit(QuantileRegression, A, b_missing; dropmissing=true)
+                @test_nowarn fit(QuantileRegression, A_missing, b_missing; dropmissing=true)
+            end
+        end
     end
 end
 
@@ -98,16 +120,16 @@ end
 
 @testset "Quantile regression: sparsity estimation" begin
     m2 = fit(QuantileRegression, form, data; quantile=0.25, verbose=false)
-    s = RobustModels.location_variance(m2.model, false)
+    s = RobustModels.location_variance(m2, false)
 
     τs = range(0.25, 0.75, step=0.25)
     @testset "(q, method, kernel): $(τ), $(method), $(kernel)" for τ in τs, method in (:jones, :bofinger, :hall_sheather), kernel in (:epanechnikov, :triangle, :window)
-        if τ != m2.model.τ
+        if τ != m2.τ
             refit!(m2; quantile=τ)
-            s = RobustModels.location_variance(m2.model, false)
+            s = RobustModels.location_variance(m2, false)
         end
 
-        si = RobustModels.location_variance(m2.model, false; bw_method=method, α=0.05, kernel=kernel)
+        si = RobustModels.location_variance(m2, false; bw_method=method, α=0.05, kernel=kernel)
         if method==:jones && kernel==:epanechnikov
             @test isapprox(s, si; rtol=1e-4)
         else

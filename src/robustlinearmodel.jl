@@ -1,64 +1,6 @@
 
 
 ######
-##    TableRegressionModel methods to forward
-######
-@delegate TableRegressionModel.model [
-    leverage,
-    leverage_weights,
-    weights,
-    workingweights,
-    dispersion,
-    scale,
-    tauscale,
-    fitted,
-    isfitted,
-    islinear,
-    Estimator,
-    projectionmatrix,
-    wobs,
-    hasintercept,
-]
-
-fit!(p::TableRegressionModel, args...; kwargs...) = (fit!(p.model, args...; kwargs...); p)
-refit!(p::TableRegressionModel, args...; kwargs...) =
-    (refit!(p.model, args...; kwargs...); p)
-
-
-
-"""
-    RobustLinearModel
-
-Robust linear model representation
-
-## Fields
-
-* `resp`: the [`RobustLinResp`](@ref) structure.
-* `pred`: the predictor structure, of type [`DensePredChol`](@ref), [`SparsePredChol`](@ref), [`DensePredCG`](@ref), [`SparsePredCG`](@ref) or [`RidgePred`](@ref).
-* `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
-* `fitted`: if true, the model was already fitted
-"""
-mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <:
-               AbstractRobustModel{T}
-    resp::R
-    pred::L
-    fitdispersion::Bool
-    fitted::Bool
-end
-
-function Base.getproperty(
-    r::TableRegressionModel{M},
-    s::Symbol,
-) where {M<:RobustLinearModel}
-    if s ∈ (:resp, :pred, :fitdispersion, :fitted)
-        getproperty(r.model, s)
-    else
-        getfield(r, s)
-    end
-end
-
-
-######
 ##    AbstractRobustModel methods
 ######
 
@@ -66,7 +8,21 @@ StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
 StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
 
-StatsAPI.coefnames(m::AbstractRobustModel) = ["x$i" for i in 1:length(coef(m))]
+hasformula(m::AbstractRobustModel) = false
+
+StatsModels.formula(m::AbstractRobustModel) = throw(ArgumentError("model was fitted without a formula"))
+
+StatsModels.hasintercept(m::AbstractRobustModel) = hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
+
+StatsModels.responsename(m::AbstractRobustModel) = !hasformula(m) ? "y" : coefnames(formula(m).lhs)
+
+function StatsAPI.coefnames(m::AbstractRobustModel)
+    if !hasformula(m)
+        return ["x$i" for i in 1:length(coef(m))]
+    else
+        return coefnames(formula(m).rhs)
+    end
+end
 
 function StatsAPI.coeftable(m::AbstractRobustModel; level::Real=0.95)
     cc = coef(m)
@@ -96,20 +52,91 @@ StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
 
 leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
 
+### Convert arrays to float
+#function StatsAPI.fit(
+#    ::Type{M},
+#    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
+#    y::AbstractVector{T2},
+#    args...;
+#    kwargs...,
+#) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
+#    fit(M, float(X), float(y), args...; kwargs...)
+#end
+
+## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
+function StatsAPI.fit(
+    ::Type{M},
+    X::Union{AbstractMatrix{T1}, AbstractMatrix{M1}},
+    y::Union{AbstractVector{T2}, AbstractVector{M2}},
+    args...;
+    dropmissing::Bool=false,
+    kwargs...,
+) where {
+    M<:AbstractRobustModel,
+    T1<:Real,
+    T2<:Real,
+    M1<:Union{Missing,<:Real},
+    M2<:Union{Missing,<:Real},
+}
+    X_ismissing = eltype(X) >: Missing
+    y_ismissing = eltype(y) >: Missing
+    if any([y_ismissing, X_ismissing])
+        if !dropmissing
+            msg = (
+                "X and y eltypes need to be Real, to allow missing values use `dropmissing=true`: "*
+                "typeof(X)=$(typeof(X)), typeof(y)=$(typeof(y))"
+            )
+            throw(ArgumentError(msg))
+        end
+        X, y, _ = missing_omit(X, y)
+    end
+
+    fit(M, float(X), float(y), args...; kwargs...)
+end
+
+
 ######
 ##    RobustLinearModel methods
 ######
 
-function Base.show(io::IO, obj::RobustLinearModel)
-    println(io, "Robust regression with $(obj.resp.est)\n\nCoefficients:\n", coeftable(obj))
+"""
+    RobustLinearModel
+
+Robust linear model representation
+
+## Fields
+
+* `resp`: the [`RobustLinResp`](@ref) structure.
+* `pred`: the predictor structure, of type [`DensePredChol`](@ref), [`SparsePredChol`](@ref), [`DensePredCG`](@ref), [`SparsePredCG`](@ref) or [`RidgePred`](@ref).
+* `formula`: either a `FormulaTerm` object or `nothing`
+* `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
+* `fitted`: if true, the model was already fitted
+"""
+mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <:
+               AbstractRobustModel{T}
+    resp::R
+    pred::L
+    formula::Union{FormulaTerm,Nothing}
+    fitdispersion::Bool
+    fitted::Bool
 end
 
-function Base.show(io::IO, obj::TableRegressionModel{M,T}) where {T,M<:RobustLinearModel}
-    println(
-        io,
-        "Robust regression with $(obj.model.resp.est)\n\n$(obj.mf.f)\n\nCoefficients:\n",
-        coeftable(obj),
-    )
+function Base.show(io::IO, obj::RobustLinearModel)
+    msg = "Robust regression with $(Estimator(obj))\n\n"
+    if hasformula(obj)
+        msg *= "$(formula(obj))\n\n"
+    end
+    msg *= "Coefficients:\n"
+    println(io, msg, coeftable(obj))
+end
+
+hasformula(m::RobustLinearModel) = isnothing(m.formula) ? false : true
+
+function StatsModels.formula(m::RobustLinearModel)
+    if !hasformula(m)
+        throw(ArgumentError("model was fitted without a formula"))
+    end
+    return m.formula
 end
 
 StatsAPI.islinear(m::RobustLinearModel) = true
@@ -123,7 +150,7 @@ It is consistent with the definition of the deviance for OLS.
 """
 StatsAPI.deviance(m::RobustLinearModel) = deviance(m.resp)
 
-StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m))
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
@@ -163,7 +190,7 @@ StatsAPI.stderror(m::RobustLinearModel) =
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
 
-StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m.pred))
+StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m))
 
 StatsAPI.weights(m::RobustLinearModel) = weights(m.resp)
 
@@ -230,7 +257,7 @@ for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
         Returns `$($(fun))` for the model using a different weights vector depending on the variant:
             - `variant = :original`: use the user-defined weights, if no weights were used
                 (size of the weights vector is 0), no weights are used.
-            - `variant = :fitter`: use the working weights of the fitted model from the IRLS
+            - `variant = :fitted`: use the working weights of the fitted model from the IRLS
                 procedure.
         """
         function $(fun)(m::RobustLinearModel, variant::Symbol)
@@ -244,9 +271,6 @@ for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
         end
     end
 end
-
-# StatsModels.hasintercept
-hasintercept(m::RobustLinearModel) = hasintercept(m.pred)
 
 function StatsAPI.predict(
     m::RobustLinearModel,
@@ -314,20 +338,34 @@ using a robust estimator.
 # Arguments
 
 - `X`: the model matrix (it can be dense or sparse) or a formula
-- `y`: the response vector or a dataframe.
+- `y`: the response vector or a table (dataframe, namedtuple, ...).
 - `est`: a robust estimator
 
 # Keywords
 
-- `method::Symbol = :chol`: the method to use for solving the weighted linear system, `chol` (default) or `cg`;
+- `method::Symbol = :chol`: the method to use for solving the weighted linear system,
+    `chol` (default) or `cg`;
 - `dofit::Bool = true`: if false, return the model object without fitting;
-- `wts::Vector = []`: a weight vector, should be empty if no weights are used;
-- `offset::Vector = []`: an offset vector, should be empty if no offset is used;
+- `dropmissing::Bool = false`: if true, drop the rows with missing values (and convert to Non-Missing type).
+    With `dropmissing=true` the number of observations may be smaller than the size of the input arrays;
+- `wts::Vector = similar(y, 0)`: Prior probability weights of observations.
+    Can be empty (length 0) if no weights are used (default);
+- `offset::Vector = similar(y, 0)`: an offset vector, should be empty if no offset is used;
 - `fitdispersion::Bool = false`: reevaluate the dispersion;
-- `ridgeλ::Real = 0`: if positive, perform a robust ridge regression with shrinkage parameter `ridgeλ`. [`RidgePred`](@ref) object will be used;
-- `ridgeG::Union{UniformScaling, AbstractArray} = I`: define a custom regularization matrix. Default to unity matrix (with 0 for the intercept);
-- `βprior::AbstractVector = []`: define a custom prior for the coefficients for ridge regression. Default to `zeros(p)`;
-- `quantile::Union{Nothing, AbstractFloat} = nothing`: only for [`GeneralizedQuantileEstimator`](@ref), define the quantile to estimate;
+- `ridgeλ::Real = 0`: if positive, perform a robust ridge regression with shrinkage
+    parameter `ridgeλ`. [`RidgePred`](@ref) object will be used;
+- `ridgeG::Union{UniformScaling, AbstractArray} = I`: define a custom regularization matrix.
+    Default to unity matrix (with 0 for the intercept);
+- `βprior::AbstractVector = []`: define a custom prior for the coefficients for ridge regression.
+    Default to `zeros(p)`;
+- `quantile::Union{Nothing, AbstractFloat} = nothing`:
+    only for [`GeneralizedQuantileEstimator`](@ref), define the quantile to estimate;
+- `contrasts::AbstractDict{Symbol,Any} = Dict{Symbol,Any}()`: a `Dict` mapping term names
+    (as `Symbol`s) to term types (e.g. `ContinuousTerm`) or contrasts (e.g., `HelmertCoding()`,
+    `SeqDiffCoding(; levels=["a", "b", "c"])`, etc.). If contrasts are not provided for a variable,
+    the appropriate term type will be guessed based on the data type from the data column:
+    any numeric data is assumed to be continuous, and any non-numeric data is assumed to be
+    categorical (with `DummyCoding()` as the default contrast type);
 - `initial_scale::Union{Symbol, Real}=:mad`: the initial scale estimate, for non-convex estimator it helps to find the global minimum. Automatic computation using `:mad`, `L1` or `extrema` (non-robust).
 - `σ0::Union{Nothing, Symbol, Real}=initial_scale`: alias of `initial_scale`;
 - `initial_coef::AbstractVector=[]`: the initial coefficients estimate, for non-convex estimator it helps to find the global minimum.
@@ -344,9 +382,10 @@ function StatsAPI.fit(
     ::Type{M},
     X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     y::AbstractVector{T},
-    est::V;
+    est::AbstractMEstimator;
     method::Symbol=:chol, # :cg
     dofit::Bool=true,
+    dropmissing::Bool=false,  # placeholder
     wts::FPVector=similar(y, 0),
     offset::FPVector=similar(y, 0),
     fitdispersion::Bool=false,
@@ -354,8 +393,10 @@ function StatsAPI.fit(
     ridgeG::Union{UniformScaling,AbstractArray}=I,
     βprior::AbstractVector=[],
     quantile::Union{Nothing,AbstractFloat}=nothing,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),  # placeholder
+    __formula::Union{Nothing,FormulaTerm}=nothing,
     fitargs...,
-) where {M<:RobustLinearModel,V<:AbstractMEstimator,T<:AbstractFloat}
+) where {M<:RobustLinearModel,T<:AbstractFloat}
 
     # Check that X and y have the same number of observations
     n, p = size(X)
@@ -386,8 +427,9 @@ function StatsAPI.fit(
         # With ridge regularization
         G = if isa(ridgeG, UniformScaling)
             # Has an intersect
-            if _hasintercept(X)
-                spdiagm(0 => [float(i != 1) for i in 1:p])
+            intercept_col = get_intercept_col(X, __formula)
+            if !isnothing(intercept_col)
+                spdiagm(0 => [float(i != intercept_col) for i in 1:p])
             else
                 I(p)
             end
@@ -408,18 +450,28 @@ function StatsAPI.fit(
         end
     end
 
-    m = RobustLinearModel(rr, pp, fitdispersion, false)
+    m = RobustLinearModel(rr, pp, __formula, fitdispersion, false)
     return dofit ? fit!(m; fitargs...) : m
 end
 
+## Convert from formula-data to modelmatrix-response calling form
+## the `fit` method must allow the `wts`, `offset`, `contrasts` and `__formula` keyword arguments
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
-    y::AbstractVector{T2},
+    f::FormulaTerm,
+    data,
     est::AbstractMEstimator;
+    dropmissing::Bool=false,
+    wts::Union{Nothing,Symbol,FPVector}=nothing,
+    offset::Union{Nothing,Symbol,FPVector}=nothing,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
     kwargs...,
-) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
-    fit(M, float(X), float(y), est; kwargs...)
+) where {M<:RobustLinearModel}
+    # Extract arrays from data using formula
+    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts, offset=offset)
+    # Call the `fit` method with arrays
+    fit(M, X, y, est;
+        wts=extra.wts, offset=extra.offset, contrasts=contrasts, __formula=f, kwargs...)
 end
 
 

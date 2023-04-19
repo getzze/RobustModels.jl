@@ -12,20 +12,8 @@ end RobustModels
 # that are extended from these modules
 using GLM
 using StatsAPI
-
-# Import functions that are called (not extended)
-using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
-using SparseArrays: SparseMatrixCSC, spdiagm
-using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
-using Random: AbstractRNG, GLOBAL_RNG
-using Printf: @printf, @sprintf
-using GLM: Link, canonicallink, FPVector, lm, SparsePredChol, DensePredChol
-using StatsBase: mean, median, mad, mad_constant, AbstractWeights, ConvergenceException, sample, quantile
-using IterativeSolvers: lsqr!, cg!
-#using Roots: find_zero, Order1, ConvergenceFailed
-#using QuadGK: quadgk
-#import Tulip
-
+using StatsBase
+using StatsModels
 
 ## Import to implement new methods
 import Base:
@@ -38,8 +26,24 @@ import StatsBase:
     vcov, residuals, predict, response, islinear, fitted, isfitted,
     mean, var, std, sem, mean_and_std, mean_and_var
 import StatsModels:
-    @delegate, @formula, RegressionModel, coef, coefnames, coeftable, CoefTable,
-    leverage, modelmatrix, TableRegressionModel, hasintercept
+    coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename, missing_omit
+
+# Import functions that are called (not extended)
+using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
+using SparseArrays: SparseMatrixCSC, spdiagm
+using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
+using Random: AbstractRNG, GLOBAL_RNG
+using Printf: @printf, @sprintf
+using GLM: FPVector, lm, SparsePredChol, DensePredChol
+using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
+using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
+    apply_schema, schema, checknamesexist, checkcol, termvars
+using IterativeSolvers: lsqr!, cg!
+using Tables
+#using Roots: find_zero, Order1, ConvergenceFailed
+#using QuadGK: quadgk
+#import Tulip
+
 
 ## Reexports
 export coef,
@@ -65,11 +69,13 @@ export coef,
        islinear,
        isfitted,
        hasintercept,
+       responsename,
        fitted,
        weights,
        leverage,
        quantile,
        @formula,
+       formula,
        mean,
        var,
        std,
@@ -129,6 +135,7 @@ export LossFunction,
        scale,
        tauscale,
        mean_and_sem,
+       hasformula,
        nothing  # stopper
 
 
@@ -177,6 +184,7 @@ abstract type AbstractRegularizedPred{T} <: LinPred end
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 
+include("tools.jl")
 include("losses.jl")
 include("estimators.jl")
 include("robustlinearmodel.jl")
@@ -184,5 +192,6 @@ include("linpred.jl")
 include("linresp.jl")
 include("univariate.jl")
 include("quantileregression.jl")
+include("deprecated.jl")
 
 end # module
