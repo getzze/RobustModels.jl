@@ -97,7 +97,8 @@ function modelframe(
 
     if dropmissing
         # Drop rows with missing values
-        t, _ = missing_omit(t[cols])
+        # Compat with VERSION < v"1.7.0"
+        t, _ = missing_omit(NamedTuple{Tuple(cols)}(t))
 
     else
         # Check columns have no missing or complex values
