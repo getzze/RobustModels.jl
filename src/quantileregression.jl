@@ -511,8 +511,6 @@ StatsAPI.response(m::QuantileRegression) = m.y
 
 StatsAPI.isfitted(m::QuantileRegression) = m.fitted
 
-StatsAPI.islinear(m::QuantileRegression) = true
-
 StatsAPI.fitted(m::QuantileRegression) = m.y - m.wrkres
 
 StatsAPI.residuals(m::QuantileRegression) = m.wrkres

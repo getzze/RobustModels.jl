@@ -17,7 +17,7 @@ using StatsModels
 
 ## Import to implement new methods
 import Base:
-    show, broadcastable, ==
+    show, broadcastable, convert, ==
 import GLM:
     dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
 import StatsBase:
@@ -38,7 +38,7 @@ using GLM: FPVector, lm, SparsePredChol, DensePredChol
 using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
     apply_schema, schema, checknamesexist, checkcol, termvars
-using IterativeSolvers: lsqr!, cg!
+using IterativeSolvers: cg!
 using Tables
 #using Roots: find_zero, Order1, ConvergenceFailed
 #using QuadGK: quadgk

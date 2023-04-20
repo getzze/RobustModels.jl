@@ -4,6 +4,8 @@
 ##    AbstractRobustModel methods
 ######
 
+StatsAPI.islinear(m::AbstractRobustModel) = true
+
 StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
 StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
@@ -139,7 +141,6 @@ function StatsModels.formula(m::RobustLinearModel)
     return m.formula
 end
 
-StatsAPI.islinear(m::RobustLinearModel) = true
 
 """
     deviance(m::RobustLinearModel)

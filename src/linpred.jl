@@ -100,23 +100,28 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     X::Matrix{T}                  # model matrix
     beta0::Vector{T}              # base coefficient vector
     delbeta::Vector{T}            # coefficient increment
+    XtWX::Matrix{T}               # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::Matrix{T}
     scratchr1::Vector{T}
     function DensePredCG{T}(X::Matrix{T}, beta0::Vector{T}) where {T}
         n, p = size(X)
         length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
-        new{T}(X, beta0, zeros(T, p), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        new{T}(X, beta0, zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
     end
     function DensePredCG{T}(X::Matrix{T}) where {T}
         n, p = size(X)
-        new{T}(X, zeros(T, p), zeros(T, p), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        new{T}(X, zeros(T, p), zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
     end
 end
 DensePredCG(X::Matrix, beta0::Vector) = DensePredCG{eltype(X)}(X, beta0)
 DensePredCG(X::Matrix{T}) where {T} = DensePredCG{T}(X, zeros(T, size(X, 2)))
-convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
+Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
     DensePredCG{T}(X, zeros(T, size(X, 2)))
+
+# Compatibility with cholpred(X, pivot)
+cgpred(X, pivot::Bool) = cgpred(X)
+cgpred(X::StridedMatrix) = DensePredCG(X)
 
 """
     delbeta!(p::LinPred, r::Vector)
@@ -124,26 +129,21 @@ convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
 Evaluate and return `p.delbeta` the increment to the coefficient vector from residual `r`
 """
 function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
-    lsqr!(p.delbeta, p.X, r; log=false)
+    ## Assumes that p.XtWX was pre-computed
+    cg!(p.delbeta, p.XtWX, r)
     return p
 end
-
-cgpred(X::StridedMatrix) = DensePredCG(X)
 
 function delbeta!(
     p::DensePredCG{T},
     r::AbstractVector{T},
     wt::AbstractVector{T},
 ) where {T<:BlasReal}
-    ## Use views, do not create new objects
-    # scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
-    # cg!(p.delbeta,
-    #     Hermitian(mul!(p.scratchm2, scr, p.X), :U),
-    #     mul!(p.scratchbeta, scr, r)
-    # )
-    sqwt = copyto!(p.scratchr1, sqrt.(wt))
-    scr = broadcast!(*, p.scratchm1, sqwt, p.X)
-    lsqr!(p.delbeta, scr, broadcast!(*, p.scratchr1, sqwt, r); log=false)
+    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
+    cg!(p.delbeta,
+        Hermitian(mul!(p.XtWX, scr, p.X), :U),
+        mul!(p.scratchbeta, scr, r),
+    )
     p
 end
 
@@ -164,9 +164,9 @@ mutable struct SparsePredCG{T,M<:SparseMatrixCSC} <: LinPred
     X::M                    # model matrix
     beta0::Vector{T}        # base vector for coefficients
     delbeta::Vector{T}      # coefficient increment
+    XtWX::M                 # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::M
-    scratchm2::M
     scratchr1::Vector{T}
 end
 function SparsePredCG(X::SparseMatrixCSC{T}) where {T}
@@ -175,9 +175,9 @@ function SparsePredCG(X::SparseMatrixCSC{T}) where {T}
         X,
         zeros(T, p),
         zeros(T, p),
+        zeros(T, (p, p)),
         zeros(T, p),
         similar(X),
-        zeros(T, (p, p)),
         zeros(T, n),
     )
 end
@@ -187,12 +187,21 @@ cgpred(X::SparseMatrixCSC) = SparsePredCG(X)
 function delbeta!(
     p::SparsePredCG{T},
     r::AbstractVector{T},
+) where {T}
+    ## Assumes that p.XtWX was pre-computed
+    cg!(p.delbeta, p.XtWX, r)
+    p
+end
+
+function delbeta!(
+    p::SparsePredCG{T},
+    r::AbstractVector{T},
     wt::AbstractVector{T}
 ) where {T}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     cg!(p.delbeta,
-        Hermitian(mul!(p.scratchm2, scr, p.X), :U),
-        mul!(p.scratchbeta, scr, r)
+        Hermitian(mul!(p.XtWX, scr, p.X), :U),
+        mul!(p.scratchbeta, scr, r),
     )
     p
 end

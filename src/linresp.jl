@@ -297,7 +297,7 @@ function applyoffset!(r::RobustLinResp)
 end
 
 """
-    setμ!{T<:FPVector}(r::RobustResp{T}, μ::T)
+    setμ!(r::RobustResp{T}, μ::T) where {T<:Real}
 Update the mean to the given value `μ`.
 If no value is provided, μ is set to the mean response `mean(r.y)`.
 """
