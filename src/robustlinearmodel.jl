@@ -1081,6 +1081,7 @@ function pirls_Sestimate!(
                 scale(setη!(m, f; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
         end
         
+        # Reset initial scale
         if linesearch_failed
             # Allow scale to increase in early iterations
             sigold = max(maxσ, sig)
