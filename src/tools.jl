@@ -42,7 +42,7 @@ function get_intercept_col(X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=noth
     if !isnothing(f) && hasintercept(f)
         return findfirst(isa.(f.rhs.terms, InterceptTerm))
     elseif isnothing(f)
-        return findfirst(c->all(==(1), c), eachcol(X))
+        return findfirst(i->all(==(1), view(X, :, i)), 1:size(X, 2))
     end
     return nothing
 end
