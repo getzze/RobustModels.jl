@@ -1090,10 +1090,11 @@ function pirls_Sestimate!(
             )
             # Skip test for convergence
             continue
-        else
-            installbeta!(p, f)
-            r.σ = sig
         end
+
+        # Update coefficients
+        installbeta!(p, f)
+        r.σ = sig
 
         # Test for convergence
         Δsig = (sigold - sig)
@@ -1205,9 +1206,10 @@ function pirls_τestimate!(
             )
             # Skip test for convergence
             continue
-        else
-            installbeta!(p, f)
         end
+
+        # Update coefficients
+        installbeta!(p, f)
 
         # Test for convergence
         Δtau = (tauold - tau)
