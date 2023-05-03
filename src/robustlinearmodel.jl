@@ -812,7 +812,7 @@ function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::Abstrac
         σ = dispersion(quantreg(X, y; wts=wts))
     elseif method == :extrema
         # this is not robust
-        σ = -(-(extrema(y)...)) / 2
+        σ = (maximum(y) - minimum(y)) / 2
     else
         error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
     end
@@ -1024,12 +1024,14 @@ function pirls_Sestimate!(
     cvg, p, r = false, m.pred, m.resp
 
     ## Initialize σ, default to largest value
-    maxσ = -(-(extrema(r.y)...)) / 2
+    maxσ = (maximum(r.y) - minimum(r.y)) / 2
+    verbose && println("maximum scale: $(@sprintf("%.4g", maxσ))")
     if !isnothing(sigma0)
         r.σ = sigma0
     else
         r.σ = maxσ
     end
+    verbose && println("initial scale: $(@sprintf("%.4g", r.σ))")
 
     ## Initialize β or set it to the provided values
     setβ0!(m, beta0)
@@ -1043,7 +1045,7 @@ function pirls_Sestimate!(
     installbeta!(p, 1)
     r.σ = sigold
 
-    verbose && println("initial scale: $(@sprintf("%.4g", sigold))")
+    verbose && println("initial iteration scale: $(@sprintf("%.4g", sigold))")
     for i in 1:maxiter
         f = 1.0 # line search factor
         local sig
@@ -1063,26 +1065,35 @@ function pirls_Sestimate!(
         ## If the scale isn't declining then half the step size
         ## The rtol*abs(sigold) term is to avoid failure when scale
         ## is unchanged except for rounding errors.
+        linesearch_failed = false
         while sig > sigold * (1 + rtol)
             f /= 2
             if f <= minstepfac
                 if i <= miniter
-                    sigold = maxσ
-                    r.σ = sigold
-                    verbose && println(
-                        "linesearch failed at early iteration $(i), set scale to maximum value: $(sigold)",
-                    )
+                    linesearch_failed = true
+                    break
                 else
                     error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
                 end
             end
             # Update μ and compute deviance with new f. Do not recompute ∇β
-            sig = scale(
-                setη!(m; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ),
-            )
+            sig =
+                scale(setη!(m, f; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
         end
-        installbeta!(p, f)
-        r.σ = sig
+        
+        if linesearch_failed
+            # Allow scale to increase in early iterations
+            sigold = max(maxσ, sig)
+            r.σ = sigold
+            verbose && println(
+                "linesearch failed at early iteration $(i), set scale to maximum value: $(sigold)",
+            )
+            # Skip test for convergence
+            continue
+        else
+            installbeta!(p, f)
+            r.σ = sig
+        end
 
         # Test for convergence
         Δsig = (sigold - sig)
@@ -1128,12 +1139,14 @@ function pirls_τestimate!(
     cvg, p, r = false, m.pred, m.resp
 
     ## Initialize σ, default to largest value
-    maxσ = -(-(extrema(r.y)...)) / 2
+    maxσ = (maximum(r.y) - minimum(r.y)) / 2
+    verbose && println("maximum scale: $(@sprintf("%.4g", maxσ))")
     if !isnothing(sigma0)
         r.σ = sigma0
     else
         r.σ = maxσ
     end
+    verbose && println("initial scale: $(@sprintf("%.4g", r.σ))")
 
     ## Initialize β or set it to the provided values
     setβ0!(m, beta0)
@@ -1145,7 +1158,7 @@ function pirls_τestimate!(
     tauold = tauscale(setη!(m; updatescale=true); verbose=verbose)
     installbeta!(p, 1)
 
-    verbose && println("initial τ-scale: $(@sprintf("%.4g", tauold))")
+    verbose && println("initial iteration τ-scale: $(@sprintf("%.4g", tauold))")
     for i in 1:maxiter
         f = 1.0 # line search factor
         local tau
@@ -1167,24 +1180,34 @@ function pirls_τestimate!(
         ## If the scale isn't declining then half the step size
         ## The rtol*abs(sigold) term is to avoid failure when scale
         ## is unchanged except for rounding errors.
+        linesearch_failed = false
         while tau > tauold + rtol * tau
             f /= 2
             if f <= minstepfac
                 if i <= miniter
-                    tauold = maxσ
-                    r.σ = tauold
-                    verbose && println(
-                        "linesearch failed at early iteration $(i), set scale to maximum value: $(tauold)",
-                    )
+                    linesearch_failed = true
+                    break
                 else
                     error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
                 end
             end
 
             # Update μ and compute deviance with new f. Do not recompute ∇β
-            tau = tauscale(setη!(m; updatescale=true))
+            tau = tauscale(setη!(m, f; updatescale=true))
         end
-        installbeta!(p, f)
+
+        if linesearch_failed
+            # Allow scale to increase in early iterations
+            tauold = max(maxσ, tau)
+            r.σ = tauold
+            verbose && println(
+                "linesearch failed at early iteration $(i), set scale to maximum value: $(tauold)",
+            )
+            # Skip test for convergence
+            continue
+        else
+            installbeta!(p, f)
+        end
 
         # Test for convergence
         Δtau = (tauold - tau)

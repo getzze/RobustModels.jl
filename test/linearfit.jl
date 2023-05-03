@@ -57,6 +57,13 @@ end
         m2 = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad, resample=true, resampling_options=opts)
         @test (scale(m2) / scale(m) - 1) <= 1e-2
     end
+
+    @testset "Infinite loop: issue #32" begin
+        # Infinite loop: issue #32
+        Xs = [0.001481; 0.0017; 0.00133; 0.001853; 0.002086; 0.003189; 0.001161; 0.002441; 0.001133; 0.001308; 0.001; 0.009309; 0.1456; 0.3127; 0.2627; 0.1704; 0.101; 0.06855; 0.02578]
+        ys = [1.222, 1.599, 2.238, 2.233, 2.668, 2.637, 3.177, 2.539, 2.339, 1.481, 1.733, 0.04986, 0.0812, 0.1057, 0.1197, 0.1348, 0.1006, 0.1021, 0.08278]
+        @test_throws Exception rlm(Xs, ys, SEstimator{TukeyLoss}(), initial_scale=:mad)
+    end
 end
 
 @testset "linear: MM-estimator" begin
