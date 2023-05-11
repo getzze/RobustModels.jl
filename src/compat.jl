@@ -8,5 +8,3 @@ using LinearAlgebra: cholesky!
 else
     pivoted_cholesky!(A; kwargs...) = cholesky!(A, RowMaximum(); kwargs...)
 end
-    
-    
