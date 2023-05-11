@@ -36,7 +36,7 @@ using LinearAlgebra: dot, tr, I, UniformScaling, rmul!, lmul!, mul!, BlasReal, H
 
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
-using GLM: FPVector, lm, SparsePredChol, DensePredChol
+using GLM: FPVector, lm, SparsePredChol, DensePredChol, DensePredQR
 using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
     apply_schema, schema, checknamesexist, checkcol, termvars
@@ -189,10 +189,10 @@ Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 include("tools.jl")
 include("losses.jl")
 include("estimators.jl")
-include("robustlinearmodel.jl")
 include("linpred.jl")
 include("regularizedpred.jl")
 include("linresp.jl")
+include("robustlinearmodel.jl")
 include("univariate.jl")
 include("quantileregression.jl")
 include("deprecated.jl")

@@ -51,20 +51,42 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 #end
 
 """
-    SparsePredChol{T<:BlasReal} <: LinPred
+    DensePredQR
 
-A LinPred type with a sparse Cholesky factorization of X'X
+A `LinPred` type with a dense, unpivoted QR decomposition of `X`
 
 # Members
 
-- `X`: model matrix of size n×p with n ≥ p. Should be full column rank.
-- `beta0`: base coefficient vector of length p
-- `delbeta`: increment to coefficient vector, also of length p
-- `scratchbeta`: scratch vector of length p, used in [`linpred!`](@ref) method
-- `chol`: a Cholesky object created from X'X, possibly using row weights.
+- `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
+- `beta0`: base coefficient vector of length `p`
+- `delbeta`: increment to coefficient vector, also of length `p`
+- `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
+- `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
 """
-SparsePredChol
+DensePredQR
 
+PRED_QR_WARNING_ISSUED = false
+
+function qrpred(X::AbstractMatrix, pivot::Bool=false)
+    p = try
+        DensePredCG(Matrix(X), pivot)
+    catch e
+        if e isa MethodError
+            # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
+            global PRED_QR_WARNING_ISSUED
+            if !PRED_QR_WARNING_ISSUED
+                @warn(
+                    "GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined, " *
+                    "fallback to unpivoted QR. GLM version should be >= 1.9."
+                )
+                PRED_QR_WARNING_ISSUED = true
+            end
+            DensePredCG(Matrix(X))
+        else
+            rethrow()
+        end
+    end
+end
 
 
 """
@@ -106,28 +128,22 @@ Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
 cgpred(X, pivot::Bool) = cgpred(X)
 cgpred(X::StridedMatrix) = DensePredCG(X)
 
-"""
-    delbeta!(p::LinPred, r::Vector)
-
-Evaluate and return `p.delbeta` the increment to the coefficient vector from residual `r`
-"""
-function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
-    ## Assumes that p.Σ was pre-computed
-    cg!(p.delbeta, p.Σ, r)
-    return p
-end
-
 function delbeta!(
     p::DensePredCG{T},
     r::AbstractVector{T},
     wt::AbstractVector{T},
 ) where {T<:BlasReal}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
-    cg!(p.delbeta,
-        Hermitian(mul!(p.Σ, scr, p.X), :U),
-        mul!(p.scratchbeta, scr, r),
-    )
+    mul!(p.Σ, scr, p.X)
+    mul!(p.scratchbeta, transpose(p.scratchm1), r)
+    # Solve the linear system
+    cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
     p
+end
+
+function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
+    cg!(p.delbeta, Hermitian(mul!(p.Σ, p.X', p.X), :U), mul!(p.scratchbeta, p.X', r))
+    return p
 end
 
 
@@ -170,21 +186,17 @@ cgpred(X::SparseMatrixCSC) = SparsePredCG(X)
 function delbeta!(
     p::SparsePredCG{T},
     r::AbstractVector{T},
-) where {T}
-    ## Assumes that p.Σ was pre-computed
-    cg!(p.delbeta, p.Σ, r)
+    wt::AbstractVector{T},
+) where {T<:BlasReal}
+    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
+    mul!(p.Σ, scr, p.X)
+    mul!(p.scratchbeta, transpose(p.scratchm1), r)
+    # Solve the linear system
+    cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
     p
 end
 
-function delbeta!(
-    p::SparsePredCG{T},
-    r::AbstractVector{T},
-    wt::AbstractVector{T}
-) where {T}
-    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
-    cg!(p.delbeta,
-        Hermitian(mul!(p.Σ, scr, p.X), :U),
-        mul!(p.scratchbeta, scr, r),
-    )
-    p
+function delbeta!(p::SparsePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
+    cg!(p.delbeta, Hermitian(mul!(p.Σ, p.X', p.X), :U), mul!(p.scratchbeta, p.X', r))
+    return p
 end
