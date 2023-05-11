@@ -128,22 +128,6 @@ function StatsAPI.fit(
     return dofit ? fit!(m; fitargs...) : m
 end
 
-function StatsAPI.fit(
-    ::Type{M},
-    f::FormulaTerm,
-    data;
-    dropmissing::Bool=false,
-    wts::Union{Nothing,Symbol,FPVector}=nothing,
-    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
-    kwargs...,
-) where {M<:QuantileRegression}
-    # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
-    # Call the `fit` method with arrays
-    fit(M, X, y; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
-end
-
-
 """
     refit!(m::QuantileRegression,
           [y::FPVector ;
@@ -245,12 +229,12 @@ function interiormethod(X::AbstractMatrix{T}, y::AbstractVector{T}, τ::T; kwarg
 end
 
 function interiormethod!(
-    βout::AbstractVector{T}, 
-    rout::AbstractVector{T}, 
-    X::AbstractMatrix{T}, 
-    y::AbstractVector{T}, 
-    τ::T; 
-    wts::AbstractVector{T}=zeros(T, 0), 
+    βout::AbstractVector{T},
+    rout::AbstractVector{T},
+    X::AbstractMatrix{T},
+    y::AbstractVector{T},
+    τ::T;
+    wts::AbstractVector{T}=zeros(T, 0),
     verbose::Bool=false,
 ) where {T<:AbstractFloat}
     model = Tulip.Model{T}()
