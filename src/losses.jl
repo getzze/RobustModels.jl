@@ -346,7 +346,7 @@ function _rho(l::CatoniWideLoss, r::Real)
 end
 _psi(   l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2/2)
 _psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2/2)
-_weight(l::CatoniWideLoss, r::Real) = (r < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2/2) / abs(r)
+_weight(l::CatoniWideLoss, r::Real) = (abs(r) < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2/2) / abs(r)
 function estimator_values(l::CatoniWideLoss, r::Real)
     rr = abs(r / l.c)
     lr = log(1 + rr + rr^2/2)
