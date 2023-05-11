@@ -3,27 +3,6 @@ using LinearAlgebra: inv, Hermitian, I, tr, diag
 
 seed = 123987
 
-funcs = ( dof,
-          dof_residual,
-          confint,
-          deviance,
-          nulldeviance,
-          loglikelihood,
-          nullloglikelihood,
-          dispersion,
-          nobs,
-          stderror,
-          vcov,
-          residuals,
-          predict,
-          response,
-          weights,
-          leverage,
-          modelmatrix,
-          dispersion,
-          scale
-        )
-
 m1 = fit(LinearModel, form, data)
 
 loss1 = RobustModels.L2Loss()
@@ -37,24 +16,26 @@ est2 = MEstimator(loss2)
     est = MEstimator(typeloss())
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (X, y), (sX, y)), method in (:cg, :chol)
-        aspace = if method==:cg; "  " else "    " end
+    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y)), method in nopen_methods
+        aspace = if method in (:cg, :qr); "  " else "    " end
         name  = "MEstimator($(typeloss)),\t"
         name *= if A==form; "formula" elseif A==X; "dense  " else "sparse " end
-        name *= if method==:cg; ",  cg" else ",chol" end
+        name *= if method in (:cg, :qr); ",  " else "," end
+        name *= "$(method)"
+
         # use the dispersion from GLM to ensure that the loglikelihood is correct
         m2 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1)
         m3 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1, ridgeλ=1)
         m4 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1, ridgeλ=1, ridgeG=float([0 0; 0 1]))
         m5 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1, ridgeλ=0.1, ridgeG=[0, 1])
         m6 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1, ridgeλ=1, ridgeG=[0, 1], βprior=[0.0, 2.0])
-        println("\n\t\u25CF Estimator: $(name)")
-        println(" lm$(aspace)               : ", coef(m1))
-        println("rlm($(method))             : ", coef(m2))
-        println("ridge λ=1   rlm3($(method)): ", coef(m3))
-        println("ridge λ=1   rlm4($(method)): ", coef(m4))
-        println("ridge λ=0.1 rlm5($(method)): ", coef(m5))
-        println("ridge λ=1 βprior=[0,2] rlm6($(method)): ", coef(m6))
+        VERBOSE && println("\n\t\u25CF Estimator: $(name)")
+        VERBOSE && println(" lm$(aspace)               : ", coef(m1))
+        VERBOSE && println("rlm($(method))             : ", coef(m2))
+        VERBOSE && println("ridge λ=1   rlm3($(method)): ", coef(m3))
+        VERBOSE && println("ridge λ=1   rlm4($(method)): ", coef(m4))
+        VERBOSE && println("ridge λ=0.1 rlm5($(method)): ", coef(m5))
+        VERBOSE && println("ridge λ=1 βprior=[0,2] rlm6($(method)): ", coef(m6))
         @test isapprox(coef(m3), coef(m4); rtol=1e-5)
 
         # Test printing the model
@@ -71,7 +52,7 @@ end
     m2 = fit(RobustLinearModel, form, data, est1; method=:chol, initial_scale=:L1)
     m3 = fit(RobustLinearModel, form, data, est1; method=:chol, initial_scale=:L1, ridgeλ=1)
 
-    @testset "method: $(f)" for f in funcs
+    @testset "method: $(f)" for f in interface_methods
         # make sure the interfaces for RobustLinearModel are well defined
         @test_nowarn f(m3)
     end

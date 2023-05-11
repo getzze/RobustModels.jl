@@ -1,36 +1,6 @@
 
 seed = 123987
 
-funcs = (
-    dof,
-    dof_residual,
-    confint,
-    deviance,
-    nulldeviance,
-    loglikelihood,
-    nullloglikelihood,
-    dispersion,
-    nobs,
-    stderror,
-    vcov,
-    residuals,
-    response,
-    weights,
-    workingweights,
-    fitted,
-    predict,
-    isfitted,
-    islinear,
-    leverage,
-    leverage_weights,
-    modelmatrix,
-    projectionmatrix,
-    wobs,
-    scale,
-    hasintercept,
-)
-
-
 rng = MersenneTwister(seed)
 
 n = 100
@@ -64,9 +34,9 @@ estimator_list = (
 
     m2 = rlm(Xlin[r+1:end, :], ylin[r+1:end], est)
     m2w = rlm(Xlin, ylin, est; wts=wwlin)
-    
+
     # Check identical values
-    @testset "$(func)" for func in funcs
+    @testset "$(func)" for func in interface_methods
         f1 = func(m1)
         f1w = func(m1w)
         f2 = func(m2)
@@ -104,9 +74,9 @@ end
 
     m2 = quantreg(Xlin[r+1:end, :], ylin[r+1:end])
     m2w = quantreg(Xlin, ylin; wts=wwlin)
-    
+
     # Check identical values
-    @testset "$(func)" for func in funcs
+    @testset "$(func)" for func in interface_methods
         f1 = func(m1)
         f1w = func(m1w)
         f2 = func(m2)
