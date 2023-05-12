@@ -199,7 +199,10 @@ The robust estimator object used to fit the model.
 """
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
 
-StatsAPI.stderror(m::RobustLinearModel) =
+StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred} = 
+    location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+
+StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred} =
     location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
@@ -312,10 +315,10 @@ StatsAPI.predict(m::RobustLinearModel) = fitted(m)
 
 ### With RidgePred
 
-StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:RidgePred} =
+StatsAPI.dof(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred} =
     tr(projectionmatrix(m.pred, workingweights(m.resp)))
 
-function StatsAPI.stderror(m::RobustLinearModel{T,R,L}) where {T,R,L<:RidgePred}
+function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred}
     wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
     Σ = Hermitian(wXt * modelmatrix(m.pred))
     M = vcov(m) * Σ * vcov(m)'
