@@ -8,7 +8,7 @@ using GLM
 using SparseArrays
 using DataFrames
 using Test
-using Random: MersenneTwister
+using Random: AbstractRNG, MersenneTwister
 
 using RobustModels
 
@@ -52,8 +52,14 @@ other_losses = ("Cauchy",)
 bounded_losses = ("Geman", "Welsch", "Tukey", "YohaiZamar", "HardThreshold", "Hampel")
 losses = (convex_losses..., other_losses..., bounded_losses...)
 
+## Penalties
+penalties = (
+    "SquaredL2", "Euclidean", "L1", "ElasticNet", "Berhu", "CappedL1", "SCAD", "MCP"
+)
+
 ## Solving methods
 nopen_methods = (:auto, :chol, :cholesky, :qr, :cg)
+pen_methods = (:auto, :cgd, :fista, :ama, :admm)
 
 ## Interface methods
 interface_methods = (
@@ -88,6 +94,7 @@ interface_methods = (
 
 # Import data
 include("data/Animals2.jl")
+include("data/starsCYG.jl")
 
 # Include tests
 include("estimators.jl")
@@ -98,3 +105,6 @@ include("robustridge.jl")
 include("qreg.jl")
 include("weights.jl")
 include("univariate.jl")
+include("penalties.jl")
+include("ipod.jl")
+include("underdetermined.jl")

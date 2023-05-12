@@ -173,6 +173,18 @@ export LossFunction,
     GeneralizedQuantileEstimator,
     ExpectileEstimator,
     L2Estimator,
+    PenaltyFunction,
+    NoPenalty,
+    SquaredL2Penalty,
+    L1Penalty,
+    ElasticNetPenalty,
+    EuclideanPenalty,
+    BerhuPenalty,
+    CappedL1Penalty,
+    SCADPenalty,
+    MCPPenalty,
+    RangedPenalties,
+    End,
     DensePredCG,
     SparsePredCG,
     RidgePred,
@@ -183,6 +195,11 @@ export LossFunction,
     Estimator,
     rlm,
     quantreg,
+    IPODRegression,
+    ipod,
+    outliers,
+    penalty,
+    haspenalty,
     loss,
     tuning_constant,
     refit!,
@@ -224,6 +241,9 @@ abstract type AbstractMEstimator <: AbstractEstimator end
 "Generalized M-Quantile estimator"
 abstract type AbstractQuantileEstimator <: AbstractMEstimator end
 
+"Penalty function"
+abstract type PenaltyFunction{T} end
+
 
 """
     AbstractRobustModel
@@ -243,17 +263,20 @@ abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::AbstractEstimator) = Ref(m)
 Base.broadcastable(m::LossFunction) = Ref(m)
+Base.broadcastable(m::PenaltyFunction) = Ref(m)
 
 
 include("tools.jl")
 include("losses.jl")
 include("estimators.jl")
+include("penalties.jl")
 include("linpred.jl")
 include("regularizedpred.jl")
 include("linresp.jl")
 include("robustlinearmodel.jl")
 include("univariate.jl")
 include("quantileregression.jl")
+include("ipod.jl")
 include("deprecated.jl")
 
 end # module

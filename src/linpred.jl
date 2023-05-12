@@ -2,6 +2,8 @@ import GLM: cholpred
 
 
 #################
+loss_criteria(p::LinPred) = 0
+
 StatsAPI.modelmatrix(p::LinPred) = p.X
 
 function StatsAPI.vcov(p::LinPred, wt::AbstractVector)

@@ -9,6 +9,7 @@ AbstractQuantileEstimator
 LossFunction
 RobustLinearModel
 RobustModels.RobustLinResp
+RobustModels.IPODResp
 GLM.LinPred
 RobustModels.DensePredCG
 RobustModels.SparsePredCG
@@ -17,7 +18,12 @@ GLM.SparsePredChol
 GLM.DensePredQR
 RobustModels.RidgePred
 RobustModels.AbstractRegularizedPred
+RobustModels.CGDPred
+RobustModels.FISTAPred
+RobustModels.AMAPred
+RobustModels.ADMMPred
 QuantileRegression
+IPODRegression
 ```
 
 ## Constructors for models
@@ -30,6 +36,7 @@ fit(::Type{M}, ::Union{AbstractMatrix{T}}, ::AbstractVector{T}) where {T<:Abstra
 ```@docs
 rlm
 quantreg
+ipod
 fit!
 refit!
 ```
@@ -67,10 +74,13 @@ StatsAPI.residuals
 StatsModels.hasintercept
 hasformula
 formula
+haspenalty
+penalty
 scale
 tauscale
 RobustModels.location_variance
 Estimator
+outliers
 GLM.linpred!
 RobustModels.pirls!
 RobustModels.pirls_Sestimate!
@@ -111,7 +121,17 @@ HardThresholdLoss
 HampelLoss
 ```
 
-## Estimator and Loss functions methods
+## Penalty functions
+```@docs
+NoPenalty
+SquaredL2Penalty
+EuclideanPenalty
+L1Penalty
+ElasticNetPenalty
+RangedPenalties
+```
+
+## Estimator, Loss and Penalty functions methods
 ```@docs
 RobustModels.rho
 RobustModels.psi
@@ -139,4 +159,10 @@ RobustModels.set_MEstimator
 RobustModels.update_weight!
 RobustModels.tau_scale_estimate
 RobustModels.quantile_weight
+RobustModels.cost
+RobustModels.proximal!
+RobustModels.proximal
+RobustModels.isconcrete
+RobustModels.concrete!
+RobustModels.concrete
 ```

@@ -214,4 +214,4 @@ sX = SparseMatrixCSC(X)
 y = data.logBrain
 nt = (; logBrain=data.logBrain, logBody=data.logBody)
 
-data_tuples = ((form, data), (form, nt), (X, y), (sX, y))
+data_tuples = ((form, data), (form, nt), (X, y), (sX, y));
