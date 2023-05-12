@@ -6,21 +6,27 @@ Breaking changes:
 
 Other changes:
 
-* Update dependencies compat versions (StatsBase-v0.34, StatsModels-v0.7)
-* Add dependencies (Missings-v1, StatsAPI-v1.3, Tables-v1)
 * Add loss functions (CatoniNarrowLoss, CatoniWideLoss, HardThresholdLoss, HampelLoss)
-* Improve loss functions documentation
-* Tests: more systematic tests
-* Improve weights (wts) usage
-* Tests: add weights test
 * Add the `wobs` function to use instead of `nobs`, take the weights into account.
   `nobs` return an `Int`, the number of non-zeros weights or length(response(m)) without weights.
 * Improve parameter changes with `refit!`
+* Improve weights (wts) usage
 * RidgePred correct various functions (dof, stderror, ...)
-* Tests: add exact Ridge test.
 * PredCG: improve perf
 * Add GLM.DensePredQR
+
+Dependencies and docs:
+
+* Improve loss functions documentation
 * Reformat code, create new files (tools.jl, losses.jl, regularizedpred.jl)
+* Update dependencies compat versions (StatsBase-v0.34, StatsModels-v0.7)
+* Add dependencies (Missings-v1, StatsAPI-v1.3, Tables-v1)
+
+Tests:
+
+* Tests: more systematic tests
+* Tests: add exact Ridge test.
+* Tests: add weights test
 
 Bugfixes:
 
