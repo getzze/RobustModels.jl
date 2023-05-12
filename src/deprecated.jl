@@ -1,7 +1,7 @@
 
 ## Adapted from GLM.jl
 
-@deprecate StatsAPI.confint(m::AbstractRobustModel, level::Real) confint(m; level=level)
+@deprecate confint(m::AbstractRobustModel, level::Real) confint(m; level=level)
 
 function Base.getproperty(mm::RobustLinearModel, f::Symbol)
     if f == :model
