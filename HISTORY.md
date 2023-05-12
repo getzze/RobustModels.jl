@@ -1,3 +1,32 @@
+v0.5.0 (2023-05-12)
+-------------------
+Breaking changes:
+
+* remove TableRegressionModel wrapper, following GLM.jl [#31]
+
+Other changes:
+
+* Update dependencies compat versions (StatsBase-v0.34, StatsModels-v0.7)
+* Add dependencies (Missings-v1, StatsAPI-v1.3, Tables-v1)
+* Add loss functions (CatoniNarrowLoss, CatoniWideLoss, HardThresholdLoss, HampelLoss)
+* Improve loss functions documentation
+* Tests: more systematic tests
+* Improve weights (wts) usage
+* Tests: add weights test
+* Add the `wobs` function to use instead of `nobs`, take the weights into account.
+  `nobs` return an `Int`, the number of non-zeros weights or length(response(m)) without weights.
+* Improve parameter changes with `refit!`
+* RidgePred correct various functions (dof, stderror, ...)
+* Tests: add exact Ridge test.
+* PredCG: improve perf
+* Add GLM.DensePredQR
+* Reformat code, create new files (tools.jl, losses.jl, regularizedpred.jl)
+
+Bugfixes:
+
+* Fix missing type leading to StackOverflow [#17]
+* Fix infinite loop [#33]
+
 v0.4.5 (2022-09-07)
 -------------------
 * Update dependencies compat versions (Roots)
