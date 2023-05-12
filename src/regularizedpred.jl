@@ -1,6 +1,7 @@
 using SparseArrays: sparse
 using LinearAlgebra: cholesky
 
+
 ####################################
 ### AbstractRegularizedPred methods
 ####################################
@@ -11,7 +12,15 @@ StatsAPI.coef(p::AbstractRegularizedPred) = p.beta0
 
 penalty(p::AbstractRegularizedPred) = p.penalty
 
-loss_criteria(p::AbstractRegularizedPred) = cost(penalty(p), coef(p))
+penalized_coef(p::AbstractRegularizedPred) = coef(p)
+
+dev_criteria(p::AbstractRegularizedPred) = 2 * cost(penalty(p), penalized_coef(p))
+
+initpred!(p::AbstractRegularizedPred, args...; kwargs...) = p
+
+updatepred!(p::AbstractRegularizedPred, args...; kwargs...) = p
+
+update_beta!(p::AbstractRegularizedPred, args...; kwargs...) = p
 
 function StatsAPI.vcov(p::AbstractRegularizedPred, wt::AbstractVector)
     wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
@@ -123,10 +132,14 @@ function RidgePred(
     ll in (0, m) || throw(DimensionMismatch("length of βprior is $ll, must be $m or 0"))
 
     sqrtλ = √λ
-    pred = if isa(P, Union{SparsePredCG, DensePredCG})
-        cgpred(cat_ridge_matrix(X, sqrtλ, G))
-    else
+    pred = if P in (SparsePredCG, DensePredCG)
+        cgpred(cat_ridge_matrix(X, sqrtλ, G), pivot)
+    elseif P in (DensePredQR,)
+        qrpred(cat_ridge_matrix(X, sqrtλ, G), pivot)
+    elseif P in (SparsePredChol, DensePredChol)
         cholpred(cat_ridge_matrix(X, sqrtλ, G), pivot)
+    else
+        error("Undefined RidgePred with underlying Linpred type: $(P)")
     end
 
     return RidgePred{T,typeof(X),typeof(pred)}(
@@ -209,6 +222,8 @@ end
 
 penalty(p::RidgePred) = SquaredL2Penalty(p.λ)
 
+penalized_coef(p::RidgePred) = p.G * (p.pred.beta0 - p.βprior)
+
 function cgpred(
     X::StridedMatrix{T},
     λ::Real,
@@ -227,6 +242,17 @@ function GLM.cholpred(
     pivot::Bool=false,
 ) where {T<:AbstractFloat}
     RidgePred(DensePredChol, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot)
+end
+
+function qrpred(
+    X::AbstractMatrix{T},
+    λ::Real,
+    G::AbstractMatrix{<:Real},
+    βprior::AbstractVector{<:Real}=zeros(T, size(X, 2)),
+    pivot::Bool=false,  # placeholder
+) where {T<:AbstractFloat}
+    # No sparse version exists, force both matrices to be denses
+    RidgePred(DensePredQR, Matrix{T}(X), Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot)
 end
 
 function cgpred(
@@ -276,15 +302,8 @@ cgpred(X::StridedMatrix, λ, G::AbstractVector, βprior::AbstractVector, args...
 cholpred(X::StridedMatrix, λ, G::AbstractVector, βprior::AbstractVector, args...) =
     cholpred(X, λ, diagm(0 => G), βprior, args...)
 
-function resetβ0!(p::RidgePred{T}) where {T<:BlasReal}
-    beta0 = p.beta0
-    delbeta = p.delbeta
-    @inbounds for i in eachindex(beta0, delbeta)
-        beta0[i] = 0
-        delbeta[i] = 0
-    end
-    p
-end
+qrpred(X::AbstractMatrix, λ, G::AbstractVector, βprior::AbstractVector, args...) =
+    qrpred(X, λ, diagm(0 => G), βprior, args...)
 
 function delbeta!(
     p::RidgePred{T},
@@ -341,15 +360,4 @@ function StatsAPI.vcov(p::RidgePred, wt::AbstractVector)
     wwt = extendedweights(p, wt)
     wXt = isempty(wwt) ? extendedmodelmatrix(p)' : (extendedmodelmatrix(p) .* wwt)'
     return inv(Hermitian(float(Matrix(wXt * extendedmodelmatrix(p)))))
-end
-
-StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:RidgePred} =
-    tr(projectionmatrix(m.pred, workingweights(m.resp)))
-
-function StatsAPI.stderror(m::RobustLinearModel{T,R,L}) where {T,R,L<:RidgePred}
-    wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
-    Σ = Hermitian(wXt * modelmatrix(m.pred))
-    M = vcov(m) * Σ * vcov(m)'
-    s = location_variance(m.resp, dof_residual(m), false)
-    return s .* sqrt.(diag(M))
 end
