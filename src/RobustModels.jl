@@ -179,7 +179,7 @@ abstract type AbstractRobustModel{T} <: RegressionModel end
 
 abstract type RobustResp{T} <: ModResp end
 
-abstract type AbstractRegularizedPred{T} <: LinPred end
+abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
@@ -189,6 +189,7 @@ include("losses.jl")
 include("estimators.jl")
 include("robustlinearmodel.jl")
 include("linpred.jl")
+include("regularizedpred.jl")
 include("linresp.jl")
 include("univariate.jl")
 include("quantileregression.jl")
