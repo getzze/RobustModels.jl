@@ -1,4 +1,3 @@
-using Random: MersenneTwister
 
 seed = 123987
 

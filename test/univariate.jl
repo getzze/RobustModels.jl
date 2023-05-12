@@ -1,5 +1,4 @@
 
-using Random: MersenneTwister
 using Statistics: median
 using RobustModels: mean_and_sem, compatdims
 

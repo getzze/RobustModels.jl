@@ -31,7 +31,9 @@ import StatsModels:
 # Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
 using SparseArrays: SparseMatrixCSC, spdiagm
-using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
+using LinearAlgebra: dot, tr, I, UniformScaling, rmul!, lmul!, mul!, BlasReal, Hermitian, transpose, 
+    inv, diag, diagm, ldiv!
+
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol
@@ -40,8 +42,8 @@ using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame
     apply_schema, schema, checknamesexist, checkcol, termvars
 using IterativeSolvers: cg!
 using Tables
-#using Roots: find_zero, Order1, ConvergenceFailed
-#using QuadGK: quadgk
+using Roots: find_zero, Order1, ConvergenceFailed
+using QuadGK: quadgk
 #import Tulip
 
 

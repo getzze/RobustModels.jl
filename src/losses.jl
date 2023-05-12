@@ -1,7 +1,3 @@
-
-using QuadGK: quadgk
-using Roots: find_zero, Order1, ConvergenceFailed, Newton
-
 ## Threshold to avoid numerical overflow of the weight function of L1Estimator and ArctanEstimator
 DELTA = 1e-8    # chosen because it minimizes the error between (1-ATWDELTA)/DELTA and 1/3 for the linear approximation
 L1WDELTA = 1 / (DELTA)
@@ -772,17 +768,17 @@ estimator_bound(e::CompositeLossFunction) =
 rho(e::CompositeLossFunction, r::Real) =
     e.α1 * rho(e.loss1, r) * (tuning_constant(e.loss1))^2 +
     e.α2 * rho(e.loss2, r) * (tuning_constant(e.loss2))^2
-psi(e::CompositeLossFunction, r::Real) = e.α1 * psi(e.loss1) + e.α2 * psi(e.loss2)
+psi(e::CompositeLossFunction, r::Real) = e.α1 * psi(e.loss1, r) + e.α2 * psi(e.loss2, r)
 psider(e::CompositeLossFunction, r::Real) =
-    e.α1 * psider(e.loss1) + e.α2 * psider(e.loss2)
+    e.α1 * psider(e.loss1, r) + e.α2 * psider(e.loss2, r)
 weight(e::CompositeLossFunction, r::Real) =
-    e.α1 * weight(e.loss1) + e.α2 * weight(e.loss2)
+    e.α1 * weight(e.loss1, r) + e.α2 * weight(e.loss2, r)
 estimator_values(e::CompositeLossFunction, r::Real) =
-    @.(e.α1 * estimator_values(e.loss1) + e.α2 * estimator_values(e.loss2))
+    @.(e.α1 * estimator_values(e.loss1, r) + e.α2 * estimator_values(e.loss2, r))
 
 function mscale_loss(e::CompositeLossFunction, x)
     if !isa(e.loss1, BoundedLossFunction) || !isa(e.loss2, BoundedLossFunction)
-        throw(MethodError("mscale_loss for CompositeLossFunction is defined only if both losses are bounded"))
+        error("mscale_loss for CompositeLossFunction is defined only if both losses are bounded")
     end
     return rho(e, x) / estimator_bound(e)
 end

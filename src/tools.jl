@@ -1,7 +1,7 @@
 
 _missing_omit(x::AbstractArray{T}) where T = copyto!(similar(x, nonmissingtype(T)), x)
 
-function missing_omit(X::AbstractMatrix, y::AbstractVector)
+function StatsModels.missing_omit(X::AbstractMatrix, y::AbstractVector)
     X_ismissing = eltype(X) >: Missing
     y_ismissing = eltype(y) >: Missing
 

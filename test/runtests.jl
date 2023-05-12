@@ -5,12 +5,13 @@ using SparseArrays
 using DataFrames
 #using RDatasets: dataset
 using Test
+using Random: MersenneTwister
 
 using RobustModels
 
 
 ## Delegate methods from TableRegressionModel for GLM models
-using StatsModels: @delegate, TableRegressionModel
+using StatsModels: @delegate, FormulaTerm, TableRegressionModel
 import RobustModels: dispersion, weights, islinear, fitted, isfitted, leverage,
     hasintercept, nulldeviance, deviance
 

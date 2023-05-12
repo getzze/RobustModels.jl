@@ -1,21 +1,4 @@
 
-using LinearAlgebra:
-    BlasReal,
-    QRCompactWY,
-    Diagonal,
-    Hermitian,
-    LowerTriangular,
-    UpperTriangular,
-    transpose,
-    cholesky,
-    cholesky!,
-    qr,
-    mul!,
-    inv,
-    diag,
-    diagm,
-    ldiv!
-
 
 #################
 StatsAPI.modelmatrix(p::LinPred) = p.X
@@ -100,7 +83,7 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     X::Matrix{T}                  # model matrix
     beta0::Vector{T}              # base coefficient vector
     delbeta::Vector{T}            # coefficient increment
-    XtWX::Matrix{T}               # Gram matrix and temporary matrix.
+    Σ::Matrix{T}                  # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::Matrix{T}
     scratchr1::Vector{T}
@@ -129,8 +112,8 @@ cgpred(X::StridedMatrix) = DensePredCG(X)
 Evaluate and return `p.delbeta` the increment to the coefficient vector from residual `r`
 """
 function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
-    ## Assumes that p.XtWX was pre-computed
-    cg!(p.delbeta, p.XtWX, r)
+    ## Assumes that p.Σ was pre-computed
+    cg!(p.delbeta, p.Σ, r)
     return p
 end
 
@@ -141,7 +124,7 @@ function delbeta!(
 ) where {T<:BlasReal}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     cg!(p.delbeta,
-        Hermitian(mul!(p.XtWX, scr, p.X), :U),
+        Hermitian(mul!(p.Σ, scr, p.X), :U),
         mul!(p.scratchbeta, scr, r),
     )
     p
@@ -164,7 +147,7 @@ mutable struct SparsePredCG{T,M<:SparseMatrixCSC} <: LinPred
     X::M                    # model matrix
     beta0::Vector{T}        # base vector for coefficients
     delbeta::Vector{T}      # coefficient increment
-    XtWX::M                 # Gram matrix and temporary matrix.
+    Σ::M                    # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::M
     scratchr1::Vector{T}
@@ -188,8 +171,8 @@ function delbeta!(
     p::SparsePredCG{T},
     r::AbstractVector{T},
 ) where {T}
-    ## Assumes that p.XtWX was pre-computed
-    cg!(p.delbeta, p.XtWX, r)
+    ## Assumes that p.Σ was pre-computed
+    cg!(p.delbeta, p.Σ, r)
     p
 end
 
@@ -200,7 +183,7 @@ function delbeta!(
 ) where {T}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     cg!(p.delbeta,
-        Hermitian(mul!(p.XtWX, scr, p.X), :U),
+        Hermitian(mul!(p.Σ, scr, p.X), :U),
         mul!(p.scratchbeta, scr, r),
     )
     p

@@ -1,7 +1,6 @@
 
 using Tables
 using Missings
-using StatsModels: FormulaTerm, TableRegressionModel
 
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
