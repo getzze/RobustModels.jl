@@ -127,6 +127,8 @@ export LossFunction,
        Estimator,
        rlm,
        quantreg,
+       penalty,
+       haspenalty,
        loss,
        tuning_constant,
        refit!,
@@ -168,6 +170,9 @@ abstract type AbstractMEstimator <: AbstractEstimator end
 "Generalized M-Quantile estimator"
 abstract type AbstractQuantileEstimator <: AbstractMEstimator end
 
+"Penalty function"
+abstract type PenaltyFunction{T} end
+
 
 """
     AbstractRobustModel
@@ -189,6 +194,7 @@ Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 include("tools.jl")
 include("losses.jl")
 include("estimators.jl")
+include("penalties.jl")
 include("linpred.jl")
 include("regularizedpred.jl")
 include("linresp.jl")

@@ -8,12 +8,20 @@ AbstractEstimator
 AbstractQuantileEstimator
 LossFunction
 RobustLinearModel
+RobustModels.RobustLinResp
+RobustModels.IPODResp
+GLM.LinPred
 RobustModels.DensePredCG
 RobustModels.SparsePredCG
 GLM.DensePredChol
 GLM.SparsePredChol
+GLM.DensePredQR
 RobustModels.RidgePred
-RobustModels.RobustLinResp
+RobustModels.AbstractRegularizedPred
+RobustModels.CGDPred
+RobustModels.FISTAPred
+RobustModels.AMAPred
+RobustModels.ADMMPred
 QuantileRegression
 ```
 
@@ -27,20 +35,24 @@ fit(::Type{M}, ::Union{AbstractMatrix{T},SparseMatrixCSC{T}}, ::AbstractVector{T
 ```@docs
 rlm
 quantreg
+ipod
 fit!
 refit!
 ```
 
 ## Model methods
 ```@docs
-StatsBase.coef
-StatsBase.coeftable
+StatsModels.coef
+StatsModels.coeftable
+StatsModels.coefnames
+StatsModels.responsename
 StatsBase.confint
 StatsBase.deviance
 StatsBase.nulldeviance
 StatsBase.dof
 StatsBase.dof_residual
-nobs(::StatisticalModel)
+StatsBase.nobs
+wobs
 StatsBase.isfitted
 StatsBase.islinear
 StatsBase.loglikelihood
@@ -51,12 +63,18 @@ StatsBase.weights
 workingweights
 StatsBase.fitted
 StatsBase.predict
-StatsBase.leverage
-StatsBase.modelmatrix
+StatsModels.leverage
+leverage_weights
+StatsModels.modelmatrix
 projectionmatrix
-GLM.dispersion(::RobustLinearModel, ::Bool)
+GLM.dispersion(::AbstractRobustModel, ::Bool)
 StatsBase.response
 StatsBase.residuals
+StatsModels.hasintercept
+hasformula
+formula
+haspenalty
+penalty
 scale
 tauscale
 RobustModels.location_variance
@@ -85,14 +103,28 @@ L1L2Loss
 FairLoss
 LogcoshLoss
 ArctanLoss
+CatoniWideLoss
+CatoniNarrowLoss
 CauchyLoss
 GemanLoss
 WelschLoss
 TukeyLoss
 YohaiZamarLoss
+HardThresholdLoss
+HampelLoss
 ```
 
-## Estimator and Loss functions methods
+## Penalty functions
+```@docs
+NoPenalty
+SquaredL2Penalty
+EuclideanPenalty
+L1Penalty
+ElasticNetPenalty
+RangedPenalties
+```
+
+## Estimator, Loss and Penalty functions methods
 ```@docs
 RobustModels.rho
 RobustModels.psi
@@ -120,6 +152,12 @@ RobustModels.set_MEstimator
 RobustModels.update_weight!
 RobustModels.tau_scale_estimate
 RobustModels.quantile_weight
+RobustModels.cost
+RobustModels.proximal!
+RobustModels.proximal
+RobustModels.isconcrete
+RobustModels.concrete!
+RobustModels.concrete
 ```
 
 

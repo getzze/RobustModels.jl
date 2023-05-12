@@ -48,6 +48,10 @@ function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
     hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
 end
 
+haspenalty(r::AbstractRobustModel) = false
+
+penalty(r::AbstractRobustModel) = nothing
+
 ## TODO: specialize to make it faster
 StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
 
@@ -1411,4 +1415,288 @@ function resampling_best_estimate(
     ## TODO: for τ-Estimate, the returned scale is τ not σ
     verbose && println("Best subsample: β=$(βls[:, N])\tσ=$(σls[N])")
     return σls[N], βls[:, N]
+end
+
+
+########################################
+###   Penalized Least Squares
+########################################
+
+haspenalty(r::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred} = true
+
+penalty(r::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred} = r.pred.penalty
+
+
+"""
+    fit(::Type{M},
+        X::AbstractMatrix{T},
+        y::AbstractVector{T},
+        penalty::PenaltyFunction;
+        method::Symbol = :auto,  # :cgd, :fista, :ama, :admm
+        dofit::Bool = true,
+        wts::FPVector = similar(y, 0),
+        offset::FPVector = similar(y, 0),
+        fitdispersion::Bool = false,
+        initial_scale::Union{Symbol, Real}=:mad,
+        σ0::Union{Symbol, Real}=initial_scale,
+        initial_coef::AbstractVector=[],
+        β0::AbstractVector=initial_coef,
+        correct_leverage::Bool=false
+        fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
+
+Create a robust model with the model matrix (or formula) X and response vector (or dataframe) y,
+using L2Loss with a Penalty on the coefficients.
+
+
+# Arguments
+
+- `X`: the model matrix (it can be dense or sparse) or a formula
+- `y`: the response vector or a table (dataframe, namedtuple, ...).
+- `penalty`: a penalty function for the coefficients.
+
+# Keywords
+
+- `method::Symbol = :auto`: the method used to solve the linear system with penalty,
+    - Coordinate Gradient Descent: `:cgd` (default)
+    - Fast Iterative Shrinkage-Thresholding Algorithm: `:fista`
+    - Alternating Minimization Algorithm: `:ama`
+    - Alternating Direction Method of Multipliers: `:admm`
+    Use :auto to select the default method.
+- `dofit::Bool = true`: if false, return the model object without fitting;
+- `dropmissing::Bool = false`: if true, drop the rows with missing values (and convert to
+    Non-Missing type). With `dropmissing=true` the number of observations may be smaller than
+    the size of the input arrays;
+- `wts::Vector = similar(y, 0)`: Prior probability weights of observations.
+    Can be empty (length 0) if no weights are used (default);
+- `offset::Vector = similar(y, 0)`: A vector of offsets to apply to the mean response.
+    Can be empty (length 0) if no offset is set (default);
+- `fitdispersion::Bool = false`: reevaluate the dispersion;
+- `contrasts::AbstractDict{Symbol,Any} = Dict{Symbol,Any}()`: a `Dict` mapping term names
+    (as `Symbol`s) to term types (e.g. `ContinuousTerm`) or contrasts (e.g., `HelmertCoding()`,
+    `SeqDiffCoding(; levels=["a", "b", "c"])`, etc.). If contrasts are not provided for a variable,
+    the appropriate term type will be guessed based on the data type from the data column:
+    any numeric data is assumed to be continuous, and any non-numeric data is assumed to be
+    categorical (with `DummyCoding()` as the default contrast type);
+- `initial_scale::Union{Symbol, Real}=:mad`: the initial scale estimate, for non-convex estimator
+    it helps to find the global minimum.
+    Automatic computation using `:mad`, `:L1` or `:extrema` (non-robust).
+- `σ0::Union{Nothing, Symbol, Real}=initial_scale`: alias of `initial_scale`;
+- `initial_coef::AbstractVector=[]`: the initial coefficients estimate, for non-convex estimator
+    it helps to find the global minimum.
+- `β0::AbstractVector=initial_coef`: alias of `initial_coef`;
+- `penalty_omit_intercept::Bool=true`: if true, do not penalize the intercept,
+    otherwise use the penalty on all the coefficients;
+- `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm
+    (see [`pirls!`](@ref)).
+
+# Output
+
+the RobustLinearModel object.
+
+"""
+function StatsAPI.fit(
+    ::Type{M},
+    X::AbstractMatrix{T},
+    y::AbstractVector{T},
+    penalty::PenaltyFunction;
+    method::Symbol=:auto,  # :cgd, :fista, :ama, :admm
+    dofit::Bool=true,
+    dropmissing::Bool=false,  # placeholder
+    initial_scale::Union{Nothing,Symbol,Real}=:mad,
+    σ0::Union{Nothing,Symbol,Real}=initial_scale,
+    wts::FPVector=similar(y, 0),
+    offset::FPVector=similar(y, 0),
+    fitdispersion::Bool=false,
+    pivot::Bool=false,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),  # placeholder
+    __formula::Union{Nothing,FormulaTerm}=nothing,
+    use_backtracking::Bool=false,
+    A::AbstractMatrix{<:Real}=zeros(T, 0, 0),
+    b::AbstractVector{<:Real}=zeros(T, 0),
+    restart::Bool=true,
+    adapt::Bool=true,
+    penalty_omit_intercept::Bool=true,
+    fitargs...,
+) where {M<:RobustLinearModel,T<:AbstractFloat}
+
+    # Check that X and y have the same number of observations
+    n, p = size(X)
+    if n != size(y, 1)
+        throw(DimensionMismatch("number of rows in X and y must match"))
+    end
+
+    # Response object
+    est = MEstimator{L2Loss}()
+    resp = RobustLinResp(est, y, offset, T[])
+
+    # Penalty
+    new_penalty = try
+        intercept_col = penalty_omit_intercept ? get_intercept_col(X, __formula) : nothing
+        concrete(penalty, p, intercept_col)
+    catch
+        error("penalty is not compatible with coefficients size $p: $(penalty)")
+    end
+
+    # Predictor object
+    pen_methods = (:auto, :cgd, :fista, :ama, :admm)
+    if method ∉ pen_methods
+        @warn("Incorrect method `:$(method)` with a penalty, should be one of $(pen_methods)")
+        method = :auto
+    end
+
+    pred = if method === :fista
+        FISTARegPred(X, new_penalty, wts, use_backtracking)
+    elseif method === :ama
+        AMARegPred(X, new_penalty, wts, A, b, restart)
+    elseif method === :admm
+        ADMMRegPred(X, new_penalty, wts, A, b, restart, adapt)
+    elseif method in (:cgd, :auto)
+        CGDRegPred(X, new_penalty, wts)
+    else
+        error("with penalty, method :$method is not allowed, should be in: $pen_methods")
+    end
+
+    # RobustLinearModel
+    m = RobustLinearModel(resp, pred, __formula, fitdispersion, false)
+
+    # Update fields
+    fitargs = update_fields!(m; σ0=σ0, fitargs...)
+
+    return dofit ? fit!(m; fitargs...) : m
+end
+
+
+function StatsAPI.fit!(
+    m::RobustLinearModel{T,R,P};
+    correct_leverage::Bool=false,
+    updatescale::Bool=false,
+    maxiter::Integer= (P <: FISTARegPred) ? 10_000 : 100,
+    minstepfac::Real=1e-3,
+    atol::Real=1e-8,
+    rtol::Real=1e-7,
+    verbose::Bool=false,
+) where {T,R,P<:AbstractRegularizedPred}
+    # Return early if model has the fit flag set
+    m.fitted && return m
+
+    verbose && println("\nFit robust model with penalty: $(penalty(m))")
+
+    # Initialize the response and predictors
+    init!(m; verbose=verbose)
+
+    # convergence criteria
+    devold = dev_criteria(m)
+    dev = devold
+    Δdev = 0
+
+    ### Loop until convergence
+    cvg = false
+    for i in 1:maxiter
+        ## Update coefficients
+        setη!(m; verbose=verbose)
+        dev = dev_criteria(m)
+        Δdev = abs(dev - devold)
+
+        ## Postupdate (only for ADMM)
+        updatepred!(m.pred, scale(m); verbose=verbose)
+
+        # Test for convergence
+        verbose && println("Iteration: $i, Δdev: $(Δdev)")
+        tol = max(rtol * abs(devold), atol)
+        if Δdev < tol || dev < atol
+            cvg = true
+            break
+        end
+        @assert isfinite(dev)
+        devold = dev
+    end
+    cvg || throw(ConvergenceException(maxiter))
+    m.fitted = true
+    return m
+end
+
+function StatsAPI.fit!(
+    m::RobustLinearModel{T,R,P};
+    correct_leverage::Bool=false,
+    kwargs...,
+) where {T,R,P<:RidgePred}
+
+    # Return early if model has the fit flag set
+    m.fitted && return m
+
+    # Compute the initial values
+    σ0, β0 = scale(m), coef(m)
+
+    if correct_leverage
+        wts = m.resp.wts
+        copy!(wts, leverage_weights(m, :original))
+    end
+
+    # Get type
+    V = typeof(m.resp.est)
+
+    _fit!(m, V; σ0=σ0, β0=β0, kwargs...)
+
+    m.fitted = true
+    m
+end
+
+function dev_criteria(m::RobustLinearModel)
+    if !haspenalty(m)
+        # this criteria is not used with no penalty
+        return 0
+    end
+    l = deviance(m.resp)
+    l += dev_criteria(m.pred)
+    return l
+end
+
+function init!(
+    m::RobustLinearModel{T,R,P};
+    verbose::Bool=false,
+) where {T,R,P<:AbstractRegularizedPred}
+
+    resp = m.resp
+    pred = m.pred
+
+    # reset ∇β
+    copyto!(pred.delbeta, pred.beta0)
+
+    # res = y - Xβ
+    mul!(resp.μ, pred.X, pred.beta0)
+    initresp!(resp)
+
+    # Initialize the predictor
+    initpred!(pred, weights(m), scale(m); verbose=verbose)
+
+    m
+end
+
+function setη!(
+    m::RobustLinearModel{T,R,P},
+    linesearch_f::Real=1;
+    verbose::Bool=false,
+) where {T,R,P<:AbstractRegularizedPred}
+    wts = weights(m)
+
+    μ = m.resp.μ
+    σ2 = m.resp.σ^2
+    y = m.resp.y
+
+    if m.pred isa CGDRegPred
+        # Update coefs and μ
+        update_βμ!(m.pred, y, μ, σ2, wts; verbose=verbose)
+
+    else
+        # Update coefs
+        update_beta!(m.pred, y, wts, σ2; verbose=verbose)
+
+        # Update linear predictor
+        mul!(μ, m.pred.X, m.pred.beta0)
+    end
+
+    # Update residuals with the new μ
+    updateres!(m.resp; updatescale=false)
+
+    m
 end

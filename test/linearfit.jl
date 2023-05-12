@@ -1,5 +1,4 @@
 
-using Random: MersenneTwister
 
 m1 = fit(LinearModel, form, data)
 
@@ -23,8 +22,8 @@ est2 = MEstimator(loss2)
 
     if name != "L1"
         @test_nowarn println(m2)
-#    else
-#        @test_warn L1_warning println(m2)
+    else
+        @test_warn L1_warning println(m2)
     end
 
     VERBOSE && println("\n\t\u25CF Estimator: $(name)")
