@@ -47,7 +47,6 @@ function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
     alpha = quantile(TDist(dof_residual(m)), (1 - level) / 2)
     hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
 end
-StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
 ## TODO: specialize to make it faster
 StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
