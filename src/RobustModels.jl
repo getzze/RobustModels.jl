@@ -191,8 +191,9 @@ abstract type RobustResp{T} <: ModResp end
 
 abstract type AbstractRegularizedPred{T} end
 
-Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
-Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
+Base.broadcastable(m::AbstractEstimator) = Ref(m)
+Base.broadcastable(m::LossFunction) = Ref(m)
+Base.broadcastable(m::PenaltyFunction) = Ref(m)
 
 include("tools.jl")
 include("losses.jl")
