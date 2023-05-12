@@ -80,6 +80,7 @@ scale
 tauscale
 RobustModels.location_variance
 Estimator
+outliers
 ```
 
 ## Estimators
