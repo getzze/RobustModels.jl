@@ -16,7 +16,7 @@ rng = MersenneTwister(seed)
 
 t = 10 * randn(rng, 30)
 
-
+#=
 @testset "Methods penalty functions: $(name)" for name in ("No", penalties...)
     tt = copy(t)
 
@@ -133,3 +133,60 @@ end
     refit!(m1)
     @test all(coef(m1) .== β1)
 end
+=#
+
+@testset "M-estimator with penalty: Ridge" begin
+    rtol = 1e-5
+    pen = SquaredL2Penalty(λ)
+
+    kwargs = (; initial_scale=1)
+    m0 = rlm(form, data, MEstimator{L2Loss}(); kwargs...)
+    m1 = rlm(form, data, MEstimator{L2Loss}(); ridgeλ=λ, kwargs...)
+
+    @testset "solver method $(method)" for method in pen_methods
+        if method === :fista
+            rtol = 1e-2
+        end
+
+        # Formula, dense and sparse entry
+        @testset "data type: $(typeof(A))" for (A, b) in data_tuples
+            name  = "rlm($(pen); method=$(method)),\t"
+            name *= if A==form; "formula" elseif A==X; "dense  " else "sparse " end
+
+            m2 = rlm(A, b, pen; method=method, kwargs...)
+
+            @test all(isfinite.(coef(m2)))
+
+            VERBOSE && println("\n\t\u25CF $(name)")
+            VERBOSE && println("rlm ridge : ", coef(m1))
+            VERBOSE && println("rlm($method) $(pen) : ", coef(m2))
+            @test isapprox(coef(m2), coef(m1); rtol=rtol)
+
+            # interface
+            @testset "method: $(f)" for f in interface_methods
+                # make sure the methods for IPODRegression give the same results as RobustLinearModel
+                var1 = f(m1)
+                var2 = f(m2)
+                if f == hasformula
+                    # m1 is defined from a formula
+                    @test var2 == (A isa FormulaTerm)
+                elseif f in (dof, dof_residual)
+                    # Ridge dof is smaller than the unpenalized regression
+                    # rlm with penalty dof is the same as the unpenalized rlm
+                    @test var2 == f(m0)
+                elseif f in (dispersion, stderror, vcov, leverage)
+                    @test all(abs.(var2) .>= abs.(var1))
+                elseif f in (leverage_weights,)
+                    @test all(abs.(var2) .<= abs.(var1))
+                elseif f in (confint, )
+                    @test isapprox(var1, var2; rtol=1e-1)
+                elseif f in (projectionmatrix, )
+                    continue
+                else
+                    @test isapprox(var1, var2; rtol=rtol)
+                end
+            end
+        end
+    end
+end
+

@@ -111,10 +111,10 @@ end
 
 
 @testset "Θ-IPOD: L2Loss method, Ridge penalty" begin
-    rtol = 1e-3
+    rtol = 1e-5
     @testset "solver method $(method)" for method in pen_methods
         if method === :fista
-            rtol = 1e-1
+            rtol = 1e-2
         end
 
         # Formula, dense and sparse entry
