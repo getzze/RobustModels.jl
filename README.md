@@ -40,6 +40,8 @@ This package implements:
 * MQuantile regression (e.g. Expectile regression)
 * Robust Ridge regression (using any of the previous estimator)
 * Quantile regression using interior point method
+* Regularized Least Square regression
+* Θ-IPOD regression, possibly with a penalty term
 
 ## Installation
 
@@ -62,6 +64,15 @@ The prefered way of performing robust regression is by calling the `rlm` functio
 For quantile regression, use `quantreg`:
 
 `m = quantreg(X, y; quantile=0.5)`
+
+For Regularized Least Squares and a penalty term, use `rlm`:
+
+`m = rlm(X, y, L1Penalty(); method=:cgd)`
+
+For Θ-IPOD regression with outlier detection and a penalty term, use `ipod`:
+
+`m = ipod(X, y, L2Loss(), SquaredL2Penalty(); method=:auto)`
+
 
 For robust version of `mean`, `std`, `var` and `sem` statistics, specify the estimator as first argument.
 Use the `dims` keyword for computing the statistics along specific dimensions.
@@ -119,6 +130,16 @@ m9 = rlm(form, data, MEstimator{TukeyLoss}(); initial_scale=:L1, ridgeλ=1.0)
 ## Quantile regression solved by linear programming interior point method
 m10 = quantreg(form, data; quantile=0.2)
 refit!(m10; quantile=0.8)
+
+## Penalized regression
+m11 = rlm(form, data, SquaredL2Penalty(); method=:auto)
+
+## Θ-IPOD regression with outlier detection
+m12 = ipod(form, data, TukeyLoss(); method=:auto)
+
+## Θ-IPOD regression with outlier detection and a penalty term
+m13 = ipod(form, data, L2Loss(), L1Penalty(); method=:ama)
+
 ;
 
 # output
@@ -136,7 +157,7 @@ With ordinary least square (OLS), the objective function is, from maximum likeli
 where `yᵢ` are the values of the response variable, `𝒙ᵢ` are the covectors of individual covariates
 (rows of the model matrix `X`), `𝜷` is the vector of fitted coefficients and `rᵢ` are the individual residuals.
 
-A `RobustLinearModel` solves instead for the following loss function: `L' = Σᵢ ρ(rᵢ)`
+A `RobustLinearModel` solves instead for the following loss function [1]: `L' = Σᵢ ρ(rᵢ)`
 (more precisely `L' = Σᵢ ρ(rᵢ/σ)` where `σ` is an (robust) estimate of the standard deviation of the residual).
 Several loss functions are implemented:
 
@@ -182,16 +203,6 @@ Using an asymmetric variant of the `L1Estimator`, quantile regression is perform
 Identically, with an M-estimator using an asymetric version of the loss function,
 a generalization of quantiles is obtained. For instance, using an asymetric `L2Loss` results in _Expectile Regression_.
 
-### Robust Ridge regression
-
-This is the robust version of the ridge regression, adding a penalty on the coefficients.
-The objective function to solve is `L = Σᵢ ρ(rᵢ/σ) + λ Σⱼ|βⱼ|²`, where the sum of squares of
-coefficients does not include the intersect `β₀`.
-Robust ridge regression is implemented for all the estimators (not for `quantreg`).
-By default, all the coefficients (except the intercept) have the same penalty, which assumes that
-all the feature variables have the same scale. If it is not the case, use a robust estimate of scale
-to normalize every column of the model matrix `X` before fitting the regression.
-
 ### Quantile regression
 
 _Quantile regression_ results from minimizing the following objective function:
@@ -202,6 +213,55 @@ This problem is solved exactly using linear programming techniques,
 specifically, interior point methods using the internal API of [Tulip](https://github.com/ds4dm/Tulip.jl).
 The internal API is considered unstable, but it results in a much lighter dependency than
 including the [JuMP](https://github.com/JuliaOpt/JuMP.jl) package with Tulip backend.
+
+### Robust Ridge regression
+
+This is the robust version of the ridge regression, adding a penalty on the coefficients.
+The objective function to solve is `L = Σᵢ ρ(rᵢ/σ) + λ Σⱼ|βⱼ|²`, where the sum of squares of
+coefficients does not include the intersect `β₀`.
+Robust ridge regression is implemented for all the estimators (not for `quantreg`).
+By default, all the coefficients (except the intercept) have the same penalty, which assumes that
+all the feature variables have the same scale. If it is not the case, use a robust estimate of scale
+to normalize every column of the model matrix `X` before fitting the regression.
+
+### Regularized Least Squares
+
+_Regularized Least Squares_ regression is the solution of the minimization of following objective function:
+`L = ½ Σᵢ |yᵢ - 𝒙ᵢ 𝜷|² + P(𝜷)`,
+where `P(𝜷)` is a (sparse) penalty on the coefficients.
+
+The following penalty function are defined:
+    - `NoPenalty`: `cost(𝐱) = 0`, no penalty.
+    - `SquaredL2Penalty`: `cost(𝐱) = λ ½||𝐱||₂²`, also called Ridge.
+    - `L1Penalty`: `cost(𝐱) = λ||𝐱||₁`, also called LASSO.
+    - `ElasticNetPenalty`: `cost(𝐱) = λ . l1_ratio .||𝐱||₁ + λ .(1 - l1_ratio) . ½||𝐱||₂²`.
+    - `EuclideanPenalty`: `cost(𝐱) = λ||𝐱||₂`, non-separable penalty used in Group LASSO.
+
+Different penalties can be applied to different indices of the coefficients, using
+`RangedPenalties(ranges, penalties)`. E.g., `RangedPenalties([2:5], [L1Penalty(1.0)])` defines
+a L1 penalty on every coefficients except the first index, which can correspond to the intercept.
+
+With a penalty, the following solvers are available (instead of the other ones):
+    - `:cgd`, Coordinate Gradient Descent [2].
+    - `:fista`, Fast Iterative Shrinkage-Thresholding Algorithm [3].
+    - `:ama`, Alternating Minimization Algorithm [4].
+    - `:admm`, Alternating Direction Method of Multipliers [5].
+
+To use a robust loss function with a penalty, see Θ-IPOD regression.
+
+### Θ-IPOD regression
+
+_Θ-IPOD regression_ (Θ-thresholding based Iterative Procedure for Outlier Detection) results from
+minimizing the following objective function [6]:
+`L = ½ Σᵢ |yᵢ - 𝒙ᵢ 𝜷 - γᵢ|² + P(𝜷) + Q(γ)`,
+where `Q(γ)` is a penalty function on the outliers `γ` that is sparse so the problem is not underdetermined.
+We don't need to know the expression of this penalty function, just that it leads to thresholding using
+one of the loss function used by M-Estimators. Then Θ-IPOD is equivalent to solving an M-Estimator.
+This problem is solved using an alternating minimization technique, for the outlier detection.
+Without penalty, the coefficients are updated at every step using a solver for _Ordinary Least Square_.
+
+`P(𝜷)` is an optionnal (sparse) penalty on the coefficients.
+
 
 ## Credits
 
@@ -215,4 +275,9 @@ for implementing the Iteratively Reweighted Least Square algorithm.
 
 ## References
 
-- "Robust Statistics: Theory and Methods (with R)", 2nd Edition, 2019, R. Maronna, R. Martin, V. Yohai, M. Salibián-Barrera
+[1] "Robust Statistics: Theory and Methods (with R)", 2nd Edition, 2019, R. Maronna, R. Martin, V. Yohai, M. Salibián-Barrera
+[2] "Regularization Paths for Generalized Linear Models via Coordinate Descent", 2009, J. Friedman, T. Hastie, R. Tibshirani
+[3] "A Fast Iterative Shrinkage-Thresholding Algorithm for Linear Inverse Problems", 2009, A. Beck, M. Teboulle
+[4] "Applications of a splitting algorithm to decomposition in convex programming and variational inequalities", 1991, P. Tseng
+[5] "Fast Alternating Direction Optimization Methods", 2014, T. Goldstein, B. O'Donoghue, S. Setzer, R. Baraniuk
+[6] "Outlier Detection Using Nonconvex Penalized Regression", 2011, Y. She, A.B. Owen
