@@ -1,3 +1,5 @@
+using SparseArrays: sparse
+using LinearAlgebra: cholesky
 
 ####################################
 ### AbstractRegularizedPred methods
@@ -235,11 +237,11 @@ function cgpred(
     pivot::Bool=false,  # placeholder
 ) where {T<:AbstractFloat}
     RidgePred(
-        SparsePredCG, 
-        X, 
-        Base.convert(T, λ), 
-        SparseMatrixCSC{T}(G), 
-        Vector{T}(βprior), 
+        SparsePredCG,
+        X,
+        Base.convert(T, λ),
+        SparseMatrixCSC{T}(G),
+        Vector{T}(βprior),
         pivot,
     )
 end
