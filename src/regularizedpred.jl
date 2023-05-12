@@ -10,18 +10,6 @@ StatsAPI.modelmatrix(p::AbstractRegularizedPred) = p.X
 
 StatsAPI.coef(p::AbstractRegularizedPred) = p.beta0
 
-penalty(p::AbstractRegularizedPred) = p.penalty
-
-penalized_coef(p::AbstractRegularizedPred) = coef(p)
-
-dev_criteria(p::AbstractRegularizedPred) = 2 * cost(penalty(p), penalized_coef(p))
-
-initpred!(p::AbstractRegularizedPred, args...; kwargs...) = p
-
-updatepred!(p::AbstractRegularizedPred, args...; kwargs...) = p
-
-update_beta!(p::AbstractRegularizedPred, args...; kwargs...) = p
-
 function StatsAPI.vcov(p::AbstractRegularizedPred, wt::AbstractVector)
     wXt = isempty(wt) ? modelmatrix(p)' : (modelmatrix(p) .* wt)'
     return inv(Hermitian(float(Matrix(wXt * modelmatrix(p)))))
@@ -219,10 +207,6 @@ function Base.propertynames(r::RidgePred, private::Bool=false)
         (:X, :λ, :lambda, :G, :βprior, :pred, :beta0, :delbeta)
     end
 end
-
-penalty(p::RidgePred) = SquaredL2Penalty(p.λ)
-
-penalized_coef(p::RidgePred) = p.G * (p.pred.beta0 - p.βprior)
 
 function cgpred(
     X::StridedMatrix{T},
