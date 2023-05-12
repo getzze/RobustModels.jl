@@ -1,39 +1,8 @@
 
-funcs = (
-    dof,
-    dof_residual,
-    confint,
-    deviance,
-    nulldeviance,
-    loglikelihood,
-    nullloglikelihood,
-    dispersion,
-    nobs,
-    stderror,
-    vcov,
-    residuals,
-    response,
-    weights,
-    workingweights,
-    fitted,
-    predict,
-    isfitted,
-    islinear,
-    leverage,
-    leverage_weights,
-    modelmatrix,
-    projectionmatrix,
-    wobs,
-    scale,
-    hasintercept,
-    hasformula,
-)
-
-
 @testset "Quantile regression: low-level function" begin
     τs = range(0.1, 0.9, step=0.1)
     βs = hcat(map(τ->RobustModels.interiormethod(X, y, τ)[1], τs)...)
-    println("Coefficients: $(vcat(τs', βs))")
+    VERBOSE && println("Coefficients: $(vcat(τs', βs))")
     @test size(βs) == (size(X, 2), length(τs))
 end
 
@@ -57,7 +26,7 @@ end
         @test all(coef(m2) .== β)
 
         # interface
-        @testset "interface method: $(f)" for f in funcs
+        @testset "interface method: $(f)" for f in interface_methods
             # make sure the method is defined
             @test_nowarn robvar = f(m1)
         end
@@ -105,7 +74,7 @@ end
 
     @testset "$(τ) quantile" for τ in τs
         m1 = fit(QuantileRegression, form, data; quantile=τ, verbose=false)
-        println(m1)
+        @test_nowarn println(m1)
         β = coef(m1)
         res = residuals(m1)
         ## The quantile regression line exactly passes through p points, with p number of columns of X.

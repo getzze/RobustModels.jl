@@ -8,46 +8,68 @@ loss2 = RobustModels.TukeyLoss()
 est1 = MEstimator(loss1)
 est2 = MEstimator(loss2)
 
-@testset "linear: M-estimator $(name)" for name in ("L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
+@testset "linear: M-estimator $(name)" for name in losses
     typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
     l = typeloss()
     est = MEstimator(l)
     est3 = MEstimator{typeloss}()
-    m2 = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
-    m3 = fit(RobustLinearModel, form, data, est; method=:chol, initial_scale=:mad)
-    m4 = rlm(form, data, est; method=:chol, initial_scale=:mad)
-    m5 = rlm(form, data, est3; method=:chol, initial_scale=:mad)
-    println("\n\t\u25CF Estimator: $(name)")
-    println(" lm       : ", coef(m1))
-    println("rlm(cg)   : ", coef(m2))
-    println("rlm(chol) : ", coef(m3))
-    println("rlm2(chol): ", coef(m4))
-    println("rlm3(chol): ", coef(m5))
-    println(m2)
+    kwargs = (; initial_scale=:mad)
+    if name == "L1"
+        kwargs = (; initial_scale=:mad, maxiter=100)
+    end
+
+    m2 = fit(RobustLinearModel, form, data, est; verbose=false, kwargs...)
+    @test all(isfinite.(coef(m2)))
+
     if name != "L1"
-        @test isapprox(coef(m2), coef(m3); rtol=1e-5)
+        @test_nowarn println(m2)
+#    else
+#        @test_warn L1_warning println(m2)
+    end
+
+    VERBOSE && println("\n\t\u25CF Estimator: $(name)")
+    VERBOSE && println(" lm       : ", coef(m1))
+    VERBOSE && println("rlm(:auto)   : ", coef(m2))
+
+    @testset "method: $(method)" for method in nopen_methods
+        m3 = fit(RobustLinearModel, form, data, est; method=method, kwargs...)
+        m4 = rlm(form, data, est; method=method, kwargs...)
+        m5 = rlm(form, data, est3; method=method, kwargs...)
+
+        VERBOSE && println("rlm($(method)) : ", coef(m3))
+        VERBOSE && println("rlm2($(method)): ", coef(m4))
+        VERBOSE && println("rlm3($(method)): ", coef(m5))
+
+        if name != "L1"
+            @test isapprox(coef(m2), coef(m3); rtol=1e-5)
+        end
     end
 
     # refit
     β2 = copy(coef(m2))
-    refit!(m2, y; wts=weights(m2), verbose=false, initial_scale=:mad)
+    refit!(m2, y; wts=weights(m2), verbose=false, kwargs...)
+    @test all(coef(m2) .== β2)
+
+    # empty refit
+    refit!(m2; kwargs...)
     @test all(coef(m2) .== β2)
 end
 
+not_bounded_losses = setdiff(Set(losses), Set(bounded_losses))
 
 @testset "linear: S-estimator" begin
-    println("\n\t\u25CF Estimator type: S-estimators")
-    println(" lm             : ", coef(m1))
-    @testset "Not bounded: $(name)" for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy")
+    VERBOSE && println("\n\t\u25CF Estimator type: S-estimators")
+    VERBOSE && println(" lm             : ", coef(m1))
+    @testset "Not bounded: $(name)" for name in not_bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         @test_throws TypeError SEstimator{typeloss}()
     end
 
-    @testset "Bounded: $(name)" for name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
+    @testset "Bounded: $(name)" for name in bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = SEstimator{typeloss}()
         m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
-        println("rlm($name) : ", coef(m))
+        VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
 
@@ -67,18 +89,18 @@ end
 end
 
 @testset "linear: MM-estimator" begin
-    println("\n\t\u25CF Estimator type: MM-estimators")
-    println(" lm             : ", coef(m1))
-    @testset "Not bounded: $(name)" for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy")
+    VERBOSE && println("\n\t\u25CF Estimator type: MM-estimators")
+    VERBOSE && println(" lm             : ", coef(m1))
+    @testset "Not bounded: $(name)" for name in not_bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         @test_throws TypeError MMEstimator{typeloss}()
     end
 
-    @testset "Bounded: $(name)" for name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
+    @testset "Bounded: $(name)" for name in bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = MMEstimator{typeloss}()
         m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
-        println("rlm($name) : ", coef(m))
+        VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
 
@@ -91,19 +113,19 @@ end
 end
 
 @testset "linear: τ-estimator" begin
-    println("\n\t\u25CF Estimator type: τ-estimators")
-    println(" lm             : ", coef(m1))
-    @testset "Not bounded: $(name)" for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan", "Cauchy")
+    VERBOSE && println("\n\t\u25CF Estimator type: τ-estimators")
+    VERBOSE && println(" lm             : ", coef(m1))
+    @testset "Not bounded: $(name)" for name in not_bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         @test_throws TypeError TauEstimator{typeloss}()
     end
 
-    @testset "Bounded: $(name)" for name in ("Geman", "Welsch", "Tukey", "YohaiZamar")
+    @testset "Bounded: $(name)" for name in bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = TauEstimator{typeloss}()
 
         m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
-        println("rlm($name) : ", coef(m))
+        VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
 
@@ -118,8 +140,8 @@ end
 @testset "linear: leverage correction" begin
     m2 = fit(RobustLinearModel, form, data, est2; method=:cg, initial_scale=:mad, correct_leverage=false)
     m3 = fit(RobustLinearModel, form, data, est2; method=:cg, initial_scale=:mad, correct_leverage=true)
-    println("rlm(without leverage correction) : ", coef(m2))
-    println("rlm(   with leverage correction) : ", coef(m3))
+    VERBOSE && println("rlm(without leverage correction) : ", coef(m2))
+    VERBOSE && println("rlm(   with leverage correction) : ", coef(m3))
     ## TODO: find better test
     @test isapprox(coef(m2), coef(m3); rtol=0.1)
 end

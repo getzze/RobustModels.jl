@@ -1,21 +1,4 @@
 
-using LinearAlgebra:
-    BlasReal,
-    QRCompactWY,
-    Diagonal,
-    Hermitian,
-    LowerTriangular,
-    UpperTriangular,
-    transpose,
-    cholesky,
-    cholesky!,
-    qr,
-    mul!,
-    inv,
-    diag,
-    diagm,
-    ldiv!
-
 
 #################
 StatsAPI.modelmatrix(p::LinPred) = p.X
@@ -68,20 +51,42 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 #end
 
 """
-    SparsePredChol{T<:BlasReal} <: LinPred
+    DensePredQR
 
-A LinPred type with a sparse Cholesky factorization of X'X
+A `LinPred` type with a dense, unpivoted QR decomposition of `X`
 
 # Members
 
-- `X`: model matrix of size n×p with n ≥ p. Should be full column rank.
-- `beta0`: base coefficient vector of length p
-- `delbeta`: increment to coefficient vector, also of length p
-- `scratchbeta`: scratch vector of length p, used in [`linpred!`](@ref) method
-- `chol`: a Cholesky object created from X'X, possibly using row weights.
+- `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
+- `beta0`: base coefficient vector of length `p`
+- `delbeta`: increment to coefficient vector, also of length `p`
+- `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
+- `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
 """
-SparsePredChol
+DensePredQR
 
+PRED_QR_WARNING_ISSUED = false
+
+function qrpred(X::AbstractMatrix, pivot::Bool=false)
+    p = try
+        DensePredCG(Matrix(X), pivot)
+    catch e
+        if e isa MethodError
+            # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
+            global PRED_QR_WARNING_ISSUED
+            if !PRED_QR_WARNING_ISSUED
+                @warn(
+                    "GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined, " *
+                    "fallback to unpivoted QR. GLM version should be >= 1.9."
+                )
+                PRED_QR_WARNING_ISSUED = true
+            end
+            DensePredCG(Matrix(X))
+        else
+            rethrow()
+        end
+    end
+end
 
 
 """
@@ -100,34 +105,27 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     X::Matrix{T}                  # model matrix
     beta0::Vector{T}              # base coefficient vector
     delbeta::Vector{T}            # coefficient increment
+    Σ::Matrix{T}                  # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::Matrix{T}
     scratchr1::Vector{T}
     function DensePredCG{T}(X::Matrix{T}, beta0::Vector{T}) where {T}
         n, p = size(X)
         length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
-        new{T}(X, beta0, zeros(T, p), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        new{T}(X, beta0, zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
     end
     function DensePredCG{T}(X::Matrix{T}) where {T}
         n, p = size(X)
-        new{T}(X, zeros(T, p), zeros(T, p), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        new{T}(X, zeros(T, p), zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
     end
 end
 DensePredCG(X::Matrix, beta0::Vector) = DensePredCG{eltype(X)}(X, beta0)
 DensePredCG(X::Matrix{T}) where {T} = DensePredCG{T}(X, zeros(T, size(X, 2)))
-convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
+Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
     DensePredCG{T}(X, zeros(T, size(X, 2)))
 
-"""
-    delbeta!(p::LinPred, r::Vector)
-
-Evaluate and return `p.delbeta` the increment to the coefficient vector from residual `r`
-"""
-function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
-    lsqr!(p.delbeta, p.X, r; log=false)
-    return p
-end
-
+# Compatibility with cholpred(X, pivot)
+cgpred(X, pivot::Bool) = cgpred(X)
 cgpred(X::StridedMatrix) = DensePredCG(X)
 
 function delbeta!(
@@ -135,16 +133,17 @@ function delbeta!(
     r::AbstractVector{T},
     wt::AbstractVector{T},
 ) where {T<:BlasReal}
-    ## Use views, do not create new objects
-    # scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
-    # cg!(p.delbeta,
-    #     Hermitian(mul!(p.scratchm2, scr, p.X), :U),
-    #     mul!(p.scratchbeta, scr, r)
-    # )
-    sqwt = copyto!(p.scratchr1, sqrt.(wt))
-    scr = broadcast!(*, p.scratchm1, sqwt, p.X)
-    lsqr!(p.delbeta, scr, broadcast!(*, p.scratchr1, sqwt, r); log=false)
+    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
+    mul!(p.Σ, scr, p.X)
+    mul!(p.scratchbeta, transpose(p.scratchm1), r)
+    # Solve the linear system
+    cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
     p
+end
+
+function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
+    cg!(p.delbeta, Hermitian(mul!(p.Σ, p.X', p.X), :U), mul!(p.scratchbeta, p.X', r))
+    return p
 end
 
 
@@ -164,9 +163,9 @@ mutable struct SparsePredCG{T,M<:SparseMatrixCSC} <: LinPred
     X::M                    # model matrix
     beta0::Vector{T}        # base vector for coefficients
     delbeta::Vector{T}      # coefficient increment
+    Σ::M                    # Gram matrix and temporary matrix.
     scratchbeta::Vector{T}
     scratchm1::M
-    scratchm2::M
     scratchr1::Vector{T}
 end
 function SparsePredCG(X::SparseMatrixCSC{T}) where {T}
@@ -175,9 +174,9 @@ function SparsePredCG(X::SparseMatrixCSC{T}) where {T}
         X,
         zeros(T, p),
         zeros(T, p),
+        zeros(T, (p, p)),
         zeros(T, p),
         similar(X),
-        zeros(T, (p, p)),
         zeros(T, n),
     )
 end
@@ -187,311 +186,17 @@ cgpred(X::SparseMatrixCSC) = SparsePredCG(X)
 function delbeta!(
     p::SparsePredCG{T},
     r::AbstractVector{T},
-    wt::AbstractVector{T}
-) where {T}
-    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
-    cg!(p.delbeta,
-        Hermitian(mul!(p.scratchm2, scr, p.X), :U),
-        mul!(p.scratchbeta, scr, r)
-    )
-    p
-end
-
-
-########
-###     Ridge predictor
-########
-
-#function Base.float(::Type{S}, x::AbstractArray{T}) where {S<:AbstractFloat, T}
-#    if !isconcretetype(T)
-#        error("`float` not defined on abstractly-typed arrays;"*
-#              " please convert to a more specific type")
-#    end
-#    convert(AbstractArray{typeof(convert(S, zero(T)))}, A)
-#end
-
-"""
-    cat_ridge_matrix(X::AbstractMatrix{T}, λ::T, G::AbstractMatrix{T}) where {T}
-        = vcat(X,  λ * G)
-
-Construct the extended model matrix by vertically concatenating the regularizer to X.
-"""
-cat_ridge_matrix(X::AbstractMatrix{T}, λ::T, G::AbstractMatrix{T}) where {T} =
-    vcat(X, λ * G)
-
-"""
-    RidgePred
-
-Regularized predictor using ridge regression on the `p` features.
-
-# Members
-
-- `X`: model matrix
-- `λ`: shrinkage parameter of the regularizer
-- `G`: regularizer matrix of size p×p.
-- `βprior`: regularizer prior of the coefficient values. Default to `zeros(p)`.
-- `pred`: the non-regularized predictor using an extended model matrix.
-- `pivot`: for `DensePredChol`, if the decomposition was pivoted.
-- `scratchbeta`: scratch vector of length `p`, used in [`linpred!`](@ref) method
-"""
-mutable struct RidgePred{T<:BlasReal,M<:AbstractMatrix,P<:LinPred} <:
-               AbstractRegularizedPred{T}
-    X::M                    # model matrix
-    sqrtλ::T                # sqrt of the shrinkage parameter λ
-    G::M                    # regularizer matrix
-    βprior::Vector{T}       # coefficients prior
-    pred::P                 # predictor
-    pivot::Bool             # pivoted decomposition
-    scratchbeta::Vector{T}
-    scratchy::Vector{T}
-    scratchwt::Vector{T}
-end
-
-function RidgePred(
-    ::Type{P},
-    X::M,
-    λ::T,
-    G::M,
-    βprior::Vector{T},
-    pivot::Bool=false,
-) where {M<:Union{SparseMatrixCSC{T},Matrix{T}},P<:LinPred} where {T<:BlasReal}
-    λ >= 0 || throw(DomainError(λ, "the shrinkage parameter should be non-negative"))
-
-    m1, m2 = size(G)
-    m1 == m2 || throw(DimensionMismatch("the regularization matrix should be square"))
-    n, m = size(X)
-    m1 == m || throw(
-        DimensionMismatch(
-            "the regularization matrix should of size p×p," *
-            " with p the number of predictor in matrix X:" *
-            " size(G)=$(size(G)) != size(X, 2)=$(m)",
-        ),
-    )
-    ll = size(βprior, 1)
-    ll in (0, m) || throw(DimensionMismatch("length of βprior is $ll, must be $m or 0"))
-
-    sqrtλ = √λ
-    pred = if P == DensePredChol
-        P(cat_ridge_matrix(X, sqrtλ, G), pivot)
-    else
-        P(cat_ridge_matrix(X, sqrtλ, G))
-    end
-
-    return RidgePred{T,typeof(X),typeof(pred)}(
-        X,
-        sqrtλ,
-        G,
-        (ll == 0) ? zeros(T, m) : βprior,
-        pred,
-        pivot,
-        zeros(T, m),
-        zeros(T, n + m),
-        ones(T, n + m),
-    )
-end
-
-function postupdate_λ!(r::RidgePred)
-    n, m = size(r.X)
-    # Update the extended model matrix with the new value
-    GG = r.sqrtλ * r.G
-    @views r.pred.X[n+1:n+m, :] .= GG
-    if isa(r.pred, DensePredChol)
-        # Recompute the cholesky decomposition
-        X = r.pred.X
-        F = Hermitian(float(X'X))
-        T = eltype(F)
-        r.pred.chol =
-            r.pivot ? cholesky!(F, Val(true), tol=-one(T), check=false) : cholesky!(F)
-    elseif isa(r.pred, SparsePredChol)
-        # Update Xt
-        @views r.pred.Xt[:, n+1:n+m] .= GG'
-    end
-end
-
-function Base.getproperty(r::RidgePred, s::Symbol)
-    if s ∈ (:λ, :lambda)
-        (r.sqrtλ)^2
-    elseif s ∈ (:beta0, :delbeta)
-        getproperty(r.pred, s)
-    else
-        getfield(r, s)
-    end
-end
-
-function Base.setproperty!(r::RidgePred, s::Symbol, v)
-    if s ∈ (:λ, :lambda)
-        v >= 0 || throw(DomainError(v, "the shrinkage parameter should be non-negative"))
-        # Update the square root value
-        setfield!(r, :sqrtλ, √v)
-        postupdate_λ!(r)
-    else
-        error(
-            "cannot set any property of RidgePred except" *
-            " the shrinkage parameter λ (lambda): $(s)",
-        )
-        # setfield!(r, s, v)
-    end
-end
-
-function Base.propertynames(r::RidgePred, private=false)
-    if private
-        (
-            :X,
-            :λ,
-            :lambda,
-            :G,
-            :βprior,
-            :pred,
-            :beta0,
-            :delbeta,
-            :pivot,
-            :sqrtλ,
-            :scratchbeta,
-            :scratchy,
-            :scratchwt,
-        )
-    else
-        (:X, :λ, :lambda, :G, :βprior, :pred, :beta0, :delbeta)
-    end
-end
-
-
-function cgpred(
-    X::StridedMatrix,
-    λ::Real,
-    G::AbstractMatrix,
-    βprior::AbstractVector=zeros(eltype(X), size(X, 2)),
-)
-    T = eltype(X)
-    RidgePred(DensePredCG, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior))
-end
-
-function cholpred(
-    X::StridedMatrix,
-    λ::Real,
-    G::AbstractMatrix,
-    βprior::AbstractVector=zeros(eltype(X), size(X, 2)),
-    pivot::Bool=false,
-)
-    T = eltype(X)
-    RidgePred(DensePredChol, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot)
-end
-
-function cgpred(
-    X::SparseMatrixCSC,
-    λ::Real,
-    G::AbstractMatrix,
-    βprior::AbstractVector=zeros(eltype(X), size(X, 2)),
-)
-    T = eltype(X)
-    RidgePred(SparsePredCG, X, Base.convert(T, λ), SparseMatrixCSC{T}(G), Vector{T}(βprior))
-end
-
-function cholpred(
-    X::SparseMatrixCSC,
-    λ::Real,
-    G::AbstractMatrix,
-    βprior::AbstractVector=zeros(eltype(X), size(X, 2)),
-)
-    T = eltype(X)
-    RidgePred(
-        SparsePredChol,
-        X,
-        Base.convert(T, λ),
-        SparseMatrixCSC{T}(G),
-        Vector{T}(βprior),
-    )
-end
-
-
-cgpred(X::SparseMatrixCSC, λ, G::AbstractVector, βprior::AbstractVector) =
-    cgpred(X, λ, spdiagm(0 => G), βprior)
-
-cholpred(X::SparseMatrixCSC, λ, G::AbstractVector, βprior::AbstractVector) =
-    cholpred(X, λ, spdiagm(0 => G), βprior)
-
-cgpred(X::StridedMatrix, λ, G::AbstractVector, βprior::AbstractVector) =
-    cgpred(X, λ, diagm(0 => G), βprior)
-
-cholpred(X::StridedMatrix, λ, G::AbstractVector, βprior::AbstractVector, args...) =
-    cholpred(X, λ, diagm(0 => G), βprior, args...)
-
-function resetβ0!(p::RidgePred{T}) where {T<:BlasReal}
-    beta0 = p.beta0
-    delbeta = p.delbeta
-    @inbounds for i in eachindex(beta0, delbeta)
-        beta0[i] = 0
-        delbeta[i] = 0
-    end
-    p
-end
-
-function delbeta!(
-    p::RidgePred{T},
-    r::AbstractVector{T},
     wt::AbstractVector{T},
 ) where {T<:BlasReal}
-    n, m = size(p.X)
-    # Fill response
-    copyto!(p.scratchy, r)
-    # yprior = sqrt(p.λ/2) * p.G * (p.βprior - p.pred.beta0)
-    broadcast!(-, p.scratchbeta, p.βprior, p.pred.beta0)
-    @views mul!(p.scratchy[n+1:end], p.G, p.scratchbeta, p.sqrtλ, 0)
-
-    # Fill weights
-    copyto!(p.scratchwt, wt)
-
-    # Compute Δβₙ from (XᵀWₙX + λGᵀG)⁻¹ (XᵀWₙrₙ + λGᵀG(βprior - βₙ))
-    delbeta!(p.pred, p.scratchy, p.scratchwt)
-
+    scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
+    mul!(p.Σ, scr, p.X)
+    mul!(p.scratchbeta, transpose(p.scratchm1), r)
+    # Solve the linear system
+    cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
     p
 end
 
-"""
-    extendedmatrix(p::RidgePred{T})
-
-Returns the extended model matrix for a Ridge predictor, of size `(n+m) x m`, where
-`n` is the number of observations and `m` the number of coefficients.
-"""
-extendedmodelmatrix(p::RidgePred) = p.pred.X
-
-"""
-    extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
-
-Returns a weights vector to multiply with `extendedmodelmatrix(p::RidgePred)`.
-It has a size of 0 or `n + m`, where `n` is the number of observations and
-`m` the number of coefficients.
-"""
-function extendedweights(p::RidgePred{T}, wt::AbstractVector) where {T<:BlasReal}
-    n, m = size(p.X)
-    k = length(wt)
-    if k == 0
-        return similar(wt, 0)
-    elseif k == n
-        return vcat(Vector{T}(wt), ones(T, m))
-    elseif k == n + m
-        return wt
-    else
-        throw(DimensionMismatch("weights for RidgePred should be of size 0, n or n+m"))
-    end
-end
-
-StatsAPI.modelmatrix(p::RidgePred) = p.X
-
-function StatsAPI.vcov(p::RidgePred, wt::AbstractVector)
-    # returns (XᵀWX + λGᵀG)⁻¹  = (extXᵀ . extW . extX)⁻¹
-    wwt = extendedweights(p, wt)
-    wXt = isempty(wwt) ? extendedmodelmatrix(p)' : (extendedmodelmatrix(p) .* wwt)'
-    return inv(Hermitian(float(Matrix(wXt * extendedmodelmatrix(p)))))
-end
-
-StatsAPI.dof(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred} =
-    tr(projectionmatrix(m.pred, workingweights(m.resp)))
-
-function StatsAPI.stderror(m::RobustLinearModel{T,R,L}) where {T,R,L<:AbstractRegularizedPred}
-    wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
-    Σ = Hermitian(wXt * modelmatrix(m.pred))
-    M = vcov(m) * Σ * vcov(m)'
-    s = location_variance(m.resp, dof_residual(m), false)
-    return s .* sqrt.(diag(M))
+function delbeta!(p::SparsePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
+    cg!(p.delbeta, Hermitian(mul!(p.Σ, p.X', p.X), :U), mul!(p.scratchbeta, p.X', r))
+    return p
 end

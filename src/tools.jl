@@ -1,7 +1,12 @@
 
+
+################################################
+##    Missing values
+################################################
+
 _missing_omit(x::AbstractArray{T}) where T = copyto!(similar(x, nonmissingtype(T)), x)
 
-function missing_omit(X::AbstractMatrix, y::AbstractVector)
+function StatsModels.missing_omit(X::AbstractMatrix, y::AbstractVector)
     X_ismissing = eltype(X) >: Missing
     y_ismissing = eltype(y) >: Missing
 
@@ -34,6 +39,10 @@ function missing_omit(X::AbstractMatrix, y::AbstractVector)
 end
 
 
+################################################
+##    Intercept
+################################################
+
 function _hasintercept(X::AbstractMatrix)
     return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
 end
@@ -48,9 +57,9 @@ function get_intercept_col(X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=noth
 end
 
 
-######
+################################################
 ##    TableRegressionModel methods
-######
+################################################
 
 const ModelFrameType =
     Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
@@ -133,3 +142,54 @@ function modelframe(
     return f, y, X, extra_vec
 end
 
+
+################################################
+##    Scale
+################################################
+
+"""
+    weightedmad(
+        x::AbstractArray,
+        w::AbstractWeights;
+        dims::Union{Colon,Int}=:,
+        normalize::Bool=true,
+    )
+
+Compute Median Absolute Deviation with weights.
+# StatsBase.mad
+"""
+function weightedmad(x::AbstractVector, w::AbstractWeights; normalize::Bool=true)
+    med = median(x, w)
+    m = median(abs.(x .- med), w)
+    if normalize
+        m * mad_constant
+    else
+        m
+    end
+end
+
+function initialscale(X::AbstractMatrix, y::AbstractVector, wts::AbstractVector, method::Symbol=:mad; factor::AbstractFloat=1.0)::AbstractFloat
+    factor > 0 || error("factor should be positive")
+
+    allowed_methods = (:mad, :extrema, :L1)
+    if method == :mad
+        if isempty(wts)
+            σ = factor * mad(y; normalize=true)
+        else
+            # StatsBase.mad does not allow weights
+            σ = factor * weightedmad(y, weights(wts); normalize=true)
+        end
+    elseif method == :L1
+        σ = dispersion(quantreg(X, y; wts=wts))
+    elseif method == :extrema
+        # this is not robust
+        σ = (maximum(y) - minimum(y)) / 2
+    else
+        error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
+    end
+    if σ <= 0
+#        @warn "initial scale estimation with :$(method) gave $(σ) <= 0, set to 2*eps($(eltype(y))) instead."
+        σ = 2*eps(eltype(y))
+    end
+    return σ
+end

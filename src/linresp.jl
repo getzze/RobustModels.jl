@@ -99,7 +99,7 @@ function RobustLinResp(
     wts::V,
     σ::Real=1,
 ) where {V<:FPVector,M<:AbstractMEstimator}
-    r = RobustLinResp{eltype(y),V,M}(est, y, similar(y), off, wts, float(σ))
+    r = RobustLinResp{eltype(y),V,M}(est, y, zeros(eltype(y), length(y)), off, wts, float(σ))
     initresp!(r)
     return r
 end
@@ -268,8 +268,8 @@ end
 ####################################
 
 function initresp!(r::RobustLinResp{T}) where {T}
-    # Set μ to 0
-    fill!(r.μ, 0)
+#    # Set μ to 0
+#    fill!(r.μ, 0)
 
     # Reset the factor of the TauEstimator
     if isa(r.est, TauEstimator)
@@ -297,7 +297,7 @@ function applyoffset!(r::RobustLinResp)
 end
 
 """
-    setμ!{T<:FPVector}(r::RobustResp{T}, μ::T)
+    setμ!(r::RobustResp{T}, μ::T) where {T<:Real}
 Update the mean to the given value `μ`.
 If no value is provided, μ is set to the mean response `mean(r.y)`.
 """

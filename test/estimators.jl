@@ -15,34 +15,12 @@ using RobustModels:
     tau_efficiency_tuning_constant,
     nothing  # stopper
 
-estimators = (
-    "L2",
-    "L1",
-    "Huber",
-    "L1L2",
-    "Fair",
-    "Logcosh",
-    "Arctan",
-    "CatoniWide",
-    "CatoniNarrow",
-    "Cauchy",
-    "Geman",
-    "Welsch",
-    "Tukey",
-    "YohaiZamar",
-    "HardThreshold",
-    "Hampel",
-)
-
-
-bounded_losses = ("Geman", "Welsch", "Tukey", "YohaiZamar", "HardThreshold", "Hampel")
-
 # norm
 emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf)[1]
 
 
 
-@testset "Methods loss functions: $(name)" for name in estimators
+@testset "Methods loss functions: $(name)" for name in losses
     typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
     l = typeloss()
 
@@ -87,10 +65,10 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
         end
 
         @testset "Convex $(estimator_name): $(name)" begin
-            if name == "Cauchy" || name in bounded_losses
-                @test !isconvex(est)
-            else
+            if name in convex_losses
                 @test isconvex(est)
+            else
+                @test !isconvex(est)
             end
         end
 

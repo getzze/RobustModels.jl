@@ -128,22 +128,6 @@ function StatsAPI.fit(
     return dofit ? fit!(m; fitargs...) : m
 end
 
-function StatsAPI.fit(
-    ::Type{M},
-    f::FormulaTerm,
-    data;
-    dropmissing::Bool=false,
-    wts::Union{Nothing,Symbol,FPVector}=nothing,
-    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
-    kwargs...,
-) where {M<:QuantileRegression}
-    # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
-    # Call the `fit` method with arrays
-    fit(M, X, y; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
-end
-
-
 """
     refit!(m::QuantileRegression,
           [y::FPVector ;
@@ -239,14 +223,21 @@ function StatsAPI.fit!(
 end
 
 
-function interiormethod(X, y, τ; kwargs...)
+function interiormethod(X::AbstractMatrix{T}, y::AbstractVector{T}, τ::T; kwargs...) where {T<:AbstractFloat}
     n, p = size(X)
-    T = eltype(y)
     interiormethod!(zeros(T, p), zeros(T, n), X, y, τ; kwargs...)
 end
 
-function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
-    model = Tulip.Model{Float64}()
+function interiormethod!(
+    βout::AbstractVector{T},
+    rout::AbstractVector{T},
+    X::AbstractMatrix{T},
+    y::AbstractVector{T},
+    τ::T;
+    wts::AbstractVector{T}=zeros(T, 0),
+    verbose::Bool=false,
+) where {T<:AbstractFloat}
+    model = Tulip.Model{T}()
     pb = model.pbdata  # Internal problem data
 
     n, p = size(X)
@@ -256,13 +247,13 @@ function interiormethod!(βout, rout, X, y, τ; wts=[], verbose::Bool=false)
     u = Vector{Int}(undef, n)
     v = Vector{Int}(undef, n)
     for i in 1:p
-        β[i] = Tulip.add_variable!(pb, Int[], Float64[], 0.0 , -Inf , Inf, "β$i")
+        β[i] = Tulip.add_variable!(pb, Int[], T[], 0.0 , -Inf , Inf, "β$i")
     end
     for i in 1:n
-        u[i] = Tulip.add_variable!(pb, Int[], Float64[], τ   ,  0.0 , Inf, "u$i")
+        u[i] = Tulip.add_variable!(pb, Int[], T[], τ   ,  0.0 , Inf, "u$i")
     end
     for i in 1:n
-        v[i] = Tulip.add_variable!(pb, Int[], Float64[], 1-τ ,  0.0 , Inf, "v$i")
+        v[i] = Tulip.add_variable!(pb, Int[], T[], 1-τ ,  0.0 , Inf, "v$i")
     end
     #    @variable(model, β[1:p])
     #    @variable(model, u[1:n] >= 0)
@@ -510,8 +501,6 @@ workingweights(m::QuantileRegression) = m.wrkres
 StatsAPI.response(m::QuantileRegression) = m.y
 
 StatsAPI.isfitted(m::QuantileRegression) = m.fitted
-
-StatsAPI.islinear(m::QuantileRegression) = true
 
 StatsAPI.fitted(m::QuantileRegression) = m.y - m.wrkres
 

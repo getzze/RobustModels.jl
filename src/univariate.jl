@@ -20,7 +20,8 @@ function _model_from_univariate(
 )
 
     check_l1loss(est)
-    X = ones(eltype(x), (size(x, 1), 1))
+    n = size(x, 1)
+    X = ones(eltype(x), (n, 1))
     m = rlm(X, x, est; method=method, kwargs...)
 end
 

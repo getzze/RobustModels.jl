@@ -3,14 +3,14 @@ using StatsModels
 using GLM
 using SparseArrays
 using DataFrames
-#using RDatasets: dataset
 using Test
+using Random: MersenneTwister
 
 using RobustModels
 
 
 ## Delegate methods from TableRegressionModel for GLM models
-using StatsModels: @delegate, TableRegressionModel
+using StatsModels: @delegate, FormulaTerm, TableRegressionModel
 import RobustModels: dispersion, weights, islinear, fitted, isfitted, leverage,
     hasintercept, nulldeviance, deviance
 
@@ -26,8 +26,58 @@ import RobustModels: dispersion, weights, islinear, fitted, isfitted, leverage,
     hasintercept,
 ]
 
+# To run test with verbose output use:
+# Pkg.test(RobustModels; test_args=["verbose"])
+VERBOSE = "verbose" in ARGS
+
+L1_warning = "Warning: coefficient variance is not well defined for L1Estimator.\n"
+
+## Losses
+convex_losses = ("L2", "L1", "Huber", "L1L2", "Fair", "Logcosh", "Arctan", "CatoniWide", "CatoniNarrow")
+other_losses = ("Cauchy",)
+bounded_losses = ("Geman", "Welsch", "Tukey", "YohaiZamar", "HardThreshold", "Hampel")
+losses = (convex_losses..., other_losses..., bounded_losses...)
+
+## Penalties
+penalties = ("SquaredL2", "Euclidean", "L1", "ElasticNet")
+
+## Solving methods
+pen_methods = (:auto, :cgd, :fista, :ama, :admm)
+nopen_methods = (:auto, :chol, :qr, :cg)
+
+## Interface methods
+interface_methods = (
+    dof,
+    dof_residual,
+    confint,
+    deviance,
+    nulldeviance,
+    loglikelihood,
+    nullloglikelihood,
+    dispersion,
+    nobs,
+    stderror,
+    vcov,
+    residuals,
+    response,
+    weights,
+    workingweights,
+    fitted,
+    predict,
+    isfitted,
+    islinear,
+    leverage,
+    leverage_weights,
+    modelmatrix,
+    projectionmatrix,
+    wobs,
+    scale,
+    hasintercept,
+    hasformula,
+)
 
 # Import data
+#using RDatasets: dataset
 #data = dataset("robustbase", "Animals2")
 
 Animal = ["Lesser short-tailed shrew", "Little brown bat", "Big brown bat", "Mouse", "Musk shrew", "Star-nosed mole", "E. American mole", "Ground squirrel", "Tree shrew", "Golden hamster", "Mole", "Galago", "Rat", "Chinchilla", "Owl monkey", "Desert hedgehog", "Rock hyrax-a", "European hedgehog", "Tenrec", "Artic ground squirrel", "African giant pouched rat", "Guinea pig", "Mountain beaver", "Slow loris", "Genet", "Phalanger", "N.A. opossum", "Tree hyrax", "Rabbit", "Echidna", "Cat", "Artic fox", "Water opossum", "Nine-banded armadillo", "Rock hyrax-b", "Yellow-bellied marmot", "Verbet", "Red fox", "Raccoon", "Rhesus monkey", "Potar monkey", "Baboon", "Roe deer", "Goat", "Kangaroo", "Grey wolf", "Chimpanzee", "Sheep", "Giant armadillo", "Human", "Grey seal", "Jaguar", "Brazilian tapir", "Donkey", "Pig", "Gorilla", "Okapi", "Cow", "Horse", "Giraffe", "Asian elephant", "African elephant", "Triceratops", "Dipliodocus", "Brachiosaurus"]
@@ -42,6 +92,8 @@ X = hcat(ones(size(data, 1)), data.logBody)
 sX = SparseMatrixCSC(X)
 y = data.logBrain
 nt = (; logBrain=data.logBrain, logBody=data.logBody)
+
+data_tuples = ((form, data), (form, nt), (X, y), (sX, y))
 
 # Include tests
 include("estimators.jl")

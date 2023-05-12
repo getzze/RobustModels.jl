@@ -17,7 +17,7 @@ using StatsModels
 
 ## Import to implement new methods
 import Base:
-    show, broadcastable, ==
+    show, broadcastable, convert, ==
 import GLM:
     dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
 import StatsBase:
@@ -31,17 +31,19 @@ import StatsModels:
 # Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
 using SparseArrays: SparseMatrixCSC, spdiagm
-using LinearAlgebra: diag, dot, tr, I, UniformScaling, rmul!, lmul!
+using LinearAlgebra: dot, tr, I, UniformScaling, rmul!, lmul!, mul!, BlasReal, Hermitian, transpose, 
+    inv, diag, diagm, ldiv!
+
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
-using GLM: FPVector, lm, SparsePredChol, DensePredChol
+using GLM: FPVector, lm, SparsePredChol, DensePredChol, DensePredQR
 using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
     apply_schema, schema, checknamesexist, checkcol, termvars
-using IterativeSolvers: lsqr!, cg!
+using IterativeSolvers: cg!
 using Tables
-#using Roots: find_zero, Order1, ConvergenceFailed
-#using QuadGK: quadgk
+using Roots: find_zero, Order1, ConvergenceFailed
+using QuadGK: quadgk
 #import Tulip
 
 
@@ -179,7 +181,7 @@ abstract type AbstractRobustModel{T} <: RegressionModel end
 
 abstract type RobustResp{T} <: ModResp end
 
-abstract type AbstractRegularizedPred{T} <: LinPred end
+abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
@@ -187,9 +189,10 @@ Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
 include("tools.jl")
 include("losses.jl")
 include("estimators.jl")
-include("robustlinearmodel.jl")
 include("linpred.jl")
+include("regularizedpred.jl")
 include("linresp.jl")
+include("robustlinearmodel.jl")
 include("univariate.jl")
 include("quantileregression.jl")
 include("deprecated.jl")

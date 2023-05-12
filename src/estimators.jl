@@ -1,7 +1,4 @@
 
-using QuadGK: quadgk
-using Roots: find_zero, Order1, ConvergenceFailed, Newton
-
 #=
 TODO: change the API to
 rlm(form, data, MEstimator(Tukey))
@@ -508,7 +505,7 @@ function update_weight!(
     end
     E
 end
-update_weight!(E::TauEstimator, res::AbstractArray; wts::AbstractArray=[]) =
+update_weight!(E::TauEstimator, res::AbstractArray; wts::AbstractArray=zeros(eltype(res), 0)) =
     update_weight!(E, float(res); wts=float(wts))
 update_weight!(E::TauEstimator, w::Real) = (E.w = w; E)
 
@@ -635,7 +632,7 @@ function Base.setproperty!(r::GeneralizedQuantileEstimator, s::Symbol, v)
     end
 end
 
-Base.propertynames(r::GeneralizedQuantileEstimator, private=false) =
+Base.propertynames(r::GeneralizedQuantileEstimator, private::Bool=false) =
     (:loss, :τ, :tau, :q, :quantile)
 
 

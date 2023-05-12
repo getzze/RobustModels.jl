@@ -1,7 +1,6 @@
 
 using Tables
 using Missings
-using StatsModels: FormulaTerm, TableRegressionModel
 
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
@@ -11,53 +10,24 @@ loss2 = TukeyLoss()
 est1 = MEstimator(loss1)
 est2 = MEstimator(loss2)
 
-funcs = (
-    dof,
-    dof_residual,
-    confint,
-    deviance,
-    nulldeviance,
-    loglikelihood,
-    nullloglikelihood,
-    dispersion,
-    nobs,
-    stderror,
-    vcov,
-    residuals,
-    response,
-    weights,
-    workingweights,
-    fitted,
-    predict,
-    isfitted,
-    islinear,
-    leverage,
-    leverage_weights,
-    modelmatrix,
-    projectionmatrix,
-    wobs,
-    Estimator,
-    scale,
-    hasintercept,
-    hasformula,
-)
-
 
 @testset "linear: L2 estimator" begin
-    println("\n\t\u25CF Estimator: L2")
+    VERBOSE && println("\n\t\u25CF Estimator: L2")
 
     # OLS
-    println(m1)
-    println(" lm              : ", coef(m1))
+    VERBOSE && println(m1)
+    VERBOSE && println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y)), method in (:cg, :chol)
+    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in data_tuples, method in nopen_methods
         name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
-        name *= if method==:cg; ",  cg" else ",chol" end
+        name *= if method in (:cg, :qr); ",  " else "," end
+        name *= "$(method)"
+
         # use the dispersion from GLM to ensure that the nulldeviance/deviance is correct
         m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm)
         β = copy(coef(m))
-        println("rlm($name): ", β)
+        VERBOSE && println("rlm($name): ", β)
         @test_nowarn println(m)
         @test isapprox(coef(m1), β; rtol=1e-5)
 
@@ -66,12 +36,29 @@ funcs = (
 
         # refit
         refit!(m, y; verbose=false, initial_scale=:extrema)
-        println("$m")
+        @test_nowarn println("$m")
         @test all(coef(m) .== β)
 
+        # refit
+        refit!(m; initial_scale=:L1)
+        @test all(coef(m) .== β)
+
+        # Initial scale
+        refit!(m; initial_scale=:mad)
+        @test all(coef(m) .== β)
+
+        refit!(m; initial_scale=scale(m))
+        @test all(coef(m) .== β)
+
+        refit!(m)
+        @test all(coef(m) .== β)
+
+        # Estimator
+        @test Estimator(m) == est1
+
         # make sure the methods for RobustLinearModel are well defined
-        @testset "method: $(f)" for f in funcs
-            if f in (Estimator, weights, workingweights, islinear, isfitted, scale, wobs,
+        @testset "method: $(f)" for f in interface_methods
+            if f in (weights, workingweights, islinear, isfitted, scale, wobs,
                      leverage, leverage_weights, modelmatrix, projectionmatrix, hasformula)
                 # method is not defined in GLM
                 @test_nowarn f(m)
@@ -109,9 +96,9 @@ funcs = (
         @test_nowarn tauscale(m3)
 
         # later fit!
-        m2 = fit(RobustLinearModel, A, b, est1; method=method, dofit=false)
+        m2 = fit(RobustLinearModel, A, b, est1; method=method, dofit=false, initial_scale=:mad)
         @test all(0 .== coef(m2))
-        fit!(m2; verbose=false, initial_scale=:mad)
+        fit!(m2; verbose=false)
         @test all(β .== coef(m2))
 
         # Handle Missing values and non-real values

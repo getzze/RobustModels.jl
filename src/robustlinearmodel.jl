@@ -4,23 +4,25 @@
 ##    AbstractRobustModel methods
 ######
 
+StatsAPI.islinear(m::AbstractRobustModel) = true
+
 StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
 
 StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
 
 hasformula(m::AbstractRobustModel) = false
 
-StatsModels.formula(m::AbstractRobustModel) = throw(ArgumentError("model was fitted without a formula"))
+StatsModels.formula(m::AbstractRobustModel)::FormulaTerm = throw(ArgumentError("model was fitted without a formula"))
 
 StatsModels.hasintercept(m::AbstractRobustModel) = hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
 
 StatsModels.responsename(m::AbstractRobustModel) = !hasformula(m) ? "y" : coefnames(formula(m).lhs)
 
 function StatsAPI.coefnames(m::AbstractRobustModel)
-    if !hasformula(m)
-        return ["x$i" for i in 1:length(coef(m))]
-    else
+    if hasformula(m)
         return coefnames(formula(m).rhs)
+    else
+        return ["x$i" for i in 1:length(coef(m))]
     end
 end
 
@@ -45,23 +47,11 @@ function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
     alpha = quantile(TDist(dof_residual(m)), (1 - level) / 2)
     hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
 end
-StatsAPI.confint(m::AbstractRobustModel, level::Real) = confint(m; level=level)
 
 ## TODO: specialize to make it faster
 StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
 
 leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
-
-### Convert arrays to float
-#function StatsAPI.fit(
-#    ::Type{M},
-#    X::Union{AbstractMatrix{T1},SparseMatrixCSC{T1}},
-#    y::AbstractVector{T2},
-#    args...;
-#    kwargs...,
-#) where {M<:AbstractRobustModel,T1<:Real,T2<:Real}
-#    fit(M, float(X), float(y), args...; kwargs...)
-#end
 
 ## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
 function StatsAPI.fit(
@@ -83,8 +73,8 @@ function StatsAPI.fit(
     if any([y_ismissing, X_ismissing])
         if !dropmissing
             msg = (
-                "X and y eltypes need to be Real, to allow missing values use `dropmissing=true`: "*
-                "typeof(X)=$(typeof(X)), typeof(y)=$(typeof(y))"
+                "X and y eltypes need to be <:Real, if they have missing values use " *
+                "`dropmissing=true`: typeof(X)=$(typeof(X)), typeof(y)=$(typeof(y))"
             )
             throw(ArgumentError(msg))
         end
@@ -92,6 +82,27 @@ function StatsAPI.fit(
     end
 
     fit(M, float(X), float(y), args...; kwargs...)
+end
+
+## Convert from formula-data to modelmatrix-response calling form
+## the `fit` method must allow the `wts`, `contrasts` and `__formula` keyword arguments
+## Specialize to allow other keyword arguments (offset, precision...) to be taken from
+## a column of the dataframe.
+function StatsAPI.fit(
+    ::Type{M},
+    f::FormulaTerm,
+    data,
+    args...;
+    dropmissing::Bool=false,
+    wts::Union{Nothing,Symbol,FPVector}=nothing,
+    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
+    kwargs...,
+) where {M<:AbstractRobustModel}
+    # Extract arrays from data using formula
+    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
+    # Call the `fit` method with arrays
+    fit(M, X, y, args...;
+        wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
 end
 
 
@@ -112,8 +123,11 @@ Robust linear model representation
 * `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
 * `fitted`: if true, the model was already fitted
 """
-mutable struct RobustLinearModel{T<:AbstractFloat,R<:RobustResp{T},L<:LinPred} <:
-               AbstractRobustModel{T}
+mutable struct RobustLinearModel{
+    T<:AbstractFloat,
+    R<:RobustResp{T},
+    L<:Union{LinPred,AbstractRegularizedPred{T}},
+} <: AbstractRobustModel{T}
     resp::R
     pred::L
     formula::Union{FormulaTerm,Nothing}
@@ -130,6 +144,7 @@ function Base.show(io::IO, obj::RobustLinearModel)
     println(io, msg, coeftable(obj))
 end
 
+
 hasformula(m::RobustLinearModel) = isnothing(m.formula) ? false : true
 
 function StatsModels.formula(m::RobustLinearModel)
@@ -138,8 +153,6 @@ function StatsModels.formula(m::RobustLinearModel)
     end
     return m.formula
 end
-
-StatsAPI.islinear(m::RobustLinearModel) = true
 
 """
     deviance(m::RobustLinearModel)
@@ -185,7 +198,10 @@ The robust estimator object used to fit the model.
 """
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
 
-StatsAPI.stderror(m::RobustLinearModel) =
+StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred} = 
+    location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+
+StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred} =
     location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
@@ -296,9 +312,84 @@ function StatsAPI.predict(
 end
 StatsAPI.predict(m::RobustLinearModel) = fitted(m)
 
+### With RidgePred
+
+StatsAPI.dof(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred} =
+    tr(projectionmatrix(m.pred, workingweights(m.resp)))
+
+function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred}
+    wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
+    Σ = Hermitian(wXt * modelmatrix(m.pred))
+    M = vcov(m) * Σ * vcov(m)'
+    s = location_variance(m.resp, dof_residual(m), false)
+    return s .* sqrt.(diag(M))
+end
+
 ########################################################################
 ## RobustLinearModel fit methods
 ########################################################################
+
+
+function update_fields!(
+    m::RobustLinearModel{T};
+    wts::Union{Nothing,AbstractVector{<:Real}}=nothing,
+    initial_scale::Union{Nothing,Symbol,Real}=nothing,
+    σ0::Union{Nothing,Symbol,Real}=initial_scale,
+    initial_coef::Union{Nothing,AbstractVector{<:Real}}=nothing,
+    β0::Union{Nothing,AbstractVector{<:Real}}=initial_coef,
+    offset::Union{Nothing,AbstractVector{<:Real}}=nothing,
+    kwargs...,
+) where {T<:AbstractFloat}
+
+    resp = m.resp
+    pred = m.pred
+    n = length(response(resp))
+    p = length(coef(pred))
+
+    if !isnothing(wts)
+        if length(wts) in (0, n)
+            copy!(resp.wts, float(wts))
+        else
+            throw(ArgumentError("wts should be a vector of length 0 or $n: $(length(wts))"))
+        end
+    end
+    if !isnothing(σ0)
+        # convert to float
+        if σ0 isa Symbol
+            σ0 = initialscale(modelmatrix(m), response(m), weights(m), σ0)
+        else
+            σ0 = float(σ0)
+        end
+
+        if σ0 > 0
+            resp.σ = σ0
+        else
+            throw(ArgumentError("σ0 should be a positive real: $(σ0))"))
+        end
+    end
+    if !isnothing(offset)
+        if length(offset) in (0, n)
+            copy!(resp.offset, offset)
+        else
+            throw(ArgumentError("λ0 should be a vector of length 0 or $n: $(length(offset))"))
+        end
+    end
+    if !isnothing(β0)
+        if length(β0) == p
+            copy!(pred.beta0, float(β0))
+        else
+            throw(ArgumentError("β0 should be a vector of length $p: $(length(β0))"))
+        end
+    else
+        fill!(pred.beta0, zero(eltype(coef(m))))
+    end
+
+    ## The predictor must be updated if wts, σ0 or β0 was changed
+
+    # return the rest of the keyword arguments
+    return kwargs
+end
+
 
 """
     rlm(X, y, args...; kwargs...)
@@ -315,7 +406,7 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
         X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
         y::AbstractVector{T},
         est::Estimator;
-        method::Symbol       = :chol, # :cg
+        method::Symbol       = :auto,  # :chol, :qr, :cg
         dofit::Bool          = true,
         wts::FPVector        = similar(y, 0),
         offset::FPVector     = similar(y, 0),
@@ -324,12 +415,14 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
         ridgeG::Union{UniformScaling, AbstractArray} = I,
         βprior::AbstractVector = [],
         quantile::Union{Nothing, AbstractFloat} = nothing,
+        pivot::Bool = false,
         initial_scale::Union{Symbol, Real}=:mad,
         σ0::Union{Nothing, Symbol, Real}=initial_scale,
         initial_coef::AbstractVector=[],
         β0::AbstractVector=initial_coef,
-        correct_leverage::Bool=false
-        fitargs...) where {M<:RobustLinearModel, T<:AbstractFloat}
+        correct_leverage::Bool=false,
+        fitargs...,
+    ) where {M<:RobustLinearModel, T<:AbstractFloat}
 
 Create a robust model with the model matrix (or formula) X and response vector (or dataframe) y,
 using a robust estimator.
@@ -343,11 +436,12 @@ using a robust estimator.
 
 # Keywords
 
-- `method::Symbol = :chol`: the method to use for solving the weighted linear system,
-    `chol` (default) or `cg`;
+- `method::Symbol = :auto`: the method to use for solving the weighted linear system,
+    `chol` (default), `qr` or `cg`. Use :auto to select the default method;
 - `dofit::Bool = true`: if false, return the model object without fitting;
-- `dropmissing::Bool = false`: if true, drop the rows with missing values (and convert to Non-Missing type).
-    With `dropmissing=true` the number of observations may be smaller than the size of the input arrays;
+- `dropmissing::Bool = false`: if true, drop the rows with missing values (and convert to
+    Non-Missing type). With `dropmissing=true` the number of observations may be smaller than
+    the size of the input arrays;
 - `wts::Vector = similar(y, 0)`: Prior probability weights of observations.
     Can be empty (length 0) if no weights are used (default);
 - `offset::Vector = similar(y, 0)`: an offset vector, should be empty if no offset is used;
@@ -360,18 +454,24 @@ using a robust estimator.
     Default to `zeros(p)`;
 - `quantile::Union{Nothing, AbstractFloat} = nothing`:
     only for [`GeneralizedQuantileEstimator`](@ref), define the quantile to estimate;
+- `pivot::Bool=false`: use pivoted factorization;
 - `contrasts::AbstractDict{Symbol,Any} = Dict{Symbol,Any}()`: a `Dict` mapping term names
     (as `Symbol`s) to term types (e.g. `ContinuousTerm`) or contrasts (e.g., `HelmertCoding()`,
     `SeqDiffCoding(; levels=["a", "b", "c"])`, etc.). If contrasts are not provided for a variable,
     the appropriate term type will be guessed based on the data type from the data column:
     any numeric data is assumed to be continuous, and any non-numeric data is assumed to be
     categorical (with `DummyCoding()` as the default contrast type);
-- `initial_scale::Union{Symbol, Real}=:mad`: the initial scale estimate, for non-convex estimator it helps to find the global minimum. Automatic computation using `:mad`, `L1` or `extrema` (non-robust).
+- `initial_scale::Union{Symbol, Real}=:mad`: the initial scale estimate, for non-convex estimator
+    it helps to find the global minimum. Automatic computation using `:mad`, `L1` or
+    `extrema` (non-robust).
 - `σ0::Union{Nothing, Symbol, Real}=initial_scale`: alias of `initial_scale`;
-- `initial_coef::AbstractVector=[]`: the initial coefficients estimate, for non-convex estimator it helps to find the global minimum.
+- `initial_coef::AbstractVector=[]`: the initial coefficients estimate, for non-convex estimator
+    it helps to find the global minimum.
 - `β0::AbstractVector=initial_coef`: alias of `initial_coef`;
-- `correct_leverage::Bool=false`: apply the leverage correction weights with [`leverage_weights`](@ref).
-- `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm (see [`pirls!`](@ref)).
+- `correct_leverage::Bool=false`: apply the leverage correction weights with
+    [`leverage_weights`](@ref).
+- `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm
+    (see [`pirls!`](@ref)).
 
 # Output
 
@@ -383,16 +483,19 @@ function StatsAPI.fit(
     X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
     y::AbstractVector{T},
     est::AbstractMEstimator;
-    method::Symbol=:chol, # :cg
+    method::Symbol=:chol,  # :qr, :cg
     dofit::Bool=true,
     dropmissing::Bool=false,  # placeholder
+    initial_scale::Union{Nothing,Symbol,Real}=:mad,
+    σ0::Union{Nothing,Symbol,Real}=initial_scale,
     wts::FPVector=similar(y, 0),
     offset::FPVector=similar(y, 0),
     fitdispersion::Bool=false,
     ridgeλ::Real=0,
-    ridgeG::Union{UniformScaling,AbstractArray}=I,
-    βprior::AbstractVector=[],
+    ridgeG::Union{UniformScaling,AbstractArray{<:Real}}=I,
+    βprior::AbstractVector{<:Real}=T[],
     quantile::Union{Nothing,AbstractFloat}=nothing,
+    pivot::Bool=false,
     contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),  # placeholder
     __formula::Union{Nothing,FormulaTerm}=nothing,
     fitargs...,
@@ -410,7 +513,7 @@ function StatsAPI.fit(
             throw(
                 TypeError(
                     :fit,
-                    "arguments, quantile can be changed only if isa(est, AbstractQuantileEstimator)",
+                    "arguments, quantile cannot be changed for this type",
                     AbstractQuantileEstimator,
                     est,
                 ),
@@ -423,6 +526,12 @@ function StatsAPI.fit(
     rr = RobustLinResp(est, y, offset, wts)
 
     # Predictor object
+    methods = (:auto, :chol, :cg, :qr)
+    if method ∉ methods
+        @warn("Incorrect method `:$(method)`, should be one of $(methods)")
+        method = :auto
+    end
+
     pp = if ridgeλ > 0
         # With ridge regularization
         G = if isa(ridgeG, UniformScaling)
@@ -437,20 +546,32 @@ function StatsAPI.fit(
             ridgeG
         end
         if method == :cg
-            cgpred(X, float(ridgeλ), G, βprior)
+            cgpred(X, float(ridgeλ), G, βprior, pivot)
+        elseif method == :qr
+            qrpred(X, float(ridgeλ), G, βprior, pivot)
+        elseif method in (:chol, :auto)
+            cholpred(X, float(ridgeλ), G, βprior, pivot)
         else
-            cholpred(X, float(ridgeλ), G, βprior)
+            error("method :$method is not allowed, should be in: $methods")
         end
     else
         # No regularization
         if method == :cg
-            cgpred(X)
+            cgpred(X, pivot)
+        elseif method == :qr
+            qrpred(X, pivot)
+        elseif method in (:chol, :auto)
+            cholpred(X, pivot)
         else
-            cholpred(X)
+            error("method :$method is not allowed, should be in: $methods")
         end
     end
 
     m = RobustLinearModel(rr, pp, __formula, fitdispersion, false)
+
+    # Update fields
+    fitargs = update_fields!(m; σ0=σ0, fitargs...)
+
     return dofit ? fit!(m; fitargs...) : m
 end
 
@@ -460,7 +581,7 @@ function StatsAPI.fit(
     ::Type{M},
     f::FormulaTerm,
     data,
-    est::AbstractMEstimator;
+    args...;
     dropmissing::Bool=false,
     wts::Union{Nothing,Symbol,FPVector}=nothing,
     offset::Union{Nothing,Symbol,FPVector}=nothing,
@@ -470,7 +591,7 @@ function StatsAPI.fit(
     # Extract arrays from data using formula
     f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts, offset=offset)
     # Call the `fit` method with arrays
-    fit(M, X, y, est;
+    fit(M, X, y, args...;
         wts=extra.wts, offset=extra.offset, contrasts=contrasts, __formula=f, kwargs...)
 end
 
@@ -508,29 +629,20 @@ end
 
 function refit!(
     m::RobustLinearModel{T};
-    wts::Union{Nothing,FPVector}=nothing,
-    offset::Union{Nothing,FPVector}=nothing,
+    method=nothing,
     quantile::Union{Nothing,AbstractFloat}=nothing,
     ridgeλ::Union{Nothing,Real}=nothing,
     kwargs...,
 ) where {T}
 
-    if haskey(kwargs, :method)
+    if !isnothing(method)
         @warn("the method cannot be changed when refitting,"*
-              " ignore the method argument $(kwargs[:method])."
+              " ignore the keyword argument `method=:$(method)`."
         )
-        delete!(kwargs, :method)
     end
 
     r = m.resp
-
     n = length(r.y)
-    if !isa(wts, Nothing) && (length(wts) in (0, n))
-        copy!(r.wts, wts)
-    end
-    if !isa(offset, Nothing) && (length(offset) in (0, n))
-        copy!(r.offset, offset)
-    end
 
     # Update quantile, if the estimator is AbstractQuantileEstimator
     if !isnothing(quantile)
@@ -556,12 +668,12 @@ function refit!(
             ),
         )
         m.pred.λ = float(ridgeλ)
-        # reset beta0 because it needs to be zero for the first estimation
-        resetβ0!(m.pred)
     end
 
-    # Reinitialize the coefficients and the response
-    fill!(coef(m), zero(T))
+    # Update fields, last thing to do because it resets β0
+    kwargs = update_fields!(m; kwargs...)
+
+    # Reinitialize the response
     initresp!(r)
 
     m.fitted = false
@@ -584,20 +696,16 @@ This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
 function StatsAPI.fit!(
-    m::RobustLinearModel;
-    initial_scale::Union{Symbol,Real}=:mad,
-    σ0::Union{Nothing,Symbol,Real}=initial_scale,
-    initial_coef::AbstractVector=[],
-    β0::AbstractVector=initial_coef,
+    m::RobustLinearModel{T,R,P};
     correct_leverage::Bool=false,
     kwargs...,
-)
+) where {T,R,P<:LinPred}
 
     # Return early if model has the fit flag set
     m.fitted && return m
 
     # Compute the initial values
-    σ0, β0 = process_σ0β0(m, σ0, β0)
+    σ0, β0 = scale(m), coef(m)
 
     if correct_leverage
         wts = m.resp.wts
@@ -627,7 +735,7 @@ function _fit!(
     m::RobustLinearModel,
     ::Type{E};
     σ0::AbstractFloat=1.0,
-    β0::AbstractVector=[],
+    β0::AbstractVector{<:Real}=Float64[],
     verbose::Bool=false,
     kwargs...,
 ) where {E<:MEstimator}
@@ -645,7 +753,7 @@ function _fit!(
     m::RobustLinearModel,
     ::Type{E};
     σ0::AbstractFloat=1.0,
-    β0::AbstractVector=[],
+    β0::AbstractVector{<:Real}=Float64[],
     verbose::Bool=false,
     kwargs...,
 ) where {E<:GeneralizedQuantileEstimator}
@@ -663,7 +771,7 @@ function _fit!(
     m::RobustLinearModel,
     ::Type{E};
     σ0::AbstractFloat=1.0,
-    β0::AbstractVector=[],
+    β0::AbstractVector{<:Real}=Float64[],
     verbose::Bool=false,
     resample::Bool=false,
     resampling_options::Dict{Symbol,F}=Dict{Symbol,Any}(:verbose => verbose),
@@ -690,7 +798,7 @@ function _fit!(
     m::RobustLinearModel,
     ::Type{E};
     σ0::AbstractFloat=1.0,
-    β0::AbstractVector=[],
+    β0::AbstractVector{<:Real}=Float64[],
     verbose::Bool=false,
     resample::Bool=false,
     resampling_options::Dict{Symbol,F}=Dict{Symbol,Any}(:verbose => verbose),
@@ -731,7 +839,7 @@ function _fit!(
     m::RobustLinearModel,
     ::Type{E};
     σ0::AbstractFloat=1.0,
-    β0::AbstractVector=[],
+    β0::AbstractVector{<:Real}=Float64[],
     verbose::Bool=false,
     resample::Bool=false,
     resampling_options::Dict{Symbol,F}=Dict{Symbol,Any}(:verbose => verbose),
@@ -753,80 +861,13 @@ function _fit!(
     m
 end
 
-
-"""
-    weightedmad(x::AbstractArray, w::AbstractWeights; dims::Union{Colon,Int}=:, normalize::Bool=true)
-
-Compute Median Absolute Deviation with weights.
-"""
-# StatsBase.mad
-function weightedmad(x::AbstractVector, w::AbstractWeights; normalize::Bool=true)
-    med = median(x, w)
-    m = median(abs.(x .- med), w)
-    if normalize
-        m * mad_constant
-    else
-        m
-    end
-end
-
-
-function process_σ0β0(
-    m::RobustLinearModel,
-    σ0::Union{Real,Symbol}=scale(m),
-    β0::AbstractVector=[],
-)
-    # Process scale σ0
-    σ0 = if isa(σ0, Real)
-        float(σ0)
-    elseif isa(σ0, Symbol)
-        initialscale(m, σ0)
-    end
-
-    # Process coefficients β0
-    β0 = if isempty(β0) || size(β0, 1) != size(coef(m), 1)
-        []
-    else
-        float(β0)
-    end
-
-    return σ0, β0
-end
-
-function initialscale(m::RobustLinearModel, method::Symbol=:mad; factor::AbstractFloat=1.0)
-    factor > 0 || error("factor should be positive")
-
-    y = response(m)
-    wts = weights(m)
-
-    allowed_methods = (:mad, :extrema, :L1)
-    if method == :mad
-        if isempty(wts)
-            σ = factor * mad(y; normalize=true)
-        else
-            # StatsBase.mad does not allow weights
-            σ = factor * weightedmad(y, weights(wts); normalize=true)
-        end
-    elseif method == :L1
-        X = modelmatrix(m)
-        σ = dispersion(quantreg(X, y; wts=wts))
-    elseif method == :extrema
-        # this is not robust
-        σ = (maximum(y) - minimum(y)) / 2
-    else
-        error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
-    end
-    return σ
-end
-
-function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector=[]) where {T<:AbstractFloat}
+function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]) where {T<:AbstractFloat}
     r = m.resp
     p = m.pred
 
     initresp!(r)
     if isempty(β0)
         # Compute beta0 from solving the least square with the response value r.y
-        # initresp!(r)
         delbeta!(p, r.wrkres, r.wrkwt)
         installbeta!(p)
     else
@@ -846,7 +887,7 @@ function setinitη!(m::RobustLinearModel{T}) where {T}
     p = m.pred
 
     ## Initially, β0 is defined but not ∇β, so use f=0
-    linpred!(r.η, p, 0)
+    linpred!(r.μ, p, 0)
     updateres!(r; updatescale=false)
 
     m
@@ -871,11 +912,11 @@ The scaletype argument defines if the location or scale loss function should be 
 If updatescale is true, the scale is also updated along with the residuals.
 """
 function setη!(
-    m::RobustLinearModel{T},
+    m::RobustLinearModel{T,R,P},
     f::T=1.0;
     updatescale::Bool=false,
     kwargs...,
-) where {T}
+) where {T,R,P<:LinPred}
     r = m.resp
     p = m.pred
 
@@ -1011,8 +1052,8 @@ function pirls_Sestimate!(
     minstepfac::Real=1e-3,
     atol::Real=1e-6,
     rtol::Real=1e-5,
-    miniter::Int=2,
-    beta0::AbstractVector=[],
+    miniter::Integer=2,
+    beta0::AbstractVector{<:Real}=T[],
     sigma0::Union{Nothing,T}=nothing,
 ) where {T<:AbstractFloat}
 
@@ -1080,7 +1121,7 @@ function pirls_Sestimate!(
             sig =
                 scale(setη!(m, f; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
         end
-        
+
         # Reset initial scale
         if linesearch_failed
             # Allow scale to increase in early iterations
@@ -1128,8 +1169,8 @@ function pirls_τestimate!(
     minstepfac::Real=1e-3,
     atol::Real=1e-6,
     rtol::Real=1e-5,
-    miniter::Int=2,
-    beta0::AbstractVector=[],
+    miniter::Integer=2,
+    beta0::AbstractVector{<:Real}=T[],
     sigma0::Union{Nothing,T}=nothing,
 ) where {T<:AbstractFloat}
 
@@ -1261,7 +1302,8 @@ function resampling_initialcoef(m::RobustLinearModel, inds::AbstractVector{<:Int
 end
 
 """
-    best_from_resampling(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:Union{SEstimator, MMEstimator, TauEstimator}}
+    best_from_resampling(m::RobustLinearModel, ::Type{E}; kwargs...)
+        where {E<:Union{SEstimator, MMEstimator, TauEstimator}}
 
 Return the best scale σ0 and coefficients β0 from resampling of the S- or τ-Estimate.
 """

@@ -1,13 +1,10 @@
 
-using Random: MersenneTwister
 using Statistics: median
 using RobustModels: mean_and_sem, compatdims
 
 funcs = (:mean, :std, :var, :sem, :mean_and_std, :mean_and_var, :mean_and_sem)
 
 seed = 306
-#seed = rand(1:1000)
-#println("Random generator with MersenneTwister(seed=$(seed))")
 
 xorig = randn(MersenneTwister(seed), 100)
 x = copy(xorig)
@@ -48,7 +45,7 @@ end
 
         resampling_options = Dict(:rng => MersenneTwister(seed))
         s = func(est, x; resampling_options=resampling_options)
-#        println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
+        VERBOSE && println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
         @test all(isapprox.(s, func(xorig); rtol=2))
     end
 end
