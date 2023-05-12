@@ -23,6 +23,7 @@ RobustModels.FISTAPred
 RobustModels.AMAPred
 RobustModels.ADMMPred
 QuantileRegression
+IPODRegression
 ```
 
 ## Constructors for models

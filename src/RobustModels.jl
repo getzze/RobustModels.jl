@@ -127,6 +127,9 @@ export LossFunction,
        Estimator,
        rlm,
        quantreg,
+       IPODRegression,
+       ipod,
+       outliers,
        penalty,
        haspenalty,
        loss,
@@ -201,6 +204,7 @@ include("linresp.jl")
 include("robustlinearmodel.jl")
 include("univariate.jl")
 include("quantileregression.jl")
+include("ipod.jl")
 include("deprecated.jl")
 
 end # module
