@@ -113,13 +113,7 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
         n, p = size(X)
         length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
         return new{T}(
-            X,
-            beta0,
-            zeros(T, p),
-            zeros(T, (p, p)),
-            zeros(T, p),
-            zeros(T, (n, p)),
-            zeros(T, n),
+            X, beta0, zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n)
         )
     end
     function DensePredCG{T}(X::Matrix{T}) where {T}

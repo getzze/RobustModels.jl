@@ -20,13 +20,9 @@ function projectionmatrix(p::AbstractRegularizedPred, wt::AbstractVector)
     return Hermitian(modelmatrix(p) * vcov(p, wt) * wXt)
 end
 
-function StatsAPI.leverage(p::AbstractRegularizedPred, wt::AbstractVector)
-    return diag(projectionmatrix(p, wt))
-end
+StatsAPI.leverage(p::AbstractRegularizedPred, wt::AbstractVector) = diag(projectionmatrix(p, wt))
 
-function leverage_weights(p::AbstractRegularizedPred, wt::AbstractVector)
-    return sqrt.(1 .- leverage(p, wt))
-end
+leverage_weights(p::AbstractRegularizedPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 
 """
     linpred!(out, p::RidgePred{T}, f::Real=1.0)
@@ -36,9 +32,7 @@ and `out` is updated to `p.X * p.scratchbeta`
 """
 function linpred!(out, p::AbstractRegularizedPred, f::Real=1.0)
     return mul!(
-        out,
-        p.X,
-        iszero(f) ? p.beta0 : broadcast!(muladd, p.scratchbeta, f, p.delbeta, p.beta0),
+        out, p.X, iszero(f) ? p.beta0 : broadcast!(muladd, p.scratchbeta, f, p.delbeta, p.beta0)
     )
 end
 
@@ -76,9 +70,7 @@ end
 
 Construct the extended model matrix by vertically concatenating the regularizer to X.
 """
-function cat_ridge_matrix(X::AbstractMatrix{T}, λ::T, G::AbstractMatrix{T}) where {T}
-    return vcat(X, λ * G)
-end
+cat_ridge_matrix(X::AbstractMatrix{T}, λ::T, G::AbstractMatrix{T}) where {T} = vcat(X, λ * G)
 
 """
     RidgePred
@@ -159,8 +151,7 @@ function postupdate_λ!(r::RidgePred)
         X = r.pred.X
         F = Hermitian(float(X'X))
         T = eltype(F)
-        r.pred.chol =
-            r.pivot ? pivoted_cholesky!(F; tol=-one(T), check=false) : cholesky!(F)
+        r.pred.chol = r.pivot ? pivoted_cholesky!(F; tol=-one(T), check=false) : cholesky!(F)
     elseif isa(r.pred, SparsePredChol)
         # Update Xt
         @views r.pred.Xt[:, (n + 1):(n + m)] .= GG'
@@ -221,9 +212,7 @@ function cgpred(
     βprior::AbstractVector{<:Real}=zeros(T, size(X, 2)),
     pivot::Bool=false,  # placeholder
 ) where {T<:AbstractFloat}
-    return RidgePred(
-        DensePredCG, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot
-    )
+    return RidgePred(DensePredCG, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot)
 end
 
 function GLM.cholpred(
@@ -233,9 +222,7 @@ function GLM.cholpred(
     βprior::AbstractVector{<:Real}=zeros(T, size(X, 2)),
     pivot::Bool=false,
 ) where {T<:AbstractFloat}
-    return RidgePred(
-        DensePredChol, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot
-    )
+    return RidgePred(DensePredChol, X, Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot)
 end
 
 function qrpred(
@@ -247,12 +234,7 @@ function qrpred(
 ) where {T<:AbstractFloat}
     # No sparse version exists, force both matrices to be denses
     return RidgePred(
-        DensePredQR,
-        Matrix{T}(X),
-        Base.convert(T, λ),
-        Matrix{T}(G),
-        Vector{T}(βprior),
-        pivot,
+        DensePredQR, Matrix{T}(X), Base.convert(T, λ), Matrix{T}(G), Vector{T}(βprior), pivot
     )
 end
 
@@ -276,12 +258,7 @@ function cholpred(
     pivot::Bool=false,
 ) where {T<:AbstractFloat}
     return RidgePred(
-        SparsePredChol,
-        X,
-        Base.convert(T, λ),
-        SparseMatrixCSC{T}(G),
-        Vector{T}(βprior),
-        pivot,
+        SparsePredChol, X, Base.convert(T, λ), SparseMatrixCSC{T}(G), Vector{T}(βprior), pivot
     )
 end
 
@@ -306,9 +283,7 @@ function qrpred(X::AbstractMatrix, λ, G::AbstractVector, βprior::AbstractVecto
     return qrpred(X, λ, diagm(0 => G), βprior, args...)
 end
 
-function delbeta!(
-    p::RidgePred{T}, r::AbstractVector{T}, wt::AbstractVector{T}
-) where {T<:BlasReal}
+function delbeta!(p::RidgePred{T}, r::AbstractVector{T}, wt::AbstractVector{T}) where {T<:BlasReal}
     n, m = size(p.X)
     # Fill response
     copyto!(p.scratchy, r)

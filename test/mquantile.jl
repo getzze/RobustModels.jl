@@ -30,8 +30,7 @@ loss2 = RobustModels.TukeyLoss()
     # cannot change type to GeneralQuantileEstimator
     @test_throws TypeError refit!(m; quantile=0.5)
 
-    @testset "$(τ) $(name)" for τ in range(0.1, 0.9; step=0.1),
-        name in ("Expectile", "Quantile")
+    @testset "$(τ) $(name)" for τ in range(0.1, 0.9; step=0.1), name in ("Expectile", "Quantile")
 
         VERBOSE && println("\n\t\u25CF Estimator: $name($τ)")
         est = getproperty(RobustModels, Symbol(name * "Estimator"))(τ)
@@ -82,7 +81,7 @@ loss2 = RobustModels.TukeyLoss()
             refit!(m1; quantile=τ)
             @test isapprox(coef(m1), coef(m2); rtol=1e-4)
         else
-#            @test_warn L1_warning println(m2)
+            #            @test_warn L1_warning println(m2)
 
             @test isapprox(coef(m2), coef(m3); rtol=1e-2)
             @test isapprox(coef(m2), coef(m4); rtol=1e-2)
@@ -121,23 +120,9 @@ end
                 initial_scale=:mad,
             )
             m3 = fit(
-                RobustLinearModel,
-                form,
-                data,
-                est;
-                method=:chol,
-                maxiter=50,
-                initial_scale=:mad,
+                RobustLinearModel, form, data, est; method=:chol, maxiter=50, initial_scale=:mad
             )
-            m4 = fit(
-                RobustLinearModel,
-                form,
-                data,
-                est;
-                method=:qr,
-                maxiter=50,
-                initial_scale=:mad,
-            )
+            m4 = fit(RobustLinearModel, form, data, est; method=:qr, maxiter=50, initial_scale=:mad)
             m5 = fit(
                 RobustLinearModel,
                 form,

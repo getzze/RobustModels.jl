@@ -1,9 +1,7 @@
 
 
 
-function Base.show(io::IO, obj::ConvergenceFailed)
-    return println(io, "failed to find a solution: $(obj.reason)")
-end
+Base.show(io::IO, obj::ConvergenceFailed) = println(io, "failed to find a solution: $(obj.reason)")
 
 
 """
@@ -81,9 +79,7 @@ Create a response structure by copying the value of `y` to the mean `μ`.
 function RobustLinResp(
     est::M, y::V, off::V, wts::V, σ::Real=1
 ) where {V<:FPVector,M<:AbstractMEstimator}
-    r = RobustLinResp{eltype(y),V,M}(
-        est, y, zeros(eltype(y), length(y)), off, wts, float(σ)
-    )
+    r = RobustLinResp{eltype(y),V,M}(est, y, zeros(eltype(y), length(y)), off, wts, float(σ))
     initresp!(r)
     return r
 end
@@ -94,9 +90,7 @@ end
 Convert the arguments to float arrays
 """
 function RobustLinResp(est::M, y, off, wts) where {M<:AbstractMEstimator}
-    return RobustLinResp(
-        est, float(collect(y)), float(collect(off)), float(collect(wts)), float(1)
-    )
+    return RobustLinResp(est, float(collect(y)), float(collect(off)), float(collect(wts)), float(1))
 end
 
 function Base.getproperty(r::RobustLinResp, s::Symbol)
@@ -136,9 +130,7 @@ from the location. If `sqr` is `false`, return the standard deviation instead.
 
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
-function location_variance(
-    r::RobustLinResp, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false
-)
+function location_variance(r::RobustLinResp, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false)
     lpsi(x) = psi(r.est, x)
     lpsider(x) = psider(r.est, x)
 
@@ -467,12 +459,13 @@ function updatescale!(
     return r
 end
 
-scale(r::RobustLinResp, sqr::Bool=false) =
+function scale(r::RobustLinResp, sqr::Bool=false)
     if sqr
         (r.σ)^2
     else
         r.σ
     end
+end
 
 function tauscale(
     r::RobustLinResp{T,V,M},
@@ -495,9 +488,7 @@ end
 
 Compute the scale using the MAD of the residuals.
 """
-function madresidualscale(
-    res::AbstractArray; factor::AbstractFloat=1.0, wts::AbstractArray=[]
-)
+function madresidualscale(res::AbstractArray; factor::AbstractFloat=1.0, wts::AbstractArray=[])
     factor > 0 || error("factor should be positive")
 
     σ = if length(wts) == length(res)

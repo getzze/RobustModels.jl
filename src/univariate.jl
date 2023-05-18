@@ -53,9 +53,7 @@ function _sem(est::AbstractMEstimator, x::AbstractVector; kwargs...)
     return stderror(m)[1]
 end
 
-function _mean_and_std(
-    est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...
-)
+function _mean_and_std(est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     n = dof_residual(m)
     if !corrected
@@ -64,9 +62,7 @@ function _mean_and_std(
     return coef(m)[1], dispersion(m.resp, n, false)
 end
 
-function _mean_and_var(
-    est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...
-)
+function _mean_and_var(est::AbstractMEstimator, x::AbstractVector; corrected::Bool=true, kwargs...)
     m = _model_from_univariate(est, x; kwargs...)
     n = dof_residual(m)
     if !corrected
@@ -151,7 +147,5 @@ end
 ## For iterators
 for fun in (:mean, :std, :var, :sem, :mean_and_std, :mean_and_var, :mean_and_sem)
     _fun = Symbol("_$(fun)")
-    @eval function $(fun)(est::AbstractMEstimator, itr; kwargs...)
-        return $(_fun)(est, collect(itr); kwargs...)
-    end
+    @eval $(fun)(est::AbstractMEstimator, itr; kwargs...) = $(_fun)(est, collect(itr); kwargs...)
 end

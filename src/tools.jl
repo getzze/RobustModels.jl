@@ -43,9 +43,7 @@ end
 ##    Intercept
 ################################################
 
-function _hasintercept(X::AbstractMatrix)
-    return any(i -> all(==(1), view(X, :, i)), 1:size(X, 2))
-end
+_hasintercept(X::AbstractMatrix) = any(i -> all(==(1), view(X, :, i)), 1:size(X, 2))
 
 function get_intercept_col(
     X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=nothing
@@ -78,8 +76,7 @@ function modelframe(
     f::FormulaTerm, data, contrasts::AbstractDict, dropmissing::Bool, ::Type{M}; kwargs...
 )::ModelFrameType where {M<:AbstractRobustModel}
     # Check is a Table
-    Tables.istable(data) ||
-        throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
+    Tables.istable(data) || throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
     t = Tables.columntable(data)
 
     # Check columns exist

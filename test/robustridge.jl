@@ -20,10 +20,16 @@ est2 = MEstimator(loss2)
 
         aspace = (method in (:cg, :qr)) ? "  " : "    "
         name = "MEstimator($(typeloss)),\t"
-        name *= (A == form) ? "formula" : (A == X) ? "dense  " : "sparse "
+        name *= if (A == form)
+            "formula"
+        elseif (A == X)
+            "dense  "
+        else
+            "sparse "
+        end
         name *= (method in (:cg, :qr)) ? ",  " : ","
         name *= "$(method)"
-        
+
         kwargs = (; method=method, initial_scale=:L1)
         # use the dispersion from GLM to ensure that the loglikelihood is correct
         m2 = fit(RobustLinearModel, A, b, est; kwargs...)
