@@ -698,7 +698,7 @@ function _weight(l::HampelLoss, r::Real)
         return oftype(r, 0)
     end
 end
-   
+
 estimator_norm(::HampelLoss) = Inf
 estimator_bound(l::HampelLoss) = (l.ν1 + l.ν2 - 1) / 2
 isconvex(::HampelLoss) = false
