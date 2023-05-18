@@ -11,7 +11,7 @@ Xlin = hcat(ones(Float64, n), xlin)
 β1lin = [0, -5]
 β2lin = [20, -1]
 
-ylin = vcat(Xlin[1:r, :] * β1lin, Xlin[r+1:end, :] * β2lin)
+ylin = vcat(Xlin[1:r, :] * β1lin, Xlin[(r + 1):end, :] * β2lin)
 ylin += σ * randn(rng, n)
 
 wlin = float((1:n) .<= r)
@@ -32,7 +32,7 @@ estimator_list = (
     m1 = rlm(Xlin[1:r, :], ylin[1:r], est)
     m1w = rlm(Xlin, ylin, est; wts=wlin)
 
-    m2 = rlm(Xlin[r+1:end, :], ylin[r+1:end], est)
+    m2 = rlm(Xlin[(r + 1):end, :], ylin[(r + 1):end], est)
     m2w = rlm(Xlin, ylin, est; wts=wwlin)
 
     # Check identical values
@@ -49,14 +49,14 @@ estimator_list = (
         elseif f1 isa AbstractArray && size(f1) != size(f1w)
             if ndims(f1) == 1
                 @test f1 ≈ f1w[1:r]
-                @test f2 ≈ f2w[r+1:end]
+                @test f2 ≈ f2w[(r + 1):end]
             elseif ndims(f1) == 2
                 if size(f1, 2) == size(f1w, 2)
                     @test f1 ≈ f1w[1:r, :]
-                    @test f2 ≈ f2w[r+1:end, :]
+                    @test f2 ≈ f2w[(r + 1):end, :]
                 else
                     @test f1 ≈ f1w[1:r, 1:r]
-                    @test f2 ≈ f2w[r+1:end, r+1:end]
+                    @test f2 ≈ f2w[(r + 1):end, (r + 1):end]
                 end
             end
         else
@@ -72,7 +72,7 @@ end
     m1 = quantreg(Xlin[1:r, :], ylin[1:r])
     m1w = quantreg(Xlin, ylin; wts=wlin)
 
-    m2 = quantreg(Xlin[r+1:end, :], ylin[r+1:end])
+    m2 = quantreg(Xlin[(r + 1):end, :], ylin[(r + 1):end])
     m2w = quantreg(Xlin, ylin; wts=wwlin)
 
     # Check identical values
@@ -89,14 +89,14 @@ end
         elseif f1 isa AbstractArray && size(f1) != size(f1w)
             if ndims(f1) == 1
                 @test f1 ≈ f1w[1:r]
-                @test f2 ≈ f2w[r+1:end]
+                @test f2 ≈ f2w[(r + 1):end]
             elseif ndims(f1) == 2
                 if size(f1, 2) == size(f1w, 2)
                     @test f1 ≈ f1w[1:r, :]
-                    @test f2 ≈ f2w[r+1:end, :]
+                    @test f2 ≈ f2w[(r + 1):end, :]
                 else
                     @test f1 ≈ f1w[1:r, 1:r]
-                    @test f2 ≈ f2w[r+1:end, r+1:end]
+                    @test f2 ≈ f2w[(r + 1):end, (r + 1):end]
                 end
             end
         else

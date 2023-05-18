@@ -24,13 +24,15 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
     typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
     l = typeloss()
 
-    @testset "Methods estimators: $(estimator)" for estimator in (nothing, "M", "S", "MM", "Tau", "GeneralizedQuantile")
+    @testset "Methods estimators: $(estimator)" for estimator in (
+        nothing, "M", "S", "MM", "Tau", "GeneralizedQuantile"
+    )
         # Check LossFunction methods
         if isnothing(estimator)
             estimator_name = "Loss function"
             typest = typeloss
 
-        # Check AbstractEstimator methods
+            # Check AbstractEstimator methods
         else
             estimator_name = "$(estimator) Estimator"
             T = getproperty(RobustModels, Symbol(estimator * "Estimator"))
@@ -47,7 +49,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
 
         if !isnothing(estimator)
             if estimator == "Tau"
-#                @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
+                #                @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
                 @test isa(loss(est), CompositeLossFunction)
                 @test typeof(first(loss(est))) == typeloss
                 @test typeof(last(loss(est))) == typeloss
@@ -73,23 +75,23 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
         end
 
         @testset "$(estimator_name) values: $(name)" begin
-            ρ  = rho(est, 1)
-            ψ  = psi(est, 1)
+            ρ = rho(est, 1)
+            ψ = psi(est, 1)
             ψp = psider(est, 1)
-            w  = weight(est, 1)
+            w = weight(est, 1)
 
             vals = estimator_values(est, 1)
             @test length(vals) == 3
-            @test vals[1] ≈ ρ  rtol=1e-6
-            @test vals[2] ≈ ψ  rtol=1e-6
-            @test vals[3] ≈ w  rtol=1e-6
+            @test vals[1] ≈ ρ rtol = 1e-6
+            @test vals[2] ≈ ψ rtol = 1e-6
+            @test vals[3] ≈ w rtol = 1e-6
         end
 
         # Only for LossFunction
         if isnothing(estimator)
             if !isbounded(est)
                 @testset "Estimator norm: $(name)" begin
-                    @test emp_norm(est) ≈ RobustModels.estimator_norm(est)  rtol=1e-5
+                    @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
                 end
             end
 
@@ -97,7 +99,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
                 @testset "Estimator high efficiency: $(name)" begin
                     vopt = estimator_high_efficiency_constant(typest)
                     if name != "HardThreshold"
-                        v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9*vopt)
+                        v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
                         @test isapprox(v, vopt; rtol=1e-3)
                     end
                 end
@@ -106,14 +108,14 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
             if isbounded(est)
                 @testset "Estimator high breakdown point: $(name)" begin
                     vopt = estimator_high_breakdown_point_constant(typest)
-                    v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1*vopt)
+                    v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
                     @test isapprox(v, vopt; rtol=1e-3)
                 end
 
                 @testset "τ-Estimator high efficiency: $(name)" begin
                     vopt = estimator_tau_efficient_constant(typest)
                     if name != "HardThreshold"
-                        v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1*vopt)
+                        v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
                         @test isapprox(v, vopt; rtol=1e-3)
                     end
                 end

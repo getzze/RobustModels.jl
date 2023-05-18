@@ -4,7 +4,7 @@
 ##    Missing values
 ################################################
 
-_missing_omit(x::AbstractArray{T}) where T = copyto!(similar(x, nonmissingtype(T)), x)
+_missing_omit(x::AbstractArray{T}) where {T} = copyto!(similar(x, nonmissingtype(T)), x)
 
 function StatsModels.missing_omit(X::AbstractMatrix, y::AbstractVector)
     X_ismissing = eltype(X) >: Missing
@@ -35,7 +35,7 @@ function StatsModels.missing_omit(X::AbstractMatrix, y::AbstractVector)
         X_nonmissing = _missing_omit(view(X, rows, :))
     end
 
-    X_nonmissing, y_nonmissing, nonmissings
+    return X_nonmissing, y_nonmissing, nonmissings
 end
 
 
@@ -44,14 +44,16 @@ end
 ################################################
 
 function _hasintercept(X::AbstractMatrix)
-    return any(i -> all(==(1), view(X , :, i)), 1:size(X, 2))
+    return any(i -> all(==(1), view(X, :, i)), 1:size(X, 2))
 end
 
-function get_intercept_col(X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=nothing)::Union{Nothing, Integer}
+function get_intercept_col(
+    X::AbstractMatrix, f::Union{Nothing,FormulaTerm}=nothing
+)::Union{Nothing,Integer}
     if !isnothing(f) && hasintercept(f)
         return findfirst(isa.(f.rhs.terms, InterceptTerm))
     elseif isnothing(f)
-        return findfirst(i->all(==(1), view(X, :, i)), 1:size(X, 2))
+        return findfirst(i -> all(==(1), view(X, :, i)), 1:size(X, 2))
     end
     return nothing
 end
@@ -61,8 +63,7 @@ end
 ##    TableRegressionModel methods
 ################################################
 
-const ModelFrameType =
-    Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
+const ModelFrameType = Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
 
 """
     modelframe(f::FormulaTerm, data, contrasts::AbstractDict, ::Type{M}; kwargs...) where M
@@ -74,12 +75,7 @@ are extracted from the `data` Table using the formula `f`.
 Adapted from GLM.jl
 """
 function modelframe(
-    f::FormulaTerm,
-    data,
-    contrasts::AbstractDict,
-    dropmissing::Bool,
-    ::Type{M};
-    kwargs...,
+    f::FormulaTerm, data, contrasts::AbstractDict, dropmissing::Bool, ::Type{M}; kwargs...
 )::ModelFrameType where {M<:AbstractRobustModel}
     # Check is a Table
     Tables.istable(data) ||
@@ -127,17 +123,15 @@ function modelframe(
     # response and model matrix
     ## Do not copy the arrays!
     y, X = modelcols(f, t)
-    extra_vec = NamedTuple(
-        var => (
-            if isa(val, Symbol)
-                t[val]
-            elseif isnothing(val)
-                similar(y, 0)
-            else
-                val
-            end
-        ) for (var, val) in pairs(kwargs)
-    )
+    extra_vec = NamedTuple(var => (
+        if isa(val, Symbol)
+            t[val]
+        elseif isnothing(val)
+            similar(y, 0)
+        else
+            val
+        end
+    ) for (var, val) in pairs(kwargs))
 
     return f, y, X, extra_vec
 end
@@ -168,7 +162,13 @@ function weightedmad(x::AbstractVector, w::AbstractWeights; normalize::Bool=true
     end
 end
 
-function initialscale(X::AbstractMatrix, y::AbstractVector, wts::AbstractVector, method::Symbol=:mad; factor::AbstractFloat=1.0)::AbstractFloat
+function initialscale(
+    X::AbstractMatrix,
+    y::AbstractVector,
+    wts::AbstractVector,
+    method::Symbol=:mad;
+    factor::AbstractFloat=1.0,
+)::AbstractFloat
     factor > 0 || error("factor should be positive")
 
     allowed_methods = (:mad, :extrema, :L1)
@@ -188,8 +188,8 @@ function initialscale(X::AbstractMatrix, y::AbstractVector, wts::AbstractVector,
         error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
     end
     if σ <= 0
-#        @warn "initial scale estimation with :$(method) gave $(σ) <= 0, set to 2*eps($(eltype(y))) instead."
-        σ = 2*eps(eltype(y))
+        #        @warn "initial scale estimation with :$(method) gave $(σ) <= 0, set to 2*eps($(eltype(y))) instead."
+        σ = 2 * eps(eltype(y))
     end
     return σ
 end

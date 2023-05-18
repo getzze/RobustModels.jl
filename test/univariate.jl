@@ -11,7 +11,9 @@ x = copy(xorig)
 x[1:10] .= 50
 
 
-@testset "robust univariate statistics: MEstimator{$(lossname)}" for lossname in ("L2Loss", "L1Loss", "HuberLoss", "TukeyLoss")
+@testset "robust univariate statistics: MEstimator{$(lossname)}" for lossname in (
+    "L2Loss", "L1Loss", "HuberLoss", "TukeyLoss"
+)
     typeloss = getproperty(RobustModels, Symbol(lossname))
     est = MEstimator{typeloss}()
 
@@ -37,7 +39,9 @@ x[1:10] .= 50
 end
 
 
-@testset "robust univariate statistics: Bounded estimator $(typeest)" for typeest in (SEstimator, MMEstimator, TauEstimator)
+@testset "robust univariate statistics: Bounded estimator $(typeest)" for typeest in (
+    SEstimator, MMEstimator, TauEstimator
+)
     est = typeest{TukeyLoss}()
 
     @testset "method: $(name)" for name in funcs
@@ -45,7 +49,9 @@ end
 
         resampling_options = Dict(:rng => MersenneTwister(seed))
         s = func(est, x; resampling_options=resampling_options)
-        VERBOSE && println("statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)")
+        VERBOSE && println(
+            "statistics $(name): $(round.(s; digits=4)) ≈ $(round.(func(xorig); digits=4)) (with outliers removed)",
+        )
         @test all(isapprox.(s, func(xorig); rtol=2))
     end
 end
@@ -55,7 +61,7 @@ end
 ##  With iterables
 ########################################################################
 
-d = Base.values(Dict(:a=>1, :b=>2, :c=>3))
+d = Base.values(Dict(:a => 1, :b => 2, :c => 3))
 g = (i for i in 1:3)
 est = MEstimator{L2Loss}()
 
@@ -79,7 +85,7 @@ y3 = reshape(yorig, (1, 3, 102))
 y4 = reshape(yorig, (17, 18, 1))
 
 @testset "robust univariate statistics: Array size: $(size(a))" for a in (y, y1, y2, y3, y4)
-    @testset "dims=$(dims)" for dims in (1, 2, (1,), (1,2), (3,1), 4, (:))
+    @testset "dims=$(dims)" for dims in (1, 2, (1,), (1, 2), (3, 1), 4, (:))
         ## Mean
         m = @test_nowarn mean(est, a; dims=dims)
 
@@ -99,7 +105,7 @@ y4 = reshape(yorig, (17, 18, 1))
             ms = @test_nowarn func_tup(est, a; dims=dims)
             @test length(ms) == 2
             @test ms[1] ≈ m
-            @test ms[2] ≈ s  nans=true
+            @test ms[2] ≈ s nans = true
 
             # non-robust dispersion
             if dims === Colon()
@@ -121,4 +127,3 @@ y4 = reshape(yorig, (17, 18, 1))
         end
     end
 end
-

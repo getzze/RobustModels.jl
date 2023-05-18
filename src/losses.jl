@@ -53,8 +53,9 @@ estimator_high_efficiency_constant(::Type{L}) where {L<:LossFunction} = 1
 efficient_loss(::Type{L}) where {L<:LossFunction} = L(estimator_high_efficiency_constant(L))
 
 "The loss initialized with a robust (high breakdown point) tuning constant"
-robust_loss(::Type{L}) where {L<:LossFunction} =
-    L(estimator_high_breakdown_point_constant(L))
+function robust_loss(::Type{L}) where {L<:LossFunction}
+    return L(estimator_high_breakdown_point_constant(L))
+end
 
 
 rho(l::LossFunction, r) = _rho(l, r / tuning_constant(l))
@@ -74,7 +75,7 @@ end
 
 Threshold function associated with the loss, with optional factor.
 """
-threshold(l::LossFunction, x, λ::Real = 1.0) = x / λ - psi(l, x / λ)
+threshold(l::LossFunction, x, λ::Real=1.0) = x / λ - psi(l, x / λ)
 
 
 ##
@@ -92,7 +93,7 @@ Z = ∫  exp(-ρ(r))dr = c . ∫  exp(-ρ_1(r))dr    with ρ_1 the function for 
     -∞                    -∞
 """
 function estimator_norm(l::L) where {L<:LossFunction}
-    2 * quadgk(x -> exp(-rho(l, x)), 0, Inf)[1]
+    return 2 * quadgk(x -> exp(-rho(l, x)), 0, Inf)[1]
 end
 
 
@@ -103,9 +104,7 @@ residuals is 0.95. The efficiency of the mean estimate μ is defined by:
 eff_μ = (E[ψ'])²/E[ψ²]
 """
 function efficiency_tuning_constant(
-    ::Type{L};
-    eff::Real=0.95,
-    c0::Real=1.0,
+    ::Type{L}; eff::Real=0.95, c0::Real=1.0
 ) where {L<:LossFunction}
     lpsi(x, c) = RobustModels.psi(L(c), x)
     lpsip(x, c) = RobustModels.psider(L(c), x)
@@ -113,7 +112,7 @@ function efficiency_tuning_constant(
     I1(c) = quadgk(x -> (lpsi(x, c))^2 * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     I2(c) = quadgk(x -> lpsip(x, c) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     fun_eff(c) = (I2(c))^2 / I1(c)
-    copt = find_zero(c -> fun_eff(c) - eff, c0, Order1())
+    return copt = find_zero(c -> fun_eff(c) - eff, c0, Order1())
 end
 
 
@@ -144,14 +143,16 @@ The tuning constant c corresponding to a high breakdown point (0.5)
 is such that δ = 1/2, from  1/n Σ χ(r/ŝ) = δ
 """
 function breakdown_point_tuning_constant(
-    ::Type{L};
-    bp::Real=1 / 2,
-    c0::Real=1.0,
+    ::Type{L}; bp::Real=1 / 2, c0::Real=1.0
 ) where {L<:LossFunction}
     (0 < bp <= 1 / 2) || error("breakdown-point should be between 0 and 1/2")
 
-    I(c) = quadgk(x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
-    copt = find_zero(c -> I(c) - bp, c0, Order1())
+    function I(c)
+        return quadgk(
+            x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf
+        )[1]
+    end
+    return copt = find_zero(c -> I(c) - bp, c0, Order1())
 end
 
 
@@ -167,8 +168,8 @@ The (convex) L2 loss function is that of the standard least squares problem.
 """
 struct L2Loss <: ConvexLossFunction end
 L2Loss(c) = L2Loss()
-rho(   ::L2Loss, r::Real) = r^2 / 2
-psi(   ::L2Loss, r::Real) = r
+rho(::L2Loss, r::Real) = r^2 / 2
+psi(::L2Loss, r::Real) = r
 psider(::L2Loss, r::Real) = oftype(r, 1)
 weight(::L2Loss, r::Real) = oftype(r, 1)
 estimator_values(::L2Loss, r::Real) = (r^2 / 2, r, oftype(r, 1))
@@ -186,10 +187,10 @@ Use ``QuantileRegression`` for a correct implementation of the L1 loss.
 """
 struct L1Loss <: ConvexLossFunction end
 L1Loss(c) = L1Loss()
-rho(   ::L1Loss, r::Real) = abs(r)
-psi(   ::L1Loss, r::Real) = sign(r)
+rho(::L1Loss, r::Real) = abs(r)
+psi(::L1Loss, r::Real) = sign(r)
 psider(::L1Loss, r::Real) = (abs(r) < DELTA) ? oftype(r, 1) : oftype(r, 0)
-weight(::L1Loss, r::Real) = (abs(r) < DELTA) ? L1WDELTA     : 1 / abs(r)
+weight(::L1Loss, r::Real) = (abs(r) < DELTA) ? L1WDELTA : 1 / abs(r)
 function estimator_values(est::L1Loss, r::Real)
     rr = abs(r)
     return (rr, sign(r), ((rr < DELTA) ? L1WDELTA : 1 / rr))
@@ -210,8 +211,8 @@ struct HuberLoss <: ConvexLossFunction
     HuberLoss() = new(estimator_high_efficiency_constant(HuberLoss))
 end
 
-_rho(   l::HuberLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2      : (abs(r) - 1 / 2)
-_psi(   l::HuberLoss, r::Real) = (abs(r) <= 1) ? r            : sign(r)
+_rho(l::HuberLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2 : (abs(r) - 1 / 2)
+_psi(l::HuberLoss, r::Real) = (abs(r) <= 1) ? r : sign(r)
 _psider(l::HuberLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : oftype(r, 0)
 _weight(l::HuberLoss, r::Real) = (abs(r) <= 1) ? oftype(r, 1) : 1 / abs(r)
 function estimator_values(l::HuberLoss, r::Real)
@@ -238,8 +239,8 @@ struct L1L2Loss <: ConvexLossFunction
     L1L2Loss(c::Real) = new(c)
     L1L2Loss() = new(estimator_high_efficiency_constant(L1L2Loss))
 end
-_rho(   l::L1L2Loss, r::Real) = (sqrt(1 + r^2) - 1)
-_psi(   l::L1L2Loss, r::Real) = r / sqrt(1 + r^2)
+_rho(l::L1L2Loss, r::Real) = (sqrt(1 + r^2) - 1)
+_psi(l::L1L2Loss, r::Real) = r / sqrt(1 + r^2)
 _psider(l::L1L2Loss, r::Real) = 1 / (1 + r^2)^(3 / 2)
 _weight(l::L1L2Loss, r::Real) = 1 / sqrt(1 + r^2)
 function estimator_values(l::L1L2Loss, r::Real)
@@ -262,8 +263,8 @@ struct FairLoss <: ConvexLossFunction
     FairLoss(c::Real) = new(c)
     FairLoss() = new(estimator_high_efficiency_constant(FairLoss))
 end
-_rho(   l::FairLoss, r::Real) = abs(r) - log(1 + abs(r))
-_psi(   l::FairLoss, r::Real) = r / (1 + abs(r))
+_rho(l::FairLoss, r::Real) = abs(r) - log(1 + abs(r))
+_psi(l::FairLoss, r::Real) = r / (1 + abs(r))
 _psider(l::FairLoss, r::Real) = 1 / (1 + abs(r))^2
 _weight(l::FairLoss, r::Real) = 1 / (1 + abs(r))
 function estimator_values(l::FairLoss, r::Real)
@@ -284,8 +285,8 @@ struct LogcoshLoss <: ConvexLossFunction
     LogcoshLoss(c::Real) = new(c)
     LogcoshLoss() = new(estimator_high_efficiency_constant(LogcoshLoss))
 end
-_rho(   l::LogcoshLoss, r::Real) = log(cosh(r))
-_psi(   l::LogcoshLoss, r::Real) = tanh(r)
+_rho(l::LogcoshLoss, r::Real) = log(cosh(r))
+_psi(l::LogcoshLoss, r::Real) = tanh(r)
 _psider(l::LogcoshLoss, r::Real) = 1 / (cosh(r))^2
 _weight(l::LogcoshLoss, r::Real) = (abs(r) < DELTA) ? (1 - (r)^2 / 3) : tanh(r) / r
 function estimator_values(l::LogcoshLoss, r::Real)
@@ -307,8 +308,8 @@ struct ArctanLoss <: ConvexLossFunction
     ArctanLoss(c::Real) = new(c)
     ArctanLoss() = new(estimator_high_efficiency_constant(ArctanLoss))
 end
-_rho(   l::ArctanLoss, r::Real) = r * atan(r) - 1 / 2 * log(1 + r^2)
-_psi(   l::ArctanLoss, r::Real) = atan(r)
+_rho(l::ArctanLoss, r::Real) = r * atan(r) - 1 / 2 * log(1 + r^2)
+_psi(l::ArctanLoss, r::Real) = atan(r)
 _psider(l::ArctanLoss, r::Real) = 1 / (1 + r^2)
 _weight(l::ArctanLoss, r::Real) = (abs(r) < DELTA) ? (1 - r^2 / 3) : atan(r) / r
 function estimator_values(l::ArctanLoss, r::Real)
@@ -331,23 +332,26 @@ See: "Catoni (2012) - Challenging the empirical mean and empirical variance: A d
 ψ(r) = sign(r) * log(1 + abs(r) + r^2/2)
 """
 struct CatoniWideLoss <: ConvexLossFunction
-   c::Float64
+    c::Float64
 
-   CatoniWideLoss(c::Real) = new(c)
-   CatoniWideLoss() = new(estimator_high_efficiency_constant(CatoniWideLoss))
+    CatoniWideLoss(c::Real) = new(c)
+    CatoniWideLoss() = new(estimator_high_efficiency_constant(CatoniWideLoss))
 end
 
 function _rho(l::CatoniWideLoss, r::Real)
-    (1 + abs(r)) * log(1 + abs(r) + r^2/2) - 2*abs(r) + 2*atan(1 + abs(r)) - π/2
+    return (1 + abs(r)) * log(1 + abs(r) + r^2 / 2) - 2 * abs(r) + 2 * atan(1 + abs(r)) -
+           π / 2
 end
-_psi(   l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2/2)
-_psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2/2)
-_weight(l::CatoniWideLoss, r::Real) = (abs(r) < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2/2) / abs(r)
+_psi(l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2 / 2)
+_psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2 / 2)
+function _weight(l::CatoniWideLoss, r::Real)
+    return (abs(r) < DELTA) ? oftype(r, 1) : log(1 + abs(r) + r^2 / 2) / abs(r)
+end
 function estimator_values(l::CatoniWideLoss, r::Real)
     rr = abs(r / l.c)
-    lr = log(1 + rr + rr^2/2)
+    lr = log(1 + rr + rr^2 / 2)
     return (
-        (1 + rr) * lr - 2*rr + 2*atan(1 + rr) - π/2,
+        (1 + rr) * lr - 2 * rr + 2 * atan(1 + rr) - π / 2,
         sign(r) * l.c * lr,
         (r < DELTA) ? oftype(r, 1) : lr / rr,
     )
@@ -364,27 +368,29 @@ See: "Catoni (2012) - Challenging the empirical mean and empirical variance: A d
 ψ(r) = (abs(r) <= 1) ? -sign(r) * log(1 - abs(r) + r^2/2) : sign(r) * log(2)
 """
 struct CatoniNarrowLoss <: ConvexLossFunction
-   c::Float64
+    c::Float64
 
-   CatoniNarrowLoss(c::Real) = new(c)
-   CatoniNarrowLoss() = new(estimator_high_efficiency_constant(CatoniNarrowLoss))
+    CatoniNarrowLoss(c::Real) = new(c)
+    CatoniNarrowLoss() = new(estimator_high_efficiency_constant(CatoniNarrowLoss))
 end
 
 function _rho(l::CatoniNarrowLoss, r::Real)
     if abs(r) <= 1
-        return (1 - abs(r)) * log(1 - abs(r) + r^2/2) + 2*abs(r) + 2*atan(1 - abs(r)) - π/2
+        return (1 - abs(r)) * log(1 - abs(r) + r^2 / 2) +
+               2 * abs(r) +
+               2 * atan(1 - abs(r)) - π / 2
     end
-    return (abs(r) - 1) * log(2) + 2 - π/2
+    return (abs(r) - 1) * log(2) + 2 - π / 2
 end
 function _psi(l::CatoniNarrowLoss, r::Real)
     if abs(r) <= 1
-        return -sign(r) * log(1 - abs(r) + r^2/2)
+        return -sign(r) * log(1 - abs(r) + r^2 / 2)
     end
     return sign(r) * log(2)
 end
 function _psider(l::CatoniNarrowLoss, r::Real)
     if abs(r) <= 1
-        return (1 - abs(r)) / (1 - abs(r) + r^2/2)
+        return (1 - abs(r)) / (1 - abs(r) + r^2 / 2)
     end
     return 0
 end
@@ -392,21 +398,19 @@ function _weight(l::CatoniNarrowLoss, r::Real)
     if r == 0
         return oftype(r, 1)
     elseif abs(r) <= 1
-        return -log(1 - abs(r) + r^2/2) / abs(r)
+        return -log(1 - abs(r) + r^2 / 2) / abs(r)
     end
     return log(2) / abs(r)
 end
 function estimator_values(l::CatoniNarrowLoss, r::Real)
     rr = abs(r / l.c)
-    lr = log(1 - rr + rr^2/2)
+    lr = log(1 - rr + rr^2 / 2)
     if abs(r) <= 1
         return (
-            (1 - rr) * lr + 2*rr + 2*atan(1 - rr) - π/2,
-            -sign(r) * l.c * lr,
-            -lr / rr,
+            (1 - rr) * lr + 2 * rr + 2 * atan(1 - rr) - π / 2, -sign(r) * l.c * lr, -lr / rr
         )
     end
-    return ((rr - 1) * log(2) + 2 - π/2, sign(r) * log(2), log(2) / rr)
+    return ((rr - 1) * log(2) + 2 - π / 2, sign(r) * log(2), log(2) / rr)
 end
 estimator_norm(l::CatoniNarrowLoss) = l.c * 3.60857
 estimator_high_efficiency_constant(::Type{CatoniNarrowLoss}) = 1.7946
@@ -425,8 +429,8 @@ struct CauchyLoss <: LossFunction
     CauchyLoss(c::Real) = new(c)
     CauchyLoss() = new(estimator_high_efficiency_constant(CauchyLoss))
 end
-_rho(   l::CauchyLoss, r::Real) = log(1 + r^2) # * 1/2  # remove factor 1/2 so the loss has a norm
-_psi(   l::CauchyLoss, r::Real) = r / (1 + r^2)
+_rho(l::CauchyLoss, r::Real) = log(1 + r^2) # * 1/2  # remove factor 1/2 so the loss has a norm
+_psi(l::CauchyLoss, r::Real) = r / (1 + r^2)
 _psider(l::CauchyLoss, r::Real) = (1 - r^2) / (1 + r^2)^2
 _weight(l::CauchyLoss, r::Real) = 1 / (1 + r^2)
 function estimator_values(l::CauchyLoss, r::Real)
@@ -452,8 +456,8 @@ struct GemanLoss <: BoundedLossFunction
     GemanLoss(c::Real) = new(c)
     GemanLoss() = new(estimator_high_efficiency_constant(GemanLoss))
 end
-_rho(   l::GemanLoss, r::Real) = 1/2 * r^2 / (1 + r^2)
-_psi(   l::GemanLoss, r::Real) = r / (1 + r^2)^2
+_rho(l::GemanLoss, r::Real) = 1 / 2 * r^2 / (1 + r^2)
+_psi(l::GemanLoss, r::Real) = r / (1 + r^2)^2
 _psider(l::GemanLoss, r::Real) = (1 - 3 * r^2) / (1 + r^2)^3
 _weight(l::GemanLoss, r::Real) = 1 / (1 + r^2)^2
 function estimator_values(l::GemanLoss, r::Real)
@@ -481,8 +485,8 @@ struct WelschLoss <: BoundedLossFunction
     WelschLoss(c::Real) = new(c)
     WelschLoss() = new(estimator_high_efficiency_constant(WelschLoss))
 end
-_rho(   l::WelschLoss, r::Real) = -1 / 2 * Base.expm1(-r^2)
-_psi(   l::WelschLoss, r::Real) = r * exp(-r^2)
+_rho(l::WelschLoss, r::Real) = -1 / 2 * Base.expm1(-r^2)
+_psi(l::WelschLoss, r::Real) = r * exp(-r^2)
 _psider(l::WelschLoss, r::Real) = (1 - 2 * r^2) * exp(-r^2)
 _weight(l::WelschLoss, r::Real) = exp(-r^2)
 function estimator_values(l::WelschLoss, r::Real)
@@ -510,10 +514,10 @@ struct TukeyLoss <: BoundedLossFunction
     TukeyLoss(c::Real) = new(c)
     TukeyLoss() = new(estimator_high_efficiency_constant(TukeyLoss))
 end
-_rho(   l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 / 6 * (1 - (1 - r^2)^3) : 1 / 6
-_psi(   l::TukeyLoss, r::Real) = (abs(r) <= 1) ? r * (1 - r^2)^2           : oftype(r, 0)
-_psider(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 - 6 * r^2 + 5 * r^4     : oftype(r, 0)
-_weight(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? (1 - r^2)^2               : oftype(r, 0)
+_rho(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 / 6 * (1 - (1 - r^2)^3) : 1 / 6
+_psi(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? r * (1 - r^2)^2 : oftype(r, 0)
+_psider(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? 1 - 6 * r^2 + 5 * r^4 : oftype(r, 0)
+_weight(l::TukeyLoss, r::Real) = (abs(r) <= 1) ? (1 - r^2)^2 : oftype(r, 0)
 function estimator_values(l::TukeyLoss, r::Real)
     pr = (abs(r) <= l.c) * (1 - (r / l.c)^2)
     return (1 / 6 * (1 - pr^3), r * pr^2, pr^2)
@@ -610,8 +614,8 @@ struct HardThresholdLoss <: BoundedLossFunction
     HardThresholdLoss(c::Real) = new(c)
     HardThresholdLoss() = new(estimator_high_efficiency_constant(HardThresholdLoss))
 end
-_rho(   l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2 : oftype(r, 1/2)
-_psi(   l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r : oftype(r, 0)
+_rho(l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r^2 / 2 : oftype(r, 1 / 2)
+_psi(l::HardThresholdLoss, r::Real) = (abs(r) <= 1) ? r : oftype(r, 0)
 function _psider(l::HardThresholdLoss, r::Real)
     if abs(r) <= 1
         return oftype(r, 1)
@@ -631,7 +635,7 @@ function estimator_values(l::HardThresholdLoss, r::Real)
     end
 end
 estimator_norm(::HardThresholdLoss) = Inf
-estimator_bound(::HardThresholdLoss) = 1/2
+estimator_bound(::HardThresholdLoss) = 1 / 2
 isconvex(::HardThresholdLoss) = false
 isbounded(::HardThresholdLoss) = true
 
@@ -658,8 +662,9 @@ struct HampelLoss <: BoundedLossFunction
     function HampelLoss(c::Real, ν1::Real, ν2::Real)
         c >= 0 || throw(ArgumentError("constant c must be non-negative: $c"))
         ν1 >= 1 || throw(ArgumentError("constant ν1 must be greater than 1: $ν1"))
-        ν2 >= ν1 || throw(ArgumentError("constant ν2 must be greater than ν1: $ν2 >= ν1=$ν1"))
-        new(c, ν1, ν2)
+        ν2 >= ν1 ||
+            throw(ArgumentError("constant ν2 must be greater than ν1: $ν2 >= ν1=$ν1"))
+        return new(c, ν1, ν2)
     end
     HampelLoss(c::Real) = new(c, 2.0, 4.0)
     HampelLoss() = new(estimator_high_efficiency_constant(HampelLoss), 2.0, 4.0)
@@ -670,7 +675,7 @@ function _rho(l::HampelLoss, r::Real)
     elseif (abs(r) <= l.ν1)
         return abs(r) - 1 / 2
     elseif (abs(r) < l.ν2)
-        return - (l.ν2 - abs(r))^2 / (2 * (l.ν2 - l.ν1)) + (l.ν1 + l.ν2 - 1) / 2
+        return -(l.ν2 - abs(r))^2 / (2 * (l.ν2 - l.ν1)) + (l.ν1 + l.ν2 - 1) / 2
     else
         return (l.ν1 + l.ν2 - 1) / 2
     end
@@ -692,7 +697,7 @@ function _psider(l::HampelLoss, r::Real)
     elseif (abs(r) <= l.ν1)
         return oftype(r, 0)
     elseif (abs(r) < l.ν2)
-        return - 1 / (l.ν2 - l.ν1)
+        return -1 / (l.ν2 - l.ν1)
     else
         return oftype(r, 0)
     end
@@ -728,30 +733,23 @@ struct CompositeLossFunction{L1<:LossFunction,L2<:LossFunction} <: LossFunction
     loss2::L2
 end
 function CompositeLossFunction(
-    loss1::LossFunction,
-    loss2::LossFunction,
-    α1::Real=1.0,
-    α2::Real=1.0,
+    loss1::LossFunction, loss2::LossFunction, α1::Real=1.0, α2::Real=1.0
 )
-    α1 >= 0 || throw(
-        DomainError(α1, "coefficients of CompositeLossFunction are non-negative."),
-    )
-    α2 >= 0 || throw(
-        DomainError(α2, "coefficients of CompositeLossFunction are non-negative."),
-    )
+    α1 >= 0 ||
+        throw(DomainError(α1, "coefficients of CompositeLossFunction are non-negative."))
+    α2 >= 0 ||
+        throw(DomainError(α2, "coefficients of CompositeLossFunction are non-negative."))
 
     return CompositeLossFunction{typeof(loss1),typeof(loss2)}(
-        float(α1),
-        loss1,
-        float(α2),
-        loss2,
+        float(α1), loss1, float(α2), loss2
     )
 end
 
 function show(io::IO, e::CompositeLossFunction)
-    mess = "CompositeLossFunction $(round(e.α1; digits=2)) ."*
-           " $(e.loss1) + $(round(e.α2; digits=2)) . $(e.loss2)"
-    print(io, mess)
+    mess =
+        "CompositeLossFunction $(round(e.α1; digits=2)) ." *
+        " $(e.loss1) + $(round(e.α2; digits=2)) . $(e.loss2)"
+    return print(io, mess)
 end
 
 Base.first(e::CompositeLossFunction) = e.loss1
@@ -760,25 +758,33 @@ Base.last(e::CompositeLossFunction) = e.loss2
 isbounded(e::CompositeLossFunction) = isbounded(e.loss1) && isbounded(e.loss2)
 isconvex(e::CompositeLossFunction) = isconvex(e.loss1) && isconvex(e.loss2)
 
-estimator_norm(e::CompositeLossFunction) =
-    e.α1 * estimator_norm(e.loss1) + e.α2 * estimator_norm(e.loss2)
-estimator_bound(e::CompositeLossFunction) =
-    e.α1 * estimator_bound(e.loss1) * (tuning_constant(e.loss1))^2 +
-    e.α2 * estimator_bound(e.loss2) * (tuning_constant(e.loss2))^2
-rho(e::CompositeLossFunction, r::Real) =
-    e.α1 * rho(e.loss1, r) * (tuning_constant(e.loss1))^2 +
-    e.α2 * rho(e.loss2, r) * (tuning_constant(e.loss2))^2
+function estimator_norm(e::CompositeLossFunction)
+    return e.α1 * estimator_norm(e.loss1) + e.α2 * estimator_norm(e.loss2)
+end
+function estimator_bound(e::CompositeLossFunction)
+    return e.α1 * estimator_bound(e.loss1) * (tuning_constant(e.loss1))^2 +
+           e.α2 * estimator_bound(e.loss2) * (tuning_constant(e.loss2))^2
+end
+function rho(e::CompositeLossFunction, r::Real)
+    return e.α1 * rho(e.loss1, r) * (tuning_constant(e.loss1))^2 +
+           e.α2 * rho(e.loss2, r) * (tuning_constant(e.loss2))^2
+end
 psi(e::CompositeLossFunction, r::Real) = e.α1 * psi(e.loss1, r) + e.α2 * psi(e.loss2, r)
-psider(e::CompositeLossFunction, r::Real) =
-    e.α1 * psider(e.loss1, r) + e.α2 * psider(e.loss2, r)
-weight(e::CompositeLossFunction, r::Real) =
-    e.α1 * weight(e.loss1, r) + e.α2 * weight(e.loss2, r)
-estimator_values(e::CompositeLossFunction, r::Real) =
+function psider(e::CompositeLossFunction, r::Real)
+    return e.α1 * psider(e.loss1, r) + e.α2 * psider(e.loss2, r)
+end
+function weight(e::CompositeLossFunction, r::Real)
+    return e.α1 * weight(e.loss1, r) + e.α2 * weight(e.loss2, r)
+end
+function estimator_values(e::CompositeLossFunction, r::Real)
     @.(e.α1 * estimator_values(e.loss1, r) + e.α2 * estimator_values(e.loss2, r))
+end
 
 function mscale_loss(e::CompositeLossFunction, x)
     if !isa(e.loss1, BoundedLossFunction) || !isa(e.loss2, BoundedLossFunction)
-        error("mscale_loss for CompositeLossFunction is defined only if both losses are bounded")
+        error(
+            "mscale_loss for CompositeLossFunction is defined only if both losses are bounded",
+        )
     end
     return rho(e, x) / estimator_bound(e)
 end
