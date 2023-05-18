@@ -19,21 +19,10 @@ est2 = MEstimator(loss2)
     VERBOSE && println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in data_tuples,
-        method in nopen_methods
+    @testset "$(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
 
-        name = if A == form
-            "formula"
-        elseif A == X
-            "dense  "
-        else
-            "sparse "
-        end
-        name *= if method in (:cg, :qr)
-            ",  "
-        else
-            ","
-        end
+        name = (A == form) ? "formula" : (A == X) ? "dense  " : "sparse "
+        name *= (method in (:cg, :qr)) ? ",  " : ","
         name *= "$(method)"
 
         # use the dispersion from GLM to ensure that the nulldeviance/deviance is correct
@@ -107,8 +96,8 @@ est2 = MEstimator(loss2)
                     elseif f in (loglikelihood, nullloglikelihood)
                         ## TODO: should work
                         @test_broken isapprox(var, robvar; rtol=1e-4)
-                        #                        @test isapprox(var + log(λ), (robvar + RobustModels.fullloglikelihood(r)) * s^2/λ^2 - log(RobustModels.estimator_norm(r.est)); rtol=1e-4)
-                        #                        @test isapprox(var + log(dispersion(m1)), robvar + log(s); rtol=1e-4)
+                        # @test isapprox(var + log(λ), (robvar + RobustModels.fullloglikelihood(r)) * s^2/λ^2 - log(RobustModels.estimator_norm(r.est)); rtol=1e-4)
+                        # @test isapprox(var + log(dispersion(m1)), robvar + log(s); rtol=1e-4)
                     else
                         @test isapprox(var, robvar; rtol=1e-4)
                     end

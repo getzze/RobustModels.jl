@@ -118,9 +118,8 @@ function GLM.dispersion(
 )
     wrkwt, wrkres, wrkscaledres = r.wrkwt, r.wrkres, r.wrkscaledres
     if robust
-        s =
-            (r.σ)^2 * sum(i -> wrkwt[i] * abs2(wrkscaledres[i]), eachindex(wrkwt, wrkres)) /
-            dof_residual
+        s = sum(i -> wrkwt[i] * abs2(wrkscaledres[i]), eachindex(wrkwt, wrkres))
+        s *= (r.σ)^2 / dof_residual
     else
         s = sum(i -> wrkwt[i] * abs2(wrkres[i]), eachindex(wrkwt, wrkres)) / dof_residual
     end
@@ -243,9 +242,6 @@ end
 ####################################
 
 function initresp!(r::RobustLinResp{T}) where {T}
-    #    # Set μ to 0
-    #    fill!(r.μ, 0)
-
     # Reset the factor of the TauEstimator
     if isa(r.est, TauEstimator)
         update_weight!(r.est, 0)

@@ -112,7 +112,7 @@ function efficiency_tuning_constant(
     I1(c) = quadgk(x -> (lpsi(x, c))^2 * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     I2(c) = quadgk(x -> lpsip(x, c) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     fun_eff(c) = (I2(c))^2 / I1(c)
-    return copt = find_zero(c -> fun_eff(c) - eff, c0, Order1())
+    return find_zero(c -> fun_eff(c) - eff, c0, Order1())
 end
 
 
@@ -147,14 +147,9 @@ function breakdown_point_tuning_constant(
 ) where {L<:LossFunction}
     (0 < bp <= 1 / 2) || error("breakdown-point should be between 0 and 1/2")
 
-    function I(c)
-        return quadgk(
-            x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf
-        )[1]
-    end
-    return copt = find_zero(c -> I(c) - bp, c0, Order1())
+    I(c) = quadgk(x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
+    return find_zero(c -> I(c) - bp, c0, Order1())
 end
-
 
 
 
@@ -339,8 +334,8 @@ struct CatoniWideLoss <: ConvexLossFunction
 end
 
 function _rho(l::CatoniWideLoss, r::Real)
-    return (1 + abs(r)) * log(1 + abs(r) + r^2 / 2) - 2 * abs(r) + 2 * atan(1 + abs(r)) -
-           π / 2
+    ar = abs(r)
+    return (1 + ar) * log(1 + ar + r^2 / 2) - 2 * ar + 2 * atan(1 + r) - π / 2
 end
 _psi(l::CatoniWideLoss, r::Real) = sign(r) * log(1 + abs(r) + r^2 / 2)
 _psider(l::CatoniWideLoss, r::Real) = (1 + abs(r)) / (1 + abs(r) + r^2 / 2)
@@ -375,12 +370,11 @@ struct CatoniNarrowLoss <: ConvexLossFunction
 end
 
 function _rho(l::CatoniNarrowLoss, r::Real)
-    if abs(r) <= 1
-        return (1 - abs(r)) * log(1 - abs(r) + r^2 / 2) +
-               2 * abs(r) +
-               2 * atan(1 - abs(r)) - π / 2
+    ar = abs(r)
+    if ar >= 1
+        return (ar - 1) * log(2) + 2 - π / 2
     end
-    return (abs(r) - 1) * log(2) + 2 - π / 2
+    return (1 - ar) * log(1 - ar + r^2 / 2) + 2 * ar + 2 * atan(1 - ar) - π / 2
 end
 function _psi(l::CatoniNarrowLoss, r::Real)
     if abs(r) <= 1
@@ -406,9 +400,7 @@ function estimator_values(l::CatoniNarrowLoss, r::Real)
     rr = abs(r / l.c)
     lr = log(1 - rr + rr^2 / 2)
     if abs(r) <= 1
-        return (
-            (1 - rr) * lr + 2 * rr + 2 * atan(1 - rr) - π / 2, -sign(r) * l.c * lr, -lr / rr
-        )
+        return ((1 - rr) * lr + 2 * rr + 2 * atan(1 - rr) - π / 2, -sign(r) * l.c * lr, -lr / rr)
     end
     return ((rr - 1) * log(2) + 2 - π / 2, sign(r) * log(2), log(2) / rr)
 end

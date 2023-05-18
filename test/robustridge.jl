@@ -16,65 +16,22 @@ est2 = MEstimator(loss2)
     est = MEstimator(typeloss())
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in (
-            (form, data), (form, nt), (X, y), (sX, y)
-        ),
-        method in nopen_methods
+    @testset "$(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
 
-        aspace = if method in (:cg, :qr)
-            "  "
-        else
-            "    "
-        end
+        aspace = (method in (:cg, :qr)) ? "  " : "    "
         name = "MEstimator($(typeloss)),\t"
-        name *= if A == form
-            "formula"
-        elseif A == X
-            "dense  "
-        else
-            "sparse "
-        end
-        name *= if method in (:cg, :qr)
-            ",  "
-        else
-            ","
-        end
+        name *= (A == form) ? "formula" : (A == X) ? "dense  " : "sparse "
+        name *= (method in (:cg, :qr)) ? ",  " : ","
         name *= "$(method)"
-
+        
+        kwargs = (; method=method, initial_scale=:L1)
         # use the dispersion from GLM to ensure that the loglikelihood is correct
-        m2 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1)
-        m3 = fit(RobustLinearModel, A, b, est; method=method, initial_scale=:L1, ridgeλ=1)
-        m4 = fit(
-            RobustLinearModel,
-            A,
-            b,
-            est;
-            method=method,
-            initial_scale=:L1,
-            ridgeλ=1,
-            ridgeG=float([0 0; 0 1]),
-        )
-        m5 = fit(
-            RobustLinearModel,
-            A,
-            b,
-            est;
-            method=method,
-            initial_scale=:L1,
-            ridgeλ=0.1,
-            ridgeG=[0, 1],
-        )
-        m6 = fit(
-            RobustLinearModel,
-            A,
-            b,
-            est;
-            method=method,
-            initial_scale=:L1,
-            ridgeλ=1,
-            ridgeG=[0, 1],
-            βprior=[0.0, 2.0],
-        )
+        m2 = fit(RobustLinearModel, A, b, est; kwargs...)
+        m3 = fit(RobustLinearModel, A, b, est; ridgeλ=1, kwargs...)
+        m4 = fit(RobustLinearModel, A, b, est; ridgeλ=1, ridgeG=float([0 0; 0 1]), kwargs...)
+        m5 = fit(RobustLinearModel, A, b, est; ridgeλ=0.1, ridgeG=[0, 1], kwargs...)
+        m6 = rlm(A, b, est; ridgeλ=1, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
+
         VERBOSE && println("\n\t\u25CF Estimator: $(name)")
         VERBOSE && println(" lm$(aspace)               : ", coef(m1))
         VERBOSE && println("rlm($(method))             : ", coef(m2))

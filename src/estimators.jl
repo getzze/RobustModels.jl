@@ -473,7 +473,7 @@ function tau_efficiency_tuning_constant(
     I1(c) = quadgk(x -> (lpsi(x, c))^2 * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     I2(c) = quadgk(x -> lpsip(x, c) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     fun_eff(c) = (I2(c))^2 / I1(c)
-    return copt = find_zero(c -> fun_eff(c) - eff, c0, Order1())
+    return find_zero(c -> fun_eff(c) - eff, c0, Order1())
 end
 function tau_efficiency_tuning_constant(::Type{L}; kwargs...) where {L<:BoundedLossFunction}
     return tau_efficiency_tuning_constant(L, L; kwargs...)

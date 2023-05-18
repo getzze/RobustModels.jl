@@ -68,8 +68,8 @@ DensePredQR
 PRED_QR_WARNING_ISSUED = false
 
 function qrpred(X::AbstractMatrix, pivot::Bool=false)
-    return p = try
-        DensePredCG(Matrix(X), pivot)
+    try
+        return DensePredCG(Matrix(X), pivot)
     catch e
         if e isa MethodError
             # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
@@ -81,7 +81,7 @@ function qrpred(X::AbstractMatrix, pivot::Bool=false)
                 )
                 PRED_QR_WARNING_ISSUED = true
             end
-            DensePredCG(Matrix(X))
+            return DensePredCG(Matrix(X))
         else
             rethrow()
         end
