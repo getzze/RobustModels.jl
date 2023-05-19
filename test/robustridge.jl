@@ -34,7 +34,9 @@ est2 = MEstimator(loss2)
         # use the dispersion from GLM to ensure that the loglikelihood is correct
         m2 = fit(RobustLinearModel, A, b, est; kwargs...)
         m3 = fit(RobustLinearModel, A, b, est; ridgeλ=1, kwargs...)
-        m4 = fit(RobustLinearModel, A, b, est; ridgeλ=1, ridgeG=float([0 0; 0 1]), kwargs...)
+        m4 = fit(
+            RobustLinearModel, A, b, est; ridgeλ=1, ridgeG=float([0 0; 0 1]), kwargs...
+        )
         m5 = fit(RobustLinearModel, A, b, est; ridgeλ=0.1, ridgeG=[0, 1], kwargs...)
         m6 = rlm(A, b, est; ridgeλ=1, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
 

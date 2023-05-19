@@ -10,7 +10,7 @@ end
 @testset "Quantile regression: fit method" begin
     τ = 0.5
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y))
+    @testset "Argument type: $(typeof(A))" for (A, b) in data_tuples
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
         @test_nowarn println(m2)
@@ -101,7 +101,9 @@ end
             s = RobustModels.location_variance(m2, false)
         end
 
-        si = RobustModels.location_variance(m2, false; bw_method=method, α=0.05, kernel=kernel)
+        si = RobustModels.location_variance(
+            m2, false; bw_method=method, α=0.05, kernel=kernel
+        )
         if method == :jones && kernel == :epanechnikov
             @test isapprox(s, si; rtol=1e-4)
         else

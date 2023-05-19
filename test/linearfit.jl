@@ -68,7 +68,15 @@ not_bounded_losses = setdiff(Set(losses), Set(bounded_losses))
     @testset "Bounded: $(name)" for name in bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = SEstimator{typeloss}()
-        m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
+        m = fit(
+            RobustLinearModel,
+            form,
+            data,
+            est;
+            method=:cg,
+            verbose=false,
+            initial_scale=:mad,
+        )
         VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
@@ -153,7 +161,15 @@ end
     @testset "Bounded: $(name)" for name in bounded_losses
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = MMEstimator{typeloss}()
-        m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
+        m = fit(
+            RobustLinearModel,
+            form,
+            data,
+            est;
+            method=:cg,
+            verbose=false,
+            initial_scale=:mad,
+        )
         VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
@@ -188,7 +204,15 @@ end
         typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
         est = TauEstimator{typeloss}()
 
-        m = fit(RobustLinearModel, form, data, est; method=:cg, verbose=false, initial_scale=:mad)
+        m = fit(
+            RobustLinearModel,
+            form,
+            data,
+            est;
+            method=:cg,
+            verbose=false,
+            initial_scale=:mad,
+        )
         VERBOSE && println("rlm($name) : ", coef(m))
         ## TODO: find better test
         @test size(coef(m), 1) == 2
@@ -213,10 +237,22 @@ end
 
 @testset "linear: leverage correction" begin
     m2 = fit(
-        RobustLinearModel, form, data, est2; method=:cg, initial_scale=:mad, correct_leverage=false
+        RobustLinearModel,
+        form,
+        data,
+        est2;
+        method=:cg,
+        initial_scale=:mad,
+        correct_leverage=false,
     )
     m3 = fit(
-        RobustLinearModel, form, data, est2; method=:cg, initial_scale=:mad, correct_leverage=true
+        RobustLinearModel,
+        form,
+        data,
+        est2;
+        method=:cg,
+        initial_scale=:mad,
+        correct_leverage=true,
     )
     VERBOSE && println("rlm(without leverage correction) : ", coef(m2))
     VERBOSE && println("rlm(   with leverage correction) : ", coef(m3))

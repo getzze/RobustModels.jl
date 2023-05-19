@@ -17,7 +17,8 @@ using StatsModels
 
 ## Import to implement new methods
 import Base: show, broadcastable, convert, ==
-import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
+import GLM:
+    dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
 import StatsBase:
     fit,
     fit!,
@@ -46,7 +47,14 @@ import StatsBase:
     mean_and_std,
     mean_and_var
 import StatsModels:
-    coef, coefnames, coeftable, leverage, modelmatrix, hasintercept, responsename, missing_omit
+    coef,
+    coefnames,
+    coeftable,
+    leverage,
+    modelmatrix,
+    hasintercept,
+    responsename,
+    missing_omit
 
 # Import functions that are called (not extended)
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
@@ -70,7 +78,8 @@ using LinearAlgebra:
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol, DensePredQR
-using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
+using StatsBase:
+    AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels:
     @delegate,
     @formula,

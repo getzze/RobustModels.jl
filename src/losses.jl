@@ -53,7 +53,9 @@ estimator_high_efficiency_constant(::Type{L}) where {L<:LossFunction} = 1
 efficient_loss(::Type{L}) where {L<:LossFunction} = L(estimator_high_efficiency_constant(L))
 
 "The loss initialized with a robust (high breakdown point) tuning constant"
-robust_loss(::Type{L}) where {L<:LossFunction} = L(estimator_high_breakdown_point_constant(L))
+function robust_loss(::Type{L}) where {L<:LossFunction}
+    return L(estimator_high_breakdown_point_constant(L))
+end
 
 
 rho(l::LossFunction, r) = _rho(l, r / tuning_constant(l))
@@ -99,7 +101,9 @@ residuals is 0.95. The efficiency of the mean estimate μ is defined by:
 
 eff_μ = (E[ψ'])²/E[ψ²]
 """
-function efficiency_tuning_constant(::Type{L}; eff::Real=0.95, c0::Real=1.0) where {L<:LossFunction}
+function efficiency_tuning_constant(
+    ::Type{L}; eff::Real=0.95, c0::Real=1.0
+) where {L<:LossFunction}
     lpsi(x, c) = RobustModels.psi(L(c), x)
     lpsip(x, c) = RobustModels.psider(L(c), x)
 
@@ -141,7 +145,7 @@ function breakdown_point_tuning_constant(
 ) where {L<:LossFunction}
     (0 < bp <= 1 / 2) || error("breakdown-point should be between 0 and 1/2")
 
-    I(c) = quadgk(x -> RobustModels.mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
+    I(c) = quadgk(x -> mscale_loss(L(c), x) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf)[1]
     return find_zero(c -> I(c) - bp, c0, Order1())
 end
 
@@ -394,7 +398,9 @@ function estimator_values(l::CatoniNarrowLoss, r::Real)
     rr = abs(r / l.c)
     lr = log(1 - rr + rr^2 / 2)
     if abs(r) <= 1
-        return ((1 - rr) * lr + 2 * rr + 2 * atan(1 - rr) - π / 2, -sign(r) * l.c * lr, -lr / rr)
+        return (
+            (1 - rr) * lr + 2 * rr + 2 * atan(1 - rr) - π / 2, -sign(r) * l.c * lr, -lr / rr
+        )
     end
     return ((rr - 1) * log(2) + 2 - π / 2, sign(r) * log(2), log(2) / rr)
 end
@@ -648,7 +654,8 @@ struct HampelLoss <: BoundedLossFunction
     function HampelLoss(c::Real, ν1::Real, ν2::Real)
         c >= 0 || throw(ArgumentError("constant c must be non-negative: $c"))
         ν1 >= 1 || throw(ArgumentError("constant ν1 must be greater than 1: $ν1"))
-        ν2 >= ν1 || throw(ArgumentError("constant ν2 must be greater than ν1: $ν2 >= ν1=$ν1"))
+        ν2 >= ν1 ||
+            throw(ArgumentError("constant ν2 must be greater than ν1: $ν2 >= ν1=$ν1"))
         return new(c, ν1, ν2)
     end
     HampelLoss(c::Real) = new(c, 2.0, 4.0)
@@ -718,11 +725,17 @@ struct CompositeLossFunction{L1<:LossFunction,L2<:LossFunction} <: LossFunction
     α2::Float64
     loss2::L2
 end
-function CompositeLossFunction(loss1::LossFunction, loss2::LossFunction, α1::Real=1.0, α2::Real=1.0)
-    α1 >= 0 || throw(DomainError(α1, "coefficients of CompositeLossFunction are non-negative."))
-    α2 >= 0 || throw(DomainError(α2, "coefficients of CompositeLossFunction are non-negative."))
+function CompositeLossFunction(
+    loss1::LossFunction, loss2::LossFunction, α1::Real=1.0, α2::Real=1.0
+)
+    α1 >= 0 ||
+        throw(DomainError(α1, "coefficients of CompositeLossFunction are non-negative."))
+    α2 >= 0 ||
+        throw(DomainError(α2, "coefficients of CompositeLossFunction are non-negative."))
 
-    return CompositeLossFunction{typeof(loss1),typeof(loss2)}(float(α1), loss1, float(α2), loss2)
+    return CompositeLossFunction{typeof(loss1),typeof(loss2)}(
+        float(α1), loss1, float(α2), loss2
+    )
 end
 
 function show(io::IO, e::CompositeLossFunction)
@@ -751,15 +764,21 @@ function rho(e::CompositeLossFunction, r::Real)
            e.α2 * rho(e.loss2, r) * (tuning_constant(e.loss2))^2
 end
 psi(e::CompositeLossFunction, r::Real) = e.α1 * psi(e.loss1, r) + e.α2 * psi(e.loss2, r)
-psider(e::CompositeLossFunction, r::Real) = e.α1 * psider(e.loss1, r) + e.α2 * psider(e.loss2, r)
-weight(e::CompositeLossFunction, r::Real) = e.α1 * weight(e.loss1, r) + e.α2 * weight(e.loss2, r)
+function psider(e::CompositeLossFunction, r::Real)
+    return e.α1 * psider(e.loss1, r) + e.α2 * psider(e.loss2, r)
+end
+function weight(e::CompositeLossFunction, r::Real)
+    return e.α1 * weight(e.loss1, r) + e.α2 * weight(e.loss2, r)
+end
 function estimator_values(e::CompositeLossFunction, r::Real)
     @.(e.α1 * estimator_values(e.loss1, r) + e.α2 * estimator_values(e.loss2, r))
 end
 
 function mscale_loss(e::CompositeLossFunction, x)
     if !isa(e.loss1, BoundedLossFunction) || !isa(e.loss2, BoundedLossFunction)
-        error("mscale_loss for CompositeLossFunction is defined only if both losses are bounded")
+        error(
+            "mscale_loss for CompositeLossFunction is defined only if both losses are bounded",
+        )
     end
     return rho(e, x) / estimator_bound(e)
 end

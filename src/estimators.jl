@@ -78,11 +78,11 @@ function scale_estimate(
         end
     end
 
-    if !approx
-        converged || @warn(
-            "the M-scale did not converge, consider increasing the maximum" *
-            " number of iterations nmax=$(nmax) or starting with a better" *
-            " initial value σ0=$(σ0). Return the current estimate: $(σn)"
+    if !approx && !converged
+        @warn(
+            "the M-scale did not converge, consider increasing the maximum " *
+            "number of iterations nmax=$(nmax) or starting with a better " *
+            "initial value σ0=$(σ0). Return the current estimate: $(σn)"
         )
     end
 
@@ -337,10 +337,14 @@ end
 function MMEstimator(loss1::L1, loss2::L2) where {L1<:BoundedLossFunction,L2<:LossFunction}
     return MMEstimator{L1,L2}(loss1, loss2, true)
 end
-function MMEstimator(::Type{L1}, ::Type{L2}) where {L1<:BoundedLossFunction,L2<:LossFunction}
+function MMEstimator(
+    ::Type{L1}, ::Type{L2}
+) where {L1<:BoundedLossFunction,L2<:LossFunction}
     return MMEstimator(robust_loss(L1), efficient_loss(L2))
 end
-MMEstimator{L}() where {L<:BoundedLossFunction} = MMEstimator(robust_loss(L), efficient_loss(L))
+function MMEstimator{L}() where {L<:BoundedLossFunction}
+    return MMEstimator(robust_loss(L), efficient_loss(L))
+end
 MMEstimator(::Type{L}) where {L<:BoundedLossFunction} = MMEstimator{L}()
 
 loss(e::MMEstimator) = e.scaleest ? e.loss1 : e.loss2
@@ -395,7 +399,8 @@ every step of the Iteratively Reweighted Least Square, so the estimate is both r
 - `w`: the weight in the sum of losses: `w . loss1 + loss2`.
 
 """
-mutable struct TauEstimator{L1<:BoundedLossFunction,L2<:BoundedLossFunction} <: AbstractMEstimator
+mutable struct TauEstimator{L1<:BoundedLossFunction,L2<:BoundedLossFunction} <:
+               AbstractMEstimator
     "high breakdown point loss function"
     loss1::L1
 
@@ -449,7 +454,9 @@ function tau_efficiency_tuning_constant(
         loss2 = L2(c)
         t2 = (tuning_constant(loss2))^2
         w2 = quadgk(
-            x -> (2 * rho(loss2, x) * t2 - x * psi(loss2, x)) * 2 * exp(-x^2 / 2) / √(2π), 0, Inf
+            x -> (2 * rho(loss2, x) * t2 - x * psi(loss2, x)) * 2 * exp(-x^2 / 2) / √(2π),
+            0,
+            Inf,
         )[1]
         return TauEstimator{L1,L2}(loss1, loss2, w2 / w1)
     end
@@ -515,7 +522,9 @@ function estimator_values(E::TauEstimator, r::Real)
     vals2 = estimator_values(E.loss2, r)
     c12, c22 = (tuning_constant(E.loss1))^2, (tuning_constant(E.loss2))^2
     return (
-        E.w * vals1[1] * c12 + vals2[1] * c22, E.w * vals1[2] + vals2[3], E.w * vals1[3] + vals2[3]
+        E.w * vals1[1] * c12 + vals2[1] * c22,
+        E.w * vals1[2] + vals2[3],
+        E.w * vals1[3] + vals2[3],
     )
 end
 estimator_norm(E::TauEstimator, args...) = Inf
@@ -586,7 +595,8 @@ mutable struct GeneralizedQuantileEstimator{L<:LossFunction} <: AbstractQuantile
     τ::Float64
 end
 function GeneralizedQuantileEstimator(l::L, τ::Real=0.5) where {L<:LossFunction}
-    (0 < τ < 1) || throw(DomainError(τ, "quantile should be a number between 0 and 1 excluded"))
+    (0 < τ < 1) ||
+        throw(DomainError(τ, "quantile should be a number between 0 and 1 excluded"))
     return GeneralizedQuantileEstimator{L}(l, float(τ))
 end
 function GeneralizedQuantileEstimator{L}(τ::Real=0.5) where {L<:LossFunction}
@@ -601,7 +611,9 @@ function ==(
     end
     return true
 end
-show(io::IO, obj::GeneralizedQuantileEstimator) = print(io, "MQuantile($(obj.τ), $(obj.loss))")
+function show(io::IO, obj::GeneralizedQuantileEstimator)
+    return print(io, "MQuantile($(obj.τ), $(obj.loss))")
+end
 loss(e::GeneralizedQuantileEstimator) = e.loss
 
 function Base.getproperty(r::GeneralizedQuantileEstimator, s::Symbol)
@@ -614,7 +626,8 @@ end
 
 function Base.setproperty!(r::GeneralizedQuantileEstimator, s::Symbol, v)
     if s ∈ (:tau, :q, :quantile)
-        (0 < v < 1) || throw(DomainError(v, "quantile should be a number between 0 and 1 excluded"))
+        (0 < v < 1) ||
+            throw(DomainError(v, "quantile should be a number between 0 and 1 excluded"))
         r.τ = float(v)
     else
         setfield!(r, s, v)
@@ -629,8 +642,12 @@ end
 # Forward all methods to the `loss` field
 rho(e::GeneralizedQuantileEstimator, r::Real) = quantile_weight(e.τ, r) * rho(e.loss, r)
 psi(e::GeneralizedQuantileEstimator, r::Real) = quantile_weight(e.τ, r) * psi(e.loss, r)
-psider(e::GeneralizedQuantileEstimator, r::Real) = quantile_weight(e.τ, r) * psider(e.loss, r)
-weight(e::GeneralizedQuantileEstimator, r::Real) = quantile_weight(e.τ, r) * weight(e.loss, r)
+function psider(e::GeneralizedQuantileEstimator, r::Real)
+    return quantile_weight(e.τ, r) * psider(e.loss, r)
+end
+function weight(e::GeneralizedQuantileEstimator, r::Real)
+    return quantile_weight(e.τ, r) * weight(e.loss, r)
+end
 function estimator_values(e::GeneralizedQuantileEstimator, r::Real)
     w = quantile_weight(e.τ, r)
     vals = estimator_values(e.loss, r)

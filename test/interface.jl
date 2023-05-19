@@ -32,7 +32,9 @@ est2 = MEstimator(loss2)
         name *= "$(method)"
 
         # use the dispersion from GLM to ensure that the nulldeviance/deviance is correct
-        m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm)
+        m = fit(
+            RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm
+        )
         β = copy(coef(m))
         VERBOSE && println("rlm($name): ", β)
         @test_nowarn println(m)
@@ -111,12 +113,19 @@ est2 = MEstimator(loss2)
 
         # TauEstimator interface
         m3 = fit(
-            RobustLinearModel, A, b, TauEstimator{TukeyLoss}(); method=method, initial_scale=λlm
+            RobustLinearModel,
+            A,
+            b,
+            TauEstimator{TukeyLoss}();
+            method=method,
+            initial_scale=λlm,
         )
         @test_nowarn tauscale(m3)
 
         # later fit!
-        m2 = fit(RobustLinearModel, A, b, est1; method=method, dofit=false, initial_scale=:mad)
+        m2 = fit(
+            RobustLinearModel, A, b, est1; method=method, dofit=false, initial_scale=:mad
+        )
         @test all(0 .== coef(m2))
         fit!(m2; verbose=false)
         @test all(β .== coef(m2))
@@ -131,12 +140,14 @@ est2 = MEstimator(loss2)
                     b_mod = NamedTuple(k => conv_func(v) for (k, v) in pairs(b))
                 elseif isa(b, DataFrame)
                     b_mod = DataFrame(
-                        Dict(k => (v = Tables.getcolumn(b, k);
-                        if eltype(v) <: Real
-                            conv_func(v)
-                        else
-                            v
-                        end) for k in Tables.columnnames(b))
+                        Dict(
+                            k => (v = Tables.getcolumn(b, k);
+                            if eltype(v) <: Real
+                                conv_func(v)
+                            else
+                                v
+                            end) for k in Tables.columnnames(b)
+                        ),
                     )
                 else
                     b_mod = nothing
@@ -155,7 +166,9 @@ est2 = MEstimator(loss2)
 
                     @test_nowarn fit(RobustLinearModel, A_mod, b, est1; dropmissing=true)
                     @test_nowarn fit(RobustLinearModel, A, b_mod, est1; dropmissing=true)
-                    @test_nowarn fit(RobustLinearModel, A_mod, b_mod, est1; dropmissing=true)
+                    @test_nowarn fit(
+                        RobustLinearModel, A_mod, b_mod, est1; dropmissing=true
+                    )
                 else
                     @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
                     @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)

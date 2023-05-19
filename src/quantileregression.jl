@@ -20,8 +20,9 @@ Quantile regression representation
 * `fitdispersion`: if true, the dispersion is estimated otherwise it is kept fixed
 * `fitted`: if true, the model was already fitted
 """
-mutable struct QuantileRegression{T<:AbstractFloat,M<:AbstractMatrix{T},V<:AbstractVector{T}} <:
-               AbstractRobustModel{T}
+mutable struct QuantileRegression{
+    T<:AbstractFloat,M<:AbstractMatrix{T},V<:AbstractVector{T}
+} <: AbstractRobustModel{T}
     τ::T
     X::M
     β::V
@@ -114,7 +115,8 @@ function StatsAPI.fit(
     end
 
     # Check quantile is an allowed value
-    (0 < quantile < 1) || error("quantile should be a number between 0 and 1 excluded: $(quantile)")
+    (0 < quantile < 1) ||
+        error("quantile should be a number between 0 and 1 excluded: $(quantile)")
 
     m = QuantileRegression(quantile, X, y, wts, __formula)
     return dofit ? fit!(m; fitargs...) : m
@@ -202,8 +204,9 @@ function StatsAPI.fit!(
 
     # Update quantile
     if !isnothing(quantile)
-        (0 < quantile < 1) ||
-            throw(DomainError(quantile, "quantile should be a number between 0 and 1 excluded"))
+        (0 < quantile < 1) || throw(
+            DomainError(quantile, "quantile should be a number between 0 and 1 excluded"),
+        )
         m.τ = quantile
     end
 
@@ -373,7 +376,10 @@ quantile densities and density quantiles.
 
 """
 function sparcity(
-    m::QuantileRegression; bw_method::Symbol=:jones, α::Real=0.05, kernel::Symbol=:epanechnikov
+    m::QuantileRegression;
+    bw_method::Symbol=:jones,
+    α::Real=0.05,
+    kernel::Symbol=:epanechnikov,
 )
     u = m.τ
     n = if isempty(m.wts)
@@ -480,7 +486,9 @@ function GLM.dispersion(m::QuantileRegression)
     end
 end
 
-StatsAPI.stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
+function StatsAPI.stderror(m::QuantileRegression)
+    return location_variance(m, false) .* sqrt.(diag(vcov(m)))
+end
 
 StatsAPI.weights(m::QuantileRegression) = m.wts
 
@@ -540,7 +548,9 @@ fullloglikelihood(m::QuantileRegression) = wobs(m) * log(m.τ * (1 - m.τ))
 
 StatsAPI.loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
 
-StatsAPI.nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m) / 2
+function StatsAPI.nullloglikelihood(m::QuantileRegression)
+    return fullloglikelihood(m) - nulldeviance(m) / 2
+end
 
 StatsAPI.modelmatrix(m::QuantileRegression) = m.X
 

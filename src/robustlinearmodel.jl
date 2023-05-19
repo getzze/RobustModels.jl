@@ -19,7 +19,9 @@ function StatsModels.hasintercept(m::AbstractRobustModel)
     return hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
 end
 
-StatsModels.responsename(m::AbstractRobustModel) = !hasformula(m) ? "y" : coefnames(formula(m).lhs)
+function StatsModels.responsename(m::AbstractRobustModel)
+    return !hasformula(m) ? "y" : coefnames(formula(m).lhs)
+end
 
 function StatsAPI.coefnames(m::AbstractRobustModel)
     if hasformula(m)
@@ -65,7 +67,11 @@ function StatsAPI.fit(
     dropmissing::Bool=false,
     kwargs...,
 ) where {
-    M<:AbstractRobustModel,T1<:Real,T2<:Real,M1<:Union{Missing,<:Real},M2<:Union{Missing,<:Real}
+    M<:AbstractRobustModel,
+    T1<:Real,
+    T2<:Real,
+    M1<:Union{Missing,<:Real},
+    M2<:Union{Missing,<:Real},
 }
     X_ismissing = eltype(X) >: Missing
     y_ismissing = eltype(y) >: Missing
@@ -159,14 +165,18 @@ It is consistent with the definition of the deviance for OLS.
 """
 StatsAPI.deviance(m::RobustLinearModel) = deviance(m.resp)
 
-StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m))
+function StatsAPI.nulldeviance(m::RobustLinearModel)
+    return nulldeviance(m.resp; intercept=hasintercept(m))
+end
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
 
 The dispersion is the (weighted) sum of robust residuals. If `sqr` is true, return the squared dispersion.
 """
-GLM.dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
+function GLM.dispersion(m::RobustLinearModel, sqr::Bool=false)
+    return dispersion(m.resp, dof_residual(m), sqr)
+end
 
 """
     coef(m::RobustLinearModel)
@@ -198,7 +208,9 @@ function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred}
     return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 end
 
-function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred}
+function StatsAPI.stderror(
+    m::RobustLinearModel{T,R,P}
+) where {T,R,P<:AbstractRegularizedPred}
     return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
 end
 
@@ -370,7 +382,9 @@ function update_fields!(
         if length(offset) in (0, n)
             copy!(resp.offset, offset)
         else
-            throw(ArgumentError("λ0 should be a vector of length 0 or $n: $(length(offset))"))
+            throw(
+                ArgumentError("λ0 should be a vector of length 0 or $n: $(length(offset))")
+            )
         end
     end
     if !isnothing(β0)
@@ -873,7 +887,9 @@ function _fit!(
     return m
 end
 
-function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]) where {T<:AbstractFloat}
+function setβ0!(
+    m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]
+) where {T<:AbstractFloat}
     r = m.resp
     p = m.pred
 
@@ -1008,8 +1024,9 @@ function pirls!(
         # Assert the deviance is positive (up to rounding error)
         @assert dev > -atol
 
-        verbose &&
-            println("deviance at step $i: $(@sprintf("%.4g", dev)), crit=$((devold - dev)/absdev)")
+        verbose && println(
+            "deviance at step $i: $(@sprintf("%.4g", dev)), crit=$((devold - dev)/absdev)",
+        )
 
         # Line search
         ## If the deviance isn't declining then half the step size
@@ -1017,7 +1034,8 @@ function pirls!(
         ## is unchanged except for rounding errors.
         while dev > devold + rtol * absdev
             f /= 2
-            f > minstepfac || error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
+            f > minstepfac ||
+                error("linesearch failed at iteration $(i) with beta0 = $(p.beta0)")
 
             dev = try
                 # Update μ and compute deviance with new f. Do not recompute ∇β
@@ -1088,7 +1106,9 @@ function pirls_Sestimate!(
     setinitη!(m)
 
     # Compute initial scale
-    sigold = scale(setη!(m; updatescale=true, verbose=verbose, sigma0=sigma0, fallback=maxσ))
+    sigold = scale(
+        setη!(m; updatescale=true, verbose=verbose, sigma0=sigma0, fallback=maxσ)
+    )
     installbeta!(p, 1)
     r.σ = sigold
 
@@ -1098,13 +1118,16 @@ function pirls_Sestimate!(
         local sig
 
         # Compute the change to β, update μ and compute deviance
-        sig = scale(setη!(m; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
+        sig = scale(
+            setη!(m; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ)
+        )
 
         # Assert the deviance is positive (up to rounding error)
         @assert sig > -atol
 
-        verbose &&
-            println("scale at step $i: $(@sprintf("%.4g", sig)), crit=$((sigold - sig)/sigold)")
+        verbose && println(
+            "scale at step $i: $(@sprintf("%.4g", sig)), crit=$((sigold - sig)/sigold)"
+        )
 
         # Line search
         ## If the scale isn't declining then half the step size
@@ -1212,13 +1235,16 @@ function pirls_τestimate!(
         local tau
 
         # Compute the change to β, update μ and compute deviance
-        tau = tauscale(setη!(m; updatescale=true, verbose=verbose, fallback=maxσ); verbose=verbose)
+        tau = tauscale(
+            setη!(m; updatescale=true, verbose=verbose, fallback=maxσ); verbose=verbose
+        )
 
         # Assert the deviance is positive (up to rounding error)
         @assert tau > -atol
 
-        verbose &&
-            println("scale at step $i: $(@sprintf("%.4g", tau)), crit=$((tauold - tau)/tauold)")
+        verbose && println(
+            "scale at step $i: $(@sprintf("%.4g", tau)), crit=$((tauold - tau)/tauold)"
+        )
 
         # Line search
         ## If the scale isn't declining then half the step size
@@ -1282,7 +1308,9 @@ is free of outlier, given that the ratio of outlier/clean data is ε.
 The number of data point per subsample is p, that should be at least
 equal to the degree of freedom.
 """
-resampling_minN(p::Int, α::Real=0.05, ε::Real=0.5) = ceil(Int, abs(log(α) / log(1 - (1 - ε)^p)))
+function resampling_minN(p::Int, α::Real=0.05, ε::Real=0.5)
+    return ceil(Int, abs(log(α) / log(1 - (1 - ε)^p)))
+end
 
 
 function resampling_initialcoef(m::RobustLinearModel, inds::AbstractVector{<:Integer})
@@ -1351,7 +1379,14 @@ function resampling_best_estimate(
 
         σi = 0
         for k in 1:Nsteps_β
-            setη!(m; updatescale=true, verbose=verbose, sigma0=:mad, nmax=Nsteps_σ, approx=true)
+            setη!(
+                m;
+                updatescale=true,
+                verbose=verbose,
+                sigma0=:mad,
+                nmax=Nsteps_σ,
+                approx=true,
+            )
 
             σi = if E <: TauEstimator
                 tauscale(m)

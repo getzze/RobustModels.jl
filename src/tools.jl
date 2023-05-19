@@ -76,7 +76,8 @@ function modelframe(
     f::FormulaTerm, data, contrasts::AbstractDict, dropmissing::Bool, ::Type{M}; kwargs...
 )::ModelFrameType where {M<:AbstractRobustModel}
     # Check is a Table
-    Tables.istable(data) || throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
+    Tables.istable(data) ||
+        throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
     t = Tables.columntable(data)
 
     # Check columns exist
