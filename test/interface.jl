@@ -19,13 +19,22 @@ est2 = MEstimator(loss2)
     VERBOSE && println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "(type, method): ($(typeof(A)),\t$(method))" for (A, b) in data_tuples, method in nopen_methods
-        name  = if A==form; "formula" elseif A==X; "dense  " else "sparse " end
-        name *= if method in (:cg, :qr); ",  " else "," end
+    @testset "$(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
+
+        name = if (A == form)
+            "formula"
+        elseif (A == X)
+            "dense  "
+        else
+            "sparse "
+        end
+        name *= (method in (:cg, :qr)) ? ",  " : ","
         name *= "$(method)"
 
         # use the dispersion from GLM to ensure that the nulldeviance/deviance is correct
-        m = fit(RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm)
+        m = fit(
+            RobustLinearModel, A, b, est1; method=method, verbose=false, initial_scale=λlm
+        )
         β = copy(coef(m))
         VERBOSE && println("rlm($name): ", β)
         @test_nowarn println(m)
@@ -58,14 +67,25 @@ est2 = MEstimator(loss2)
 
         # make sure the methods for RobustLinearModel are well defined
         @testset "method: $(f)" for f in interface_methods
-            if f in (weights, workingweights, islinear, isfitted, scale, wobs,
-                     leverage, leverage_weights, modelmatrix, projectionmatrix, hasformula)
+            if f in (
+                weights,
+                workingweights,
+                islinear,
+                isfitted,
+                scale,
+                wobs,
+                leverage,
+                leverage_weights,
+                modelmatrix,
+                projectionmatrix,
+                hasformula,
+            )
                 # method is not defined in GLM
                 @test_nowarn f(m)
             else
                 var = f(m1)
                 robvar = f(m)
-                if isa(var, Union{AbstractArray, Tuple})
+                if isa(var, Union{AbstractArray,Tuple})
                     if f != vcov
                         @test isapprox(var, robvar; rtol=1e-4)
                     end
@@ -82,8 +102,8 @@ est2 = MEstimator(loss2)
                     elseif f in (loglikelihood, nullloglikelihood)
                         ## TODO: should work
                         @test_broken isapprox(var, robvar; rtol=1e-4)
-#                        @test isapprox(var + log(λ), (robvar + RobustModels.fullloglikelihood(r)) * s^2/λ^2 - log(RobustModels.estimator_norm(r.est)); rtol=1e-4)
-#                        @test isapprox(var + log(dispersion(m1)), robvar + log(s); rtol=1e-4)
+                        # @test isapprox(var + log(λ), (robvar + RobustModels.fullloglikelihood(r)) * s^2/λ^2 - log(RobustModels.estimator_norm(r.est)); rtol=1e-4)
+                        # @test isapprox(var + log(dispersion(m1)), robvar + log(s); rtol=1e-4)
                     else
                         @test isapprox(var, robvar; rtol=1e-4)
                     end
@@ -92,29 +112,43 @@ est2 = MEstimator(loss2)
         end
 
         # TauEstimator interface
-        m3 = fit(RobustLinearModel, A, b, TauEstimator{TukeyLoss}(); method=method, initial_scale=λlm)
+        m3 = fit(
+            RobustLinearModel,
+            A,
+            b,
+            TauEstimator{TukeyLoss}();
+            method=method,
+            initial_scale=λlm,
+        )
         @test_nowarn tauscale(m3)
 
         # later fit!
-        m2 = fit(RobustLinearModel, A, b, est1; method=method, dofit=false, initial_scale=:mad)
+        m2 = fit(
+            RobustLinearModel, A, b, est1; method=method, dofit=false, initial_scale=:mad
+        )
         @test all(0 .== coef(m2))
         fit!(m2; verbose=false)
         @test all(β .== coef(m2))
 
         # Handle Missing values and non-real values
         @testset "Handling of $(typemod) values" for (typemod, conv_func) in (
-            ("missing", allowmissing),
-            ("complex", complex),
+            ("missing", allowmissing), ("complex", complex)
         )
             # check that Missing eltype is routed correctly
             if isa(A, FormulaTerm)
                 if isa(b, NamedTuple)
-                    b_mod = NamedTuple(k=>conv_func(v) for (k,v) in pairs(b))
+                    b_mod = NamedTuple(k => conv_func(v) for (k, v) in pairs(b))
                 elseif isa(b, DataFrame)
-                    b_mod = DataFrame(Dict(
-                        k=>(v=Tables.getcolumn(b, k); eltype(v) <: Real ? conv_func(v) : v)
-                        for k in Tables.columnnames(b)
-                    ))
+                    b_mod = DataFrame(
+                        Dict(
+                            k => (v = Tables.getcolumn(b, k);
+                            if eltype(v) <: Real
+                                conv_func(v)
+                            else
+                                v
+                            end) for k in Tables.columnnames(b)
+                        ),
+                    )
                 else
                     b_mod = nothing
                 end
@@ -132,7 +166,9 @@ est2 = MEstimator(loss2)
 
                     @test_nowarn fit(RobustLinearModel, A_mod, b, est1; dropmissing=true)
                     @test_nowarn fit(RobustLinearModel, A, b_mod, est1; dropmissing=true)
-                    @test_nowarn fit(RobustLinearModel, A_mod, b_mod, est1; dropmissing=true)
+                    @test_nowarn fit(
+                        RobustLinearModel, A_mod, b_mod, est1; dropmissing=true
+                    )
                 else
                     @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
                     @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
@@ -142,5 +178,3 @@ est2 = MEstimator(loss2)
         end
     end
 end
-
-

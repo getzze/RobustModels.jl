@@ -1,7 +1,7 @@
 
 @testset "Quantile regression: low-level function" begin
-    τs = range(0.1, 0.9, step=0.1)
-    βs = hcat(map(τ->RobustModels.interiormethod(X, y, τ)[1], τs)...)
+    τs = range(0.1, 0.9; step=0.1)
+    βs = hcat(map(τ -> RobustModels.interiormethod(X, y, τ)[1], τs)...)
     VERBOSE && println("Coefficients: $(vcat(τs', βs))")
     @test size(βs) == (size(X, 2), length(τs))
 end
@@ -10,7 +10,7 @@ end
 @testset "Quantile regression: fit method" begin
     τ = 0.5
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "Argument type: $(typeof(A))" for (A, b) in ((form, data), (form, nt), (X, y), (sX, y))
+    @testset "Argument type: $(typeof(A))" for (A, b) in data_tuples
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
         @test_nowarn println(m2)
@@ -45,7 +45,7 @@ end
             # check that Missing eltype is routed correctly
             if isa(A, FormulaTerm)
                 if isa(b, NamedTuple)
-                    b_missing = NamedTuple(k=>allowmissing(v) for (k,v) in pairs(b))
+                    b_missing = NamedTuple(k => allowmissing(v) for (k, v) in pairs(b))
                 elseif isa(b, DataFrame)
                     b_missing = allowmissing(b)
                 else
@@ -69,7 +69,7 @@ end
 end
 
 @testset "Quantile regression: different quantiles" begin
-    τs = range(0.1, 0.9, step=0.1)
+    τs = range(0.1, 0.9; step=0.1)
     m2 = fit(QuantileRegression, form, data; quantile=0.5, verbose=false)
 
     @testset "$(τ) quantile" for τ in τs
@@ -78,8 +78,8 @@ end
         β = coef(m1)
         res = residuals(m1)
         ## The quantile regression line exactly passes through p points, with p number of columns of X.
-        @test count(x->isapprox(x, 0; atol=1e-7), res) == length(β)
-#        @test count(iszero, res) == length(β)
+        @test count(x -> isapprox(x, 0; atol=1e-7), res) == length(β)
+        #        @test count(iszero, res) == length(β)
 
         # refit with new quantile
         refit!(m2; quantile=τ)
@@ -91,19 +91,23 @@ end
     m2 = fit(QuantileRegression, form, data; quantile=0.25, verbose=false)
     s = RobustModels.location_variance(m2, false)
 
-    τs = range(0.25, 0.75, step=0.25)
-    @testset "(q, method, kernel): $(τ), $(method), $(kernel)" for τ in τs, method in (:jones, :bofinger, :hall_sheather), kernel in (:epanechnikov, :triangle, :window)
+    τs = range(0.25, 0.75; step=0.25)
+    @testset "(q, method, kernel): $(τ), $(method), $(kernel)" for τ in τs,
+        method in (:jones, :bofinger, :hall_sheather),
+        kernel in (:epanechnikov, :triangle, :window)
+
         if τ != m2.τ
             refit!(m2; quantile=τ)
             s = RobustModels.location_variance(m2, false)
         end
 
-        si = RobustModels.location_variance(m2, false; bw_method=method, α=0.05, kernel=kernel)
-        if method==:jones && kernel==:epanechnikov
+        si = RobustModels.location_variance(
+            m2, false; bw_method=method, α=0.05, kernel=kernel
+        )
+        if method == :jones && kernel == :epanechnikov
             @test isapprox(s, si; rtol=1e-4)
         else
             @test !isapprox(s, si; rtol=1e-4)
         end
     end
 end
-

@@ -12,11 +12,16 @@ StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
 
 hasformula(m::AbstractRobustModel) = false
 
-StatsModels.formula(m::AbstractRobustModel)::FormulaTerm = throw(ArgumentError("model was fitted without a formula"))
+StatsModels.formula(m::AbstractRobustModel)::FormulaTerm =
+    throw(ArgumentError("model was fitted without a formula"))
 
-StatsModels.hasintercept(m::AbstractRobustModel) = hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
+function StatsModels.hasintercept(m::AbstractRobustModel)
+    return hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
+end
 
-StatsModels.responsename(m::AbstractRobustModel) = !hasformula(m) ? "y" : coefnames(formula(m).lhs)
+function StatsModels.responsename(m::AbstractRobustModel)
+    return !hasformula(m) ? "y" : coefnames(formula(m).lhs)
+end
 
 function StatsAPI.coefnames(m::AbstractRobustModel)
     if hasformula(m)
@@ -34,7 +39,7 @@ function StatsAPI.coeftable(m::AbstractRobustModel; level::Real=0.95)
     p = ccdf.(Ref(FDist(1, dof_residual(m))), abs2.(tt))
     levstr = isinteger(level * 100) ? string(Integer(level * 100)) : string(level * 100)
     cn = coefnames(m)
-    CoefTable(
+    return CoefTable(
         hcat(cc, se, tt, p, cc + ci, cc - ci),
         ["Coef.", "Std. Error", "t", "Pr(>|t|)", "Lower $(levstr)%", "Upper $(levstr)%"],
         cn,
@@ -45,7 +50,7 @@ end
 
 function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
     alpha = quantile(TDist(dof_residual(m)), (1 - level) / 2)
-    hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
+    return hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
 end
 
 ## TODO: specialize to make it faster
@@ -56,8 +61,8 @@ leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
 ## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T1}, AbstractMatrix{M1}},
-    y::Union{AbstractVector{T2}, AbstractVector{M2}},
+    X::Union{AbstractMatrix{T1},AbstractMatrix{M1}},
+    y::Union{AbstractVector{T2},AbstractVector{M2}},
     args...;
     dropmissing::Bool=false,
     kwargs...,
@@ -81,7 +86,7 @@ function StatsAPI.fit(
         X, y, _ = missing_omit(X, y)
     end
 
-    fit(M, float(X), float(y), args...; kwargs...)
+    return fit(M, float(X), float(y), args...; kwargs...)
 end
 
 ## Convert from formula-data to modelmatrix-response calling form
@@ -101,8 +106,7 @@ function StatsAPI.fit(
     # Extract arrays from data using formula
     f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
     # Call the `fit` method with arrays
-    fit(M, X, y, args...;
-        wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
+    return fit(M, X, y, args...; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
 end
 
 
@@ -124,9 +128,7 @@ Robust linear model representation
 * `fitted`: if true, the model was already fitted
 """
 mutable struct RobustLinearModel{
-    T<:AbstractFloat,
-    R<:RobustResp{T},
-    L<:Union{LinPred,AbstractRegularizedPred{T}},
+    T<:AbstractFloat,R<:RobustResp{T},L<:Union{LinPred,AbstractRegularizedPred{T}}
 } <: AbstractRobustModel{T}
     resp::R
     pred::L
@@ -141,7 +143,7 @@ function Base.show(io::IO, obj::RobustLinearModel)
         msg *= "$(formula(obj))\n\n"
     end
     msg *= "Coefficients:\n"
-    println(io, msg, coeftable(obj))
+    return println(io, msg, coeftable(obj))
 end
 
 
@@ -163,14 +165,18 @@ It is consistent with the definition of the deviance for OLS.
 """
 StatsAPI.deviance(m::RobustLinearModel) = deviance(m.resp)
 
-StatsAPI.nulldeviance(m::RobustLinearModel) = nulldeviance(m.resp; intercept=hasintercept(m))
+function StatsAPI.nulldeviance(m::RobustLinearModel)
+    return nulldeviance(m.resp; intercept=hasintercept(m))
+end
 
 """
     dispersion(m::RobustLinearModel, sqr::Bool=false)
 
 The dispersion is the (weighted) sum of robust residuals. If `sqr` is true, return the squared dispersion.
 """
-GLM.dispersion(m::RobustLinearModel, sqr::Bool=false) = dispersion(m.resp, dof_residual(m), sqr)
+function GLM.dispersion(m::RobustLinearModel, sqr::Bool=false)
+    return dispersion(m.resp, dof_residual(m), sqr)
+end
 
 """
     coef(m::RobustLinearModel)
@@ -198,15 +204,21 @@ The robust estimator object used to fit the model.
 """
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
 
-StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred} = 
-    location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred}
+    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+end
 
-StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:AbstractRegularizedPred} =
-    location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+function StatsAPI.stderror(
+    m::RobustLinearModel{T,R,P}
+) where {T,R,P<:AbstractRegularizedPred}
+    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+end
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
 
-StatsAPI.nullloglikelihood(m::RobustLinearModel) = nullloglikelihood(m.resp; intercept=hasintercept(m))
+function StatsAPI.nullloglikelihood(m::RobustLinearModel)
+    return nullloglikelihood(m.resp; intercept=hasintercept(m))
+end
 
 StatsAPI.weights(m::RobustLinearModel) = weights(m.resp)
 
@@ -289,9 +301,7 @@ for fun in (:vcov, :projectionmatrix, :leverage, :leverage_weights)
 end
 
 function StatsAPI.predict(
-    m::RobustLinearModel,
-    newX::AbstractMatrix;
-    offset::FPVector=eltype(newX)[],
+    m::RobustLinearModel, newX::AbstractMatrix; offset::FPVector=eltype(newX)[]
 )
     mu = newX * coef(m)
     if !isempty(m.resp.offset)
@@ -308,14 +318,15 @@ function StatsAPI.predict(
             throw(ArgumentError(mess))
         end
     end
-    mu
+    return mu
 end
 StatsAPI.predict(m::RobustLinearModel) = fitted(m)
 
 ### With RidgePred
 
-StatsAPI.dof(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred} =
-    tr(projectionmatrix(m.pred, workingweights(m.resp)))
+function StatsAPI.dof(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred}
+    return tr(projectionmatrix(m.pred, workingweights(m.resp)))
+end
 
 function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred}
     wXt = (workingweights(m.resp) .* modelmatrix(m.pred))'
@@ -371,7 +382,9 @@ function update_fields!(
         if length(offset) in (0, n)
             copy!(resp.offset, offset)
         else
-            throw(ArgumentError("λ0 should be a vector of length 0 or $n: $(length(offset))"))
+            throw(
+                ArgumentError("λ0 should be a vector of length 0 or $n: $(length(offset))")
+            )
         end
     end
     if !isnothing(β0)
@@ -591,8 +604,17 @@ function StatsAPI.fit(
     # Extract arrays from data using formula
     f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts, offset=offset)
     # Call the `fit` method with arrays
-    fit(M, X, y, args...;
-        wts=extra.wts, offset=extra.offset, contrasts=contrasts, __formula=f, kwargs...)
+    return fit(
+        M,
+        X,
+        y,
+        args...;
+        wts=extra.wts,
+        offset=extra.offset,
+        contrasts=contrasts,
+        __formula=f,
+        kwargs...,
+    )
 end
 
 
@@ -617,14 +639,16 @@ function refit!(m::RobustLinearModel, y::FPVector; kwargs...)
     r = m.resp
     # Check that old and new y have the same number of observations
     if size(r.y, 1) != size(y, 1)
-        mess = "the new response vector should have the same dimension: "*
-               "$(size(r.y, 1)) != $(size(y, 1))"
+        mess = (
+            "the new response vector should have the same dimension: " *
+            "$(size(r.y, 1)) != $(size(y, 1))"
+        )
         throw(DimensionMismatch(mess))
     end
     # Update y
     copyto!(r.y, y)
 
-    refit!(m; kwargs...)
+    return refit!(m; kwargs...)
 end
 
 function refit!(
@@ -636,8 +660,9 @@ function refit!(
 ) where {T}
 
     if !isnothing(method)
-        @warn("the method cannot be changed when refitting,"*
-              " ignore the keyword argument `method=:$(method)`."
+        @warn(
+            "the method cannot be changed when refitting, " *
+                "ignore the keyword argument `method=:$(method)`."
         )
     end
 
@@ -677,7 +702,7 @@ function refit!(
     initresp!(r)
 
     m.fitted = false
-    fit!(m; kwargs...)
+    return fit!(m; kwargs...)
 end
 
 
@@ -696,9 +721,7 @@ This function assumes that `m` was correctly initialized.
 This function returns early if the model was already fitted, instead call `refit!`.
 """
 function StatsAPI.fit!(
-    m::RobustLinearModel{T,R,P};
-    correct_leverage::Bool=false,
-    kwargs...,
+    m::RobustLinearModel{T,R,P}; correct_leverage::Bool=false, kwargs...
 ) where {T,R,P<:LinPred}
 
     # Return early if model has the fit flag set
@@ -718,16 +741,19 @@ function StatsAPI.fit!(
     _fit!(m, V; σ0=σ0, β0=β0, kwargs...)
 
     m.fitted = true
-    m
+    return m
 end
 
 ## Error message
 function _fit!(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:AbstractMEstimator}
-    allowed_estimators =
-        (MEstimator, SEstimator, MMEstimator, TauEstimator, GeneralizedQuantileEstimator)
-    mess = "only types $(allowed_estimators) are allowed, "*
-           "you must define the `_fit!` method for the type: $(E)"
-    error(mess)
+    allowed_estimators = (
+        MEstimator, SEstimator, MMEstimator, TauEstimator, GeneralizedQuantileEstimator
+    )
+    mess = (
+        "only types $(allowed_estimators) are allowed, " *
+        "you must define the `_fit!` method for the type: $(E)"
+    )
+    return error(mess)
 end
 
 # Fit M-estimator
@@ -745,7 +771,7 @@ function _fit!(
     pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
     ## TODO: update scale is fitdispersion is true
-    m
+    return m
 end
 
 # Fit Generalized M-Quantile estimator
@@ -763,7 +789,7 @@ function _fit!(
     pirls!(m; sigma0=σ0, beta0=β0, verbose=verbose, kwargs...)
 
     ## TODO: update scale if fitdispersion is true
-    m
+    return m
 end
 
 # Fit S-estimator
@@ -790,7 +816,7 @@ function _fit!(
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
 
-    m
+    return m
 end
 
 # Fit MM-estimator
@@ -831,7 +857,7 @@ function _fit!(
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
 
-    m
+    return m
 end
 
 # Fit τ-estimator
@@ -858,10 +884,12 @@ function _fit!(
     # Set the `fitdispersion` flag to true, because σ was estimated
     m.fitdispersion = true
 
-    m
+    return m
 end
 
-function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]) where {T<:AbstractFloat}
+function setβ0!(
+    m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]
+) where {T<:AbstractFloat}
     r = m.resp
     p = m.pred
 
@@ -875,7 +903,7 @@ function setβ0!(m::RobustLinearModel{T}, β0::AbstractVector{<:Real}=T[]) where
         fill!(p.delbeta, 0)
     end
 
-    m
+    return m
 end
 
 """
@@ -890,7 +918,7 @@ function setinitη!(m::RobustLinearModel{T}) where {T}
     linpred!(r.μ, p, 0)
     updateres!(r; updatescale=false)
 
-    m
+    return m
 end
 
 """
@@ -900,7 +928,7 @@ Use only for rough estimate, like in the resampling phase.
 """
 function setinitσ!(m::RobustLinearModel; kwargs...)
     m.resp.σ = madresidualscale(m.resp; kwargs...)
-    m
+    return m
 end
 
 """
@@ -912,10 +940,7 @@ The scaletype argument defines if the location or scale loss function should be 
 If updatescale is true, the scale is also updated along with the residuals.
 """
 function setη!(
-    m::RobustLinearModel{T,R,P},
-    f::T=1.0;
-    updatescale::Bool=false,
-    kwargs...,
+    m::RobustLinearModel{T,R,P}, f::T=1.0; updatescale::Bool=false, kwargs...
 ) where {T,R,P<:LinPred}
     r = m.resp
     p = m.pred
@@ -929,7 +954,7 @@ function setη!(
 
     # Update the residuals and weights (and scale if updatescale=true)
     updateres!(r; updatescale=updatescale, kwargs...)
-    m
+    return m
 end
 
 
@@ -1033,7 +1058,7 @@ function pirls!(
         devold = dev
     end
     cvg || throw(ConvergenceException(maxiter))
-    m
+    return m
 end
 
 
@@ -1081,8 +1106,9 @@ function pirls_Sestimate!(
     setinitη!(m)
 
     # Compute initial scale
-    sigold =
-        scale(setη!(m; updatescale=true, verbose=verbose, sigma0=sigma0, fallback=maxσ))
+    sigold = scale(
+        setη!(m; updatescale=true, verbose=verbose, sigma0=sigma0, fallback=maxσ)
+    )
     installbeta!(p, 1)
     r.σ = sigold
 
@@ -1092,14 +1118,15 @@ function pirls_Sestimate!(
         local sig
 
         # Compute the change to β, update μ and compute deviance
-        sig =
-            scale(setη!(m; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
+        sig = scale(
+            setη!(m; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ)
+        )
 
         # Assert the deviance is positive (up to rounding error)
         @assert sig > -atol
 
         verbose && println(
-            "scale at step $i: $(@sprintf("%.4g", sig)), crit=$((sigold - sig)/sigold)",
+            "scale at step $i: $(@sprintf("%.4g", sig)), crit=$((sigold - sig)/sigold)"
         )
 
         # Line search
@@ -1118,8 +1145,9 @@ function pirls_Sestimate!(
                 end
             end
             # Update μ and compute deviance with new f. Do not recompute ∇β
-            sig =
-                scale(setη!(m, f; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ))
+            sig = scale(
+                setη!(m, f; updatescale=true, verbose=verbose, sigma0=sigold, fallback=maxσ)
+            )
         end
 
         # Reset initial scale
@@ -1150,7 +1178,7 @@ function pirls_Sestimate!(
         sigold = sig
     end
     cvg || throw(ConvergenceException(maxiter))
-    m
+    return m
 end
 
 
@@ -1208,15 +1236,14 @@ function pirls_τestimate!(
 
         # Compute the change to β, update μ and compute deviance
         tau = tauscale(
-            setη!(m; updatescale=true, verbose=verbose, fallback=maxσ);
-            verbose=verbose,
+            setη!(m; updatescale=true, verbose=verbose, fallback=maxσ); verbose=verbose
         )
 
         # Assert the deviance is positive (up to rounding error)
         @assert tau > -atol
 
         verbose && println(
-            "scale at step $i: $(@sprintf("%.4g", tau)), crit=$((tauold - tau)/tauold)",
+            "scale at step $i: $(@sprintf("%.4g", tau)), crit=$((tauold - tau)/tauold)"
         )
 
         # Line search
@@ -1265,7 +1292,7 @@ function pirls_τestimate!(
         tauold = tau
     end
     cvg || throw(ConvergenceException(maxiter))
-    m
+    return m
 end
 
 
@@ -1282,7 +1309,7 @@ The number of data point per subsample is p, that should be at least
 equal to the degree of freedom.
 """
 function resampling_minN(p::Int, α::Real=0.05, ε::Real=0.5)
-    ceil(Int, abs(log(α) / log(1 - (1 - ε)^p)))
+    return ceil(Int, abs(log(α) / log(1 - (1 - ε)^p)))
 end
 
 

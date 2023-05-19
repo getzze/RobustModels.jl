@@ -68,8 +68,8 @@ DensePredQR
 PRED_QR_WARNING_ISSUED = false
 
 function qrpred(X::AbstractMatrix, pivot::Bool=false)
-    p = try
-        DensePredCG(Matrix(X), pivot)
+    try
+        return DensePredCG(Matrix(X), pivot)
     catch e
         if e isa MethodError
             # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
@@ -77,11 +77,11 @@ function qrpred(X::AbstractMatrix, pivot::Bool=false)
             if !PRED_QR_WARNING_ISSUED
                 @warn(
                     "GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined, " *
-                    "fallback to unpivoted QR. GLM version should be >= 1.9."
+                        "fallback to unpivoted QR. GLM version should be >= 1.9."
                 )
                 PRED_QR_WARNING_ISSUED = true
             end
-            DensePredCG(Matrix(X))
+            return DensePredCG(Matrix(X))
         else
             rethrow()
         end
@@ -112,33 +112,48 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     function DensePredCG{T}(X::Matrix{T}, beta0::Vector{T}) where {T}
         n, p = size(X)
         length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
-        new{T}(X, beta0, zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        return new{T}(
+            X,
+            beta0,
+            zeros(T, p),
+            zeros(T, (p, p)),
+            zeros(T, p),
+            zeros(T, (n, p)),
+            zeros(T, n),
+        )
     end
     function DensePredCG{T}(X::Matrix{T}) where {T}
         n, p = size(X)
-        new{T}(X, zeros(T, p), zeros(T, p), zeros(T, (p, p)), zeros(T, p), zeros(T, (n, p)), zeros(T, n))
+        return new{T}(
+            X,
+            zeros(T, p),
+            zeros(T, p),
+            zeros(T, (p, p)),
+            zeros(T, p),
+            zeros(T, (n, p)),
+            zeros(T, n),
+        )
     end
 end
 DensePredCG(X::Matrix, beta0::Vector) = DensePredCG{eltype(X)}(X, beta0)
 DensePredCG(X::Matrix{T}) where {T} = DensePredCG{T}(X, zeros(T, size(X, 2)))
-Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T} =
-    DensePredCG{T}(X, zeros(T, size(X, 2)))
+function Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T}
+    return DensePredCG{T}(X, zeros(T, size(X, 2)))
+end
 
 # Compatibility with cholpred(X, pivot)
 cgpred(X, pivot::Bool) = cgpred(X)
 cgpred(X::StridedMatrix) = DensePredCG(X)
 
 function delbeta!(
-    p::DensePredCG{T},
-    r::AbstractVector{T},
-    wt::AbstractVector{T},
+    p::DensePredCG{T}, r::AbstractVector{T}, wt::AbstractVector{T}
 ) where {T<:BlasReal}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     mul!(p.Σ, scr, p.X)
     mul!(p.scratchbeta, transpose(p.scratchm1), r)
     # Solve the linear system
     cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
-    p
+    return p
 end
 
 function delbeta!(p::DensePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}
@@ -171,29 +186,21 @@ end
 function SparsePredCG(X::SparseMatrixCSC{T}) where {T}
     n, p = size(X)
     return SparsePredCG{eltype(X),typeof(X)}(
-        X,
-        zeros(T, p),
-        zeros(T, p),
-        zeros(T, (p, p)),
-        zeros(T, p),
-        similar(X),
-        zeros(T, n),
+        X, zeros(T, p), zeros(T, p), zeros(T, (p, p)), zeros(T, p), similar(X), zeros(T, n)
     )
 end
 
 cgpred(X::SparseMatrixCSC) = SparsePredCG(X)
 
 function delbeta!(
-    p::SparsePredCG{T},
-    r::AbstractVector{T},
-    wt::AbstractVector{T},
+    p::SparsePredCG{T}, r::AbstractVector{T}, wt::AbstractVector{T}
 ) where {T<:BlasReal}
     scr = transpose(broadcast!(*, p.scratchm1, wt, p.X))
     mul!(p.Σ, scr, p.X)
     mul!(p.scratchbeta, transpose(p.scratchm1), r)
     # Solve the linear system
     cg!(p.delbeta, Hermitian(p.Σ, :U), p.scratchbeta)
-    p
+    return p
 end
 
 function delbeta!(p::SparsePredCG{T}, r::AbstractVector{T}) where {T<:BlasReal}

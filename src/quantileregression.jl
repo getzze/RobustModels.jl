@@ -1,6 +1,6 @@
 
 
-import Tulip
+using Tulip: Tulip
 
 
 """
@@ -21,9 +21,7 @@ Quantile regression representation
 * `fitted`: if true, the model was already fitted
 """
 mutable struct QuantileRegression{
-    T<:AbstractFloat,
-    M<:AbstractMatrix{T},
-    V<:AbstractVector{T},
+    T<:AbstractFloat,M<:AbstractMatrix{T},V<:AbstractVector{T}
 } <: AbstractRobustModel{T}
     τ::T
     X::M
@@ -36,18 +34,14 @@ mutable struct QuantileRegression{
     fitted::Bool
 
     function QuantileRegression(
-        τ::T,
-        X::M,
-        y::V,
-        wts::V,
-        formula::Union{FormulaTerm,Nothing},
+        τ::T, X::M, y::V, wts::V, formula::Union{FormulaTerm,Nothing}
     ) where {V<:AbstractVector{T},M<:AbstractMatrix{T}} where {T<:AbstractFloat}
         n = length(y)
         m, p = size(X)
         ll = length(wts)
         ll == 0 || ll == n || error("length of wts is $ll, must be $n or 0")
         m == n || error("X has $m rows, must be like y, $n")
-        new{T,M,V}(τ, X, zeros(T, p), y, wts, similar(y), formula, false, false)
+        return new{T,M,V}(τ, X, zeros(T, p), y, wts, similar(y), formula, false, false)
     end
 end
 
@@ -58,7 +52,7 @@ function Base.show(io::IO, obj::QuantileRegression)
         msg *= "$(formula(obj))\n\n"
     end
     msg *= "Coefficients:\n"
-    println(io, msg, coeftable(obj))
+    return println(io, msg, coeftable(obj))
 end
 
 """
@@ -151,7 +145,7 @@ function refit!(m::QuantileRegression, y::FPVector; kwargs...)
     end
     copyto!(m.y, y)
 
-    refit!(m; kwargs...)
+    return refit!(m; kwargs...)
 end
 
 function refit!(
@@ -175,7 +169,7 @@ function refit!(
     end
 
     m.fitted = false
-    fit!(m; kwargs...)
+    return fit!(m; kwargs...)
 end
 
 
@@ -219,13 +213,15 @@ function StatsAPI.fit!(
     interiormethod!(m.β, m.wrkres, m.X, m.y, m.τ; wts=m.wts, verbose=verbose)
 
     m.fitted = true
-    m
+    return m
 end
 
 
-function interiormethod(X::AbstractMatrix{T}, y::AbstractVector{T}, τ::T; kwargs...) where {T<:AbstractFloat}
+function interiormethod(
+    X::AbstractMatrix{T}, y::AbstractVector{T}, τ::T; kwargs...
+) where {T<:AbstractFloat}
     n, p = size(X)
-    interiormethod!(zeros(T, p), zeros(T, n), X, y, τ; kwargs...)
+    return interiormethod!(zeros(T, p), zeros(T, n), X, y, τ; kwargs...)
 end
 
 function interiormethod!(
@@ -247,13 +243,13 @@ function interiormethod!(
     u = Vector{Int}(undef, n)
     v = Vector{Int}(undef, n)
     for i in 1:p
-        β[i] = Tulip.add_variable!(pb, Int[], T[], 0.0 , -Inf , Inf, "β$i")
+        β[i] = Tulip.add_variable!(pb, Int[], T[], 0.0, -Inf, Inf, "β$i")
     end
     for i in 1:n
-        u[i] = Tulip.add_variable!(pb, Int[], T[], τ   ,  0.0 , Inf, "u$i")
+        u[i] = Tulip.add_variable!(pb, Int[], T[], τ, 0.0, Inf, "u$i")
     end
     for i in 1:n
-        v[i] = Tulip.add_variable!(pb, Int[], T[], 1-τ ,  0.0 , Inf, "v$i")
+        v[i] = Tulip.add_variable!(pb, Int[], T[], 1 - τ, 0.0, Inf, "v$i")
     end
     #    @variable(model, β[1:p])
     #    @variable(model, u[1:n] >= 0)
@@ -292,7 +288,7 @@ function interiormethod!(
         println("coef: ", βout)
         println("res: ", rout)
     end
-    βout, rout
+    return βout, rout
 end
 
 _objective(r::AbstractFloat, τ::AbstractFloat) = (τ - (r < 0)) * r
@@ -307,7 +303,7 @@ function hall_sheather_bandwidth(q::Real, n::Int, α::Real=0.05)
     zq = quantile(Normal(), q)
     f = pdf(Normal(), zq)
     r = f^2 / (2 * zq^2 + 1)
-    (zα^2 * 1.5 * r / n)^(1 / 5)
+    return (zα^2 * 1.5 * r / n)^(1 / 5)
 end
 
 
@@ -337,16 +333,14 @@ function jones_bandwidth(q::Real, n::Int; kernel=:epanechnikov)
     zq = quantile(Normal(), q)
     f = pdf(Normal(), zq)
     r = f^2 / (2 * zq^2 + 1)
-    (kk * r^2 / n)^(1 / 5)
+    return (kk * r^2 / n)^(1 / 5)
 end
 
 """
     bofinger_bandwidth()
 Optimal bandwidth for sparsity estimation according to Bofinger (1975)
 """
-function bofinger_bandwidth(q::Real, n::Int)
-    return jones_bandwidth(q, n; kernel=:window)
-end
+bofinger_bandwidth(q::Real, n::Int) = jones_bandwidth(q, n; kernel=:window)
 
 
 function epanechnikov_kernel(x::Real)
@@ -403,7 +397,7 @@ function sparcity(
         hall_sheather_bandwidth(u, n, α)
     else
         error(
-            "only :jones, :bofinger and :hall_sheather methods for estimating the"*
+            "only :jones, :bofinger and :hall_sheather methods for estimating the" *
             " optimal bandwidth are allowed: $(bw_method)",
         )
     end
@@ -431,13 +425,13 @@ function sparcity(
         if i == 1
             s0 += r[i] / h * k(u / h)
         else
-            s0 += (r[i] - r[i-1]) / h * k((u - (i - 1) / n) / h)
+            s0 += (r[i] - r[i - 1]) / h * k((u - (i - 1) / n) / h)
             if i == lastindex(r)
                 s0 += r[i] / h * k((u - 1) / h)
             end
         end
     end
-    s0
+    return s0
 end
 
 function location_variance(
@@ -492,7 +486,9 @@ function GLM.dispersion(m::QuantileRegression)
     end
 end
 
-StatsAPI.stderror(m::QuantileRegression) = location_variance(m, false) .* sqrt.(diag(vcov(m)))
+function StatsAPI.stderror(m::QuantileRegression)
+    return location_variance(m, false) .* sqrt.(diag(vcov(m)))
+end
 
 StatsAPI.weights(m::QuantileRegression) = m.wts
 
@@ -541,7 +537,7 @@ function StatsAPI.nulldeviance(m::QuantileRegression)
             dev += 2 * m.wts[i] * _objective(m.y[i] - μ, m.τ)
         end
     end
-    dev
+    return dev
 end
 
 StatsAPI.deviance(m::QuantileRegression) = 2 * sum(_objective.(m.wrkres, Ref(m.τ)))
@@ -552,7 +548,9 @@ fullloglikelihood(m::QuantileRegression) = wobs(m) * log(m.τ * (1 - m.τ))
 
 StatsAPI.loglikelihood(m::QuantileRegression) = fullloglikelihood(m) - deviance(m) / 2
 
-StatsAPI.nullloglikelihood(m::QuantileRegression) = fullloglikelihood(m) - nulldeviance(m) / 2
+function StatsAPI.nullloglikelihood(m::QuantileRegression)
+    return fullloglikelihood(m) - nulldeviance(m) / 2
+end
 
 StatsAPI.modelmatrix(m::QuantileRegression) = m.X
 
@@ -567,5 +565,3 @@ function projectionmatrix(m::QuantileRegression)
     wXt = isempty(weights(m)) ? X' : (X .* weights(m))'
     return Hermitian(X * vcov(m) * wXt)
 end
-
-
