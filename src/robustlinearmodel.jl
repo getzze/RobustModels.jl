@@ -662,7 +662,7 @@ function refit!(
     if !isnothing(method)
         @warn(
             "the method cannot be changed when refitting, " *
-            "ignore the keyword argument `method=:$(method)`."
+                "ignore the keyword argument `method=:$(method)`."
         )
     end
 
