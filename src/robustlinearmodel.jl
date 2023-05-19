@@ -625,9 +625,10 @@ function refit!(m::RobustLinearModel, y::FPVector; kwargs...)
     r = m.resp
     # Check that old and new y have the same number of observations
     if size(r.y, 1) != size(y, 1)
-        mess =
+        mess = (
             "the new response vector should have the same dimension: " *
             "$(size(r.y, 1)) != $(size(y, 1))"
+        )
         throw(DimensionMismatch(mess))
     end
     # Update y
@@ -646,8 +647,8 @@ function refit!(
 
     if !isnothing(method)
         @warn(
-            "the method cannot be changed when refitting," *
-                " ignore the keyword argument `method=:$(method)`."
+            "the method cannot be changed when refitting, " *
+            "ignore the keyword argument `method=:$(method)`."
         )
     end
 
@@ -734,9 +735,10 @@ function _fit!(m::RobustLinearModel, ::Type{E}; kwargs...) where {E<:AbstractMEs
     allowed_estimators = (
         MEstimator, SEstimator, MMEstimator, TauEstimator, GeneralizedQuantileEstimator
     )
-    mess =
+    mess = (
         "only types $(allowed_estimators) are allowed, " *
         "you must define the `_fit!` method for the type: $(E)"
+    )
     return error(mess)
 end
 

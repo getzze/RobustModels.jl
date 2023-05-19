@@ -79,9 +79,11 @@ function scale_estimate(
     end
 
     if !approx
-        converged || @warn "the M-scale did not converge, consider increasing the maximum" *
+        converged || @warn(
+            "the M-scale did not converge, consider increasing the maximum" *
             " number of iterations nmax=$(nmax) or starting with a better" *
             " initial value σ0=$(σ0). Return the current estimate: $(σn)"
+        )
     end
 
     return σn
@@ -164,10 +166,10 @@ function scale_estimate(
 
     if !approx && !converged
         @warn(
-            "the M-scale did not converge ε=$(round(abs(ε-1); digits=5))," *
-                " consider increasing the maximum number of iterations nmax=$(nmax)" *
-                " or starting with a better initial value σ0=$(σ0)." *
-                " Return the current estimate: $(σn)"
+            "the M-scale did not converge ε=$(round(abs(ε-1); digits=5)), " *
+            "consider increasing the maximum number of iterations nmax=$(nmax) " *
+            "or starting with a better initial value σ0=$(σ0). " *
+            "Return the current estimate: $(σn)"
         )
     end
     return σn

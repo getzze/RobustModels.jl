@@ -726,9 +726,10 @@ function CompositeLossFunction(loss1::LossFunction, loss2::LossFunction, α1::Re
 end
 
 function show(io::IO, e::CompositeLossFunction)
-    mess =
-        "CompositeLossFunction $(round(e.α1; digits=2)) ." *
-        " $(e.loss1) + $(round(e.α2; digits=2)) . $(e.loss2)"
+    mess = (
+        "CompositeLossFunction $(round(e.α1; digits=2)) . $(e.loss1) " *
+        "+ $(round(e.α2; digits=2)) . $(e.loss2)"
+    )
     return print(io, mess)
 end
 

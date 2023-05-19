@@ -185,7 +185,7 @@ function initialscale(
         error("only $(join(allowed_methods, ", ", " and ")) methods are allowed")
     end
     if σ <= 0
-        #        @warn "initial scale estimation with :$(method) gave $(σ) <= 0, set to 2*eps($(eltype(y))) instead."
+        # @warn "initial scale estimation with :$(method) gave $(σ) <= 0, set to 2*eps($(eltype(y))) instead."
         σ = 2 * eps(eltype(y))
     end
     return σ
