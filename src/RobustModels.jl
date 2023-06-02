@@ -1,5 +1,7 @@
 module RobustModels
 
+using Pkg: Pkg
+
 include("compat.jl")
 
 # Use README as the docstring of the module and doctest README
@@ -10,10 +12,10 @@ end RobustModels
 
 # Import with `using` to use the module names to prefix the methods
 # that are extended from these modules
-using GLM
-using StatsAPI
-using StatsBase
-using StatsModels
+using GLM: GLM
+using StatsAPI: StatsAPI
+using StatsBase: StatsBase
+using StatsModels: StatsModels
 
 ## Import to implement new methods
 import Base:
@@ -32,14 +34,27 @@ import StatsModels:
 using Distributions: ccdf, pdf, quantile, Normal, Chisq, TDist, FDist
 using SparseArrays: SparseMatrixCSC, spdiagm
 using LinearAlgebra: dot, tr, I, UniformScaling, rmul!, lmul!, mul!, BlasReal, Hermitian, transpose, 
-    inv, diag, diagm, ldiv!
+    inv, diag, diagm, Diagonal, rank, qr, ldiv!
 
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
 using GLM: FPVector, lm, SparsePredChol, DensePredChol, DensePredQR
-using StatsBase: AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
-using StatsModels: @delegate, @formula, RegressionModel, FormulaTerm, ModelFrame, modelcols,
-    apply_schema, schema, checknamesexist, checkcol, termvars
+using StatsBase:
+    AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
+using StatsModels:
+    @delegate,
+    @formula,
+    formula,
+    RegressionModel,
+    FormulaTerm,
+    InterceptTerm,
+    ModelFrame,
+    modelcols,
+    apply_schema,
+    schema,
+    checknamesexist,
+    checkcol,
+    termvars
 using IterativeSolvers: cg!
 using Tables
 using Roots: find_zero, Order1, ConvergenceFailed
@@ -185,6 +200,7 @@ abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
+
 
 include("tools.jl")
 include("losses.jl")
