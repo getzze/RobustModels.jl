@@ -103,7 +103,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
                 else
                     # adjoint of X so R is square
                     # cannot use in-place qr!
-                    F = qr(X)
+                    F = qr(X')
                 end
             end
 

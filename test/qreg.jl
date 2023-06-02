@@ -13,7 +13,7 @@ end
     @testset "Argument type: $(typeof(A))" for (A, b) in data_tuples
         m1 = fit(QuantileRegression, A, b; quantile=τ, verbose=false)
         m2 = quantreg(A, b; quantile=τ, verbose=false)
-        @test_nowarn println(m2)
+        @test_nowarn show(devnull, m2)
         @test all(coef(m1) .== coef(m2))
 
         # make sure that it is not a TableRegressionModel
@@ -74,7 +74,7 @@ end
 
     @testset "$(τ) quantile" for τ in τs
         m1 = fit(QuantileRegression, form, data; quantile=τ, verbose=false)
-        @test_nowarn println(m1)
+        @test_nowarn show(devnull, m1)
         β = coef(m1)
         res = residuals(m1)
         ## The quantile regression line exactly passes through p points, with p number of columns of X.
