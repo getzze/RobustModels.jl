@@ -50,44 +50,100 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 #    beta0
 #end
 
-"""
-    DensePredQR
 
-A `LinPred` type with a dense, unpivoted QR decomposition of `X`
+##########################################
+######  DensePredQR
+##########################################
 
-# Members
-
-- `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
-- `beta0`: base coefficient vector of length `p`
-- `delbeta`: increment to coefficient vector, also of length `p`
-- `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
-- `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
-"""
-DensePredQR
-
-function get_pkg_version(m::Module)
-    toml = Pkg.TOML.parsefile(joinpath(pkgdir(m), "Project.toml"))
-    return VersionNumber(toml["version"])
-end
-
-@static if get_pkg_version(GLM) < v"1.9"
+#@static if get_pkg_version(GLM) < v"1.9"
+@static if true
     @warn(
-        "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined, " *
-            "fallback to unpivoted QR. GLM version should be >= 1.9."
+        "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
+            "fallback to unpivoted RobustModels.DensePredQR definition. " *
+            "To use pivoted QR, GLM version should be greater than or equal to v1.9."
     )
+
+    using LinearAlgebra: QRCompactWY, QRPivoted, Diagonal, qr!, qr
+
+    """
+        DensePredQR
+
+    A `LinPred` type with a dense QR decomposition of `X`
+
+    # Members
+
+    - `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
+    - `beta0`: base coefficient vector of length `p`
+    - `delbeta`: increment to coefficient vector, also of length `p`
+    - `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
+    - `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
+    - `scratchm1`: scratch Matrix{T} of the same size as `X`
+    - `scratchm2`: scratch Matrix{T} of the same size as `X`
+    - `scratchR`: scratch Matrix{T} of the same size as `qr.R`, a square matrix.
+    """
+    mutable struct DensePredQR{T<:BlasReal,Q<:Union{QRCompactWY,QRPivoted}} <: DensePred
+        X::Matrix{T}                  # model matrix
+        beta0::Vector{T}              # base coefficient vector
+        delbeta::Vector{T}            # coefficient increment
+        scratchbeta::Vector{T}
+        qr::Q
+        scratchm1::Matrix{T}
+        scratchm2::Matrix{T}
+        scratchR::Matrix{T}
+
+        function DensePredQR(X::AbstractMatrix, pivot::Bool=false)
+            n, p = size(X)
+            T = typeof(float(zero(eltype(X))))
+
+            if false
+#            if pivot
+                F = pivoted_qr!(copy(X))
+            else
+                if n >= p
+                    F = qr(X)
+                else
+                    # adjoint of X so R is square
+                    # cannot use in-place qr!
+                    F = qr(X)
+                end
+            end
+
+            new{T,typeof(F)}(
+                Matrix{T}(X),
+                zeros(T, p),
+                zeros(T, p),
+                zeros(T, p),
+                F,
+                similar(X, T),
+                similar(X, T),
+                zeros(T, size(F.R)),
+            )
+        end
+    end
 
     # GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined
     function qrpred(X::AbstractMatrix, pivot::Bool=false)
         DensePredQR(Matrix(X))
     end
 
+    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}) is ill-defined
+    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}) where T<:BlasReal
+        n, m = size(p.X)
+        if n >= m
+            p.delbeta = p.qr \ r
+        else
+            p.delbeta = p.qr' \ r
+        end
+        return p
+    end
+
     # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) is not defined
-    function delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
+    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
         rnk = rank(p.qr.R)
         X = p.X
         W = Diagonal(wt)
         sqrtW = Diagonal(sqrt.(wt))
-        scratchm1 = similar(X, T)
+        scratchm1 = p.scratchm1 = similar(X, T)
         mul!(scratchm1, sqrtW, X)
 
         n, m = size(X)
@@ -95,10 +151,10 @@ end
             # W½ X = Q R  , with Q'Q = I
             # X'WX β = X'y  =>  R'Q'QR β = X'y
             # => β = R⁻¹ R⁻ᵀ X'y
-            qnr = qr(scratchm1)
-            Rinv = inv(qnr.R)
+            qnr = p.qr = qr(scratchm1)
+            Rinv = p.scratchR = inv(qnr.R)
 
-            scratchm2 = similar(X, T)
+            scratchm2 = p.scratchm2 = similar(X, T)
             mul!(scratchm2, W, X)
             mul!(p.delbeta, transpose(scratchm2), r)
 
@@ -107,33 +163,28 @@ end
             # (W½ X)' = Q R  , with Q'Q = I
             # W½X β = W½y  =>  R'Q' β = y
             # => β = Q . [R⁻ᵀ y; 0]
-            qnr = qr(scratchm1')
-            RTinv = inv(qnr.R)'
+            qnrT = p.qr = qr(scratchm1')
+            RTinv = p.scratchR = inv(qnrT.R)'
             @assert 1 <= n <= size(p.delbeta, 1)
             mul!(view(p.delbeta, 1:n), RTinv, r)
             p.delbeta = zeros(size(p.delbeta))
             p.delbeta[1:n] .= RTinv * r
-            lmul!(qnr.Q, p.delbeta)
+            lmul!(qnrT.Q, p.delbeta)
         end
         return p
     end
 
-    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}) is ill-defined
-    function delbeta!(p::DensePredQR{T}, r::Vector{T}) where T<:BlasReal
-        n, m = size(p.X)
-        if n >= m
-            p.delbeta = p.qr \ r
-        else
-            qnrT = qr(p.X')
-            p.delbeta = qnrT' \ r
-        end
-        return p
-    end
 
+## Use DensePredQR from GLM
 else
-    qrpred(X::AbstractMatrix, pivot::Bool=false) = DensePredQR(Matrix(X), pivot)
+    using GLM: DensePredQR
+    import GLM: qrpred
 end
 
+
+##########################################
+######  [Dense/Sparse]PredCG
+##########################################
 
 """
     DensePredCG

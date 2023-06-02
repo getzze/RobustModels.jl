@@ -33,12 +33,12 @@ est2 = MEstimator(loss2)
         kwargs = (; method=method, initial_scale=:L1)
         # use the dispersion from GLM to ensure that the loglikelihood is correct
         m2 = fit(RobustLinearModel, A, b, est; kwargs...)
-        m3 = fit(RobustLinearModel, A, b, est; ridgeλ=1, kwargs...)
+        m3 = fit(RobustLinearModel, A, b, est; ridgeλ=10, kwargs...)
         m4 = fit(
-            RobustLinearModel, A, b, est; ridgeλ=1, ridgeG=float([0 0; 0 1]), kwargs...
+            RobustLinearModel, A, b, est; ridgeλ=10, ridgeG=float([0 0; 0 1]), kwargs...
         )
         m5 = fit(RobustLinearModel, A, b, est; ridgeλ=0.1, ridgeG=[0, 1], kwargs...)
-        m6 = rlm(A, b, est; ridgeλ=1, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
+        m6 = rlm(A, b, est; ridgeλ=10, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
 
         VERBOSE && println("\n\t\u25CF Estimator: $(name)")
         VERBOSE && println(" lm$(aspace)               : ", coef(m1))
@@ -53,9 +53,9 @@ est2 = MEstimator(loss2)
         @test_nowarn println(m3)
 
         # refit
-        refit!(m5; ridgeλ=1, initial_scale=:L1)
-        @test isapprox(m5.pred.λ, 1.0; rtol=1e-5)
-        @test isapprox(coef(m3), coef(m5); rtol=1e-5)
+        refit!(m5; ridgeλ=10, initial_scale=:L1)
+        @test isapprox(m5.pred.λ, 10.0; rtol=1e-5)
+        @test isapprox(coef(m3), coef(m5); rtol=1e-6)
     end
 end
 

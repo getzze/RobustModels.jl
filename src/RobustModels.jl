@@ -75,14 +75,12 @@ using LinearAlgebra:
     inv,
     diag,
     diagm,
-    Diagonal,
     rank,
-    qr,
     ldiv!
 
 using Random: AbstractRNG, GLOBAL_RNG
 using Printf: @printf, @sprintf
-using GLM: FPVector, lm, SparsePredChol, DensePredChol, DensePredQR
+using GLM: FPVector, lm, SparsePredChol, DensePredChol
 using StatsBase:
     AbstractWeights, CoefTable, ConvergenceException, median, mad, mad_constant, sample
 using StatsModels:
