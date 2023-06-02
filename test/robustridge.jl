@@ -38,9 +38,7 @@ est2 = MEstimator(loss2)
             RobustLinearModel, A, b, est; ridgeλ=10, ridgeG=float([0 0; 0 1]), kwargs...
         )
         m5 = fit(RobustLinearModel, A, b, est; ridgeλ=0.1, ridgeG=[0, 1], kwargs...)
-        m6 = rlm(
-            A, b, est; ridgeλ=0.1, ridgeG=[0, 1], dropcollinear=true, kwargs...
-        )
+        m6 = rlm(A, b, est; ridgeλ=0.1, ridgeG=[0, 1], dropcollinear=true, kwargs...)
         m7 = rlm(A, b, est; ridgeλ=10, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
 
         VERBOSE && println("\n\t\u25CF Estimator: $(name)")
