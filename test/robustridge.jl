@@ -38,15 +38,19 @@ est2 = MEstimator(loss2)
             RobustLinearModel, A, b, est; ridgeλ=10, ridgeG=float([0 0; 0 1]), kwargs...
         )
         m5 = fit(RobustLinearModel, A, b, est; ridgeλ=0.1, ridgeG=[0, 1], kwargs...)
-        m6 = rlm(A, b, est; ridgeλ=10, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
+        m6 = rlm(
+            A, b, est; ridgeλ=0.1, ridgeG=[0, 1], dropcollinear=true, kwargs...
+        )
+        m7 = rlm(A, b, est; ridgeλ=10, ridgeG=[0, 1], βprior=[0.0, 2.0], kwargs...)
 
         VERBOSE && println("\n\t\u25CF Estimator: $(name)")
         VERBOSE && println(" lm$(aspace)               : ", coef(m1))
         VERBOSE && println("rlm($(method))             : ", coef(m2))
-        VERBOSE && println("ridge λ=1   rlm3($(method)): ", coef(m3))
-        VERBOSE && println("ridge λ=1   rlm4($(method)): ", coef(m4))
+        VERBOSE && println("ridge λ=10  rlm3($(method)): ", coef(m3))
+        VERBOSE && println("ridge λ=10  rlm4($(method)): ", coef(m4))
         VERBOSE && println("ridge λ=0.1 rlm5($(method)): ", coef(m5))
-        VERBOSE && println("ridge λ=1 βprior=[0,2] rlm6($(method)): ", coef(m6))
+        VERBOSE && println("ridge λ=0.1 dropcollinear=true rlm6($(method)): ", coef(m6))
+        VERBOSE && println("ridge λ=10 βprior=[0,2] rlm7($(method)): ", coef(m7))
         @test isapprox(coef(m3), coef(m4); rtol=1e-5)
 
         # Test printing the model
@@ -56,6 +60,10 @@ est2 = MEstimator(loss2)
         refit!(m5; ridgeλ=10, initial_scale=:L1)
         @test isapprox(m5.pred.λ, 10.0; rtol=1e-5)
         @test isapprox(coef(m3), coef(m5); rtol=1e-6)
+
+        refit!(m6; ridgeλ=10, initial_scale=:L1)
+        @test isapprox(m6.pred.λ, 10.0; rtol=1e-5)
+        @test isapprox(coef(m3), coef(m6); rtol=1e-6)
     end
 end
 

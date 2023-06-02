@@ -70,7 +70,7 @@ loss2 = RobustModels.TukeyLoss()
         VERBOSE && println("rlm(qr): ", coef(m4))
 
         if name == "Expectile"
-            @test_nowarn println(m2)
+            @test_nowarn show(devnull, m2)
 
             @test isapprox(coef(m2), coef(m3); rtol=1e-4)
             @test isapprox(coef(m2), coef(m4); rtol=1e-4)
@@ -82,7 +82,7 @@ loss2 = RobustModels.TukeyLoss()
             refit!(m1; quantile=τ)
             @test isapprox(coef(m1), coef(m2); rtol=1e-4)
         else
-            #            @test_warn L1_warning println(m2)
+            #            @test_warn L1_warning show(devnull, m2)
 
             @test isapprox(coef(m2), coef(m3); rtol=1e-2)
             @test isapprox(coef(m2), coef(m4); rtol=1e-2)

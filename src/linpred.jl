@@ -207,20 +207,8 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     scratchbeta::Vector{T}
     scratchm1::Matrix{T}
     scratchr1::Vector{T}
-    function DensePredCG{T}(X::Matrix{T}, beta0::Vector{T}) where {T}
-        n, p = size(X)
-        length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
-        return new{T}(
-            X,
-            beta0,
-            zeros(T, p),
-            zeros(T, (p, p)),
-            zeros(T, p),
-            zeros(T, (n, p)),
-            zeros(T, n),
-        )
-    end
-    function DensePredCG{T}(X::Matrix{T}) where {T}
+
+    function DensePredCG(X::Matrix{T}) where {T<:BlasReal}
         n, p = size(X)
         return new{T}(
             X,
@@ -233,10 +221,8 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
         )
     end
 end
-DensePredCG(X::Matrix, beta0::Vector) = DensePredCG{eltype(X)}(X, beta0)
-DensePredCG(X::Matrix{T}) where {T} = DensePredCG{T}(X, zeros(T, size(X, 2)))
 function Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T}
-    return DensePredCG{T}(X, zeros(T, size(X, 2)))
+    return DensePredCG(X)
 end
 
 # Compatibility with cholpred(X, pivot)
