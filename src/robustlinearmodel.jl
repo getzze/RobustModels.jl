@@ -56,7 +56,18 @@ end
 ## TODO: specialize to make it faster
 StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
 
-leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
+leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- clamp.(leverage(m), 0, 1))
+
+## Throw a MethodError for unspecified `args` to avoid StackOverflowError
+function StatsAPI.fit(
+    ::Type{M},
+    X::AbstractMatrix{<:AbstractFloat},
+    y::AbstractVector{<:AbstractFloat},
+    args...;
+    kwargs...,
+) where {M<:AbstractRobustModel}
+    throw(MethodError(fit, (M, X, y, args...)))
+end
 
 ## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
 function StatsAPI.fit(
@@ -86,7 +97,9 @@ function StatsAPI.fit(
         X, y, _ = missing_omit(X, y)
     end
 
-    return fit(M, float(X), float(y), args...; kwargs...)
+    # Make sure X and y have the same float eltype
+    T = promote_type(float(eltype(X)), float(eltype(y)))
+    return fit(M, convert.(T, X), convert.(T, y), args...; kwargs...)
 end
 
 ## Convert from formula-data to modelmatrix-response calling form
@@ -155,6 +168,7 @@ function StatsModels.formula(m::RobustLinearModel)
     end
     return m.formula
 end
+
 
 """
     deviance(m::RobustLinearModel)
@@ -493,7 +507,7 @@ the RobustLinearModel object.
 """
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+    X::AbstractMatrix{T},
     y::AbstractVector{T},
     est::AbstractMEstimator;
     method::Symbol=:chol,  # :qr, :cg
@@ -1350,19 +1364,20 @@ function resampling_best_estimate(
     ## TODO: implement something similar to DetS (not sure it could apply)
     ## Hubert2015 - The DetS and DetMM estimators for multivariate location and scatter
     ## (https://www.sciencedirect.com/science/article/abs/pii/S0167947314002175)
+    M = length(coef(m))
 
     if isnothing(Nsamples)
-        Nsamples = resampling_minN(dof(m), 0.05, propoutliers)
+        Nsamples = resampling_minN(M, 0.05, propoutliers)
     end
     if isnothing(Npoints)
-        Npoints = dof(m)
+        Npoints = M
     end
     Nsubsamples = min(Nsubsamples, Nsamples)
 
 
     verbose && println("Start $(Nsamples) subsamples...")
     σis = zeros(Nsamples)
-    βis = zeros(dof(m), Nsamples)
+    βis = zeros(M, Nsamples)
     for i in 1:Nsamples
         # TODO: to parallelize, make a deepcopy of m
         inds = sample(rng, axes(response(m), 1), Npoints; replace=false, ordered=false)
