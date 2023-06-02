@@ -1,5 +1,7 @@
 module RobustModels
 
+using Pkg: Pkg
+
 include("compat.jl")
 
 # Use README as the docstring of the module and doctest README
@@ -10,10 +12,10 @@ end RobustModels
 
 # Import with `using` to use the module names to prefix the methods
 # that are extended from these modules
-using GLM
-using StatsAPI
-using StatsBase
-using StatsModels
+using GLM: GLM
+using StatsAPI: StatsAPI
+using StatsBase: StatsBase
+using StatsModels: StatsModels
 
 ## Import to implement new methods
 import Base: show, broadcastable, convert, ==
@@ -73,6 +75,9 @@ using LinearAlgebra:
     inv,
     diag,
     diagm,
+    Diagonal,
+    rank,
+    qr,
     ldiv!
 
 using Random: AbstractRNG, GLOBAL_RNG
@@ -83,8 +88,10 @@ using StatsBase:
 using StatsModels:
     @delegate,
     @formula,
+    formula,
     RegressionModel,
     FormulaTerm,
+    InterceptTerm,
     ModelFrame,
     modelcols,
     apply_schema,
@@ -237,6 +244,7 @@ abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::T) where {T<:AbstractEstimator} = Ref(m)
 Base.broadcastable(m::T) where {T<:LossFunction} = Ref(m)
+
 
 include("tools.jl")
 include("losses.jl")

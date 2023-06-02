@@ -65,27 +65,73 @@ A `LinPred` type with a dense, unpivoted QR decomposition of `X`
 """
 DensePredQR
 
-PRED_QR_WARNING_ISSUED = false
+function get_pkg_version(m::Module)
+    toml = Pkg.TOML.parsefile(joinpath(pkgdir(m), "Project.toml"))
+    return VersionNumber(toml["version"])
+end
 
-function qrpred(X::AbstractMatrix, pivot::Bool=false)
-    try
-        return DensePredCG(Matrix(X), pivot)
-    catch e
-        if e isa MethodError
-            # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
-            global PRED_QR_WARNING_ISSUED
-            if !PRED_QR_WARNING_ISSUED
-                @warn(
-                    "GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined, " *
-                        "fallback to unpivoted QR. GLM version should be >= 1.9."
-                )
-                PRED_QR_WARNING_ISSUED = true
-            end
-            return DensePredCG(Matrix(X))
-        else
-            rethrow()
-        end
+@static if get_pkg_version(GLM) < v"1.9"
+    @warn(
+        "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined, " *
+            "fallback to unpivoted QR. GLM version should be >= 1.9."
+    )
+
+    # GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined
+    function qrpred(X::AbstractMatrix, pivot::Bool=false)
+        DensePredQR(Matrix(X))
     end
+
+    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) is not defined
+    function delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
+        rnk = rank(p.qr.R)
+        X = p.X
+        W = Diagonal(wt)
+        sqrtW = Diagonal(sqrt.(wt))
+        scratchm1 = similar(X, T)
+        mul!(scratchm1, sqrtW, X)
+
+        n, m = size(X)
+        if n >= m
+            # W½ X = Q R  , with Q'Q = I
+            # X'WX β = X'y  =>  R'Q'QR β = X'y
+            # => β = R⁻¹ R⁻ᵀ X'y
+            qnr = qr(scratchm1)
+            Rinv = inv(qnr.R)
+
+            scratchm2 = similar(X, T)
+            mul!(scratchm2, W, X)
+            mul!(p.delbeta, transpose(scratchm2), r)
+
+            p.delbeta = Rinv * Rinv' * p.delbeta
+        else
+            # (W½ X)' = Q R  , with Q'Q = I
+            # W½X β = W½y  =>  R'Q' β = y
+            # => β = Q . [R⁻ᵀ y; 0]
+            qnr = qr(scratchm1')
+            RTinv = inv(qnr.R)'
+            @assert 1 <= n <= size(p.delbeta, 1)
+            mul!(view(p.delbeta, 1:n), RTinv, r)
+            p.delbeta = zeros(size(p.delbeta))
+            p.delbeta[1:n] .= RTinv * r
+            lmul!(qnr.Q, p.delbeta)
+        end
+        return p
+    end
+
+    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}) is ill-defined
+    function delbeta!(p::DensePredQR{T}, r::Vector{T}) where T<:BlasReal
+        n, m = size(p.X)
+        if n >= m
+            p.delbeta = p.qr \ r
+        else
+            qnrT = qr(p.X')
+            p.delbeta = qnrT' \ r
+        end
+        return p
+    end
+
+else
+    qrpred(X::AbstractMatrix, pivot::Bool=false) = DensePredQR(Matrix(X), pivot)
 end
 
 
