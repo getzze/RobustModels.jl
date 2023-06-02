@@ -49,7 +49,7 @@ bounded_losses = ("Geman", "Welsch", "Tukey", "YohaiZamar", "HardThreshold", "Ha
 losses = (convex_losses..., other_losses..., bounded_losses...)
 
 ## Solving methods
-nopen_methods = (:auto, :chol, :qr, :cg)
+nopen_methods = (:auto, :chol, :cholesky, :qr, :cg)
 
 ## Interface methods
 interface_methods = (

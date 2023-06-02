@@ -37,7 +37,7 @@ est2 = MEstimator(loss2)
         )
         β = copy(coef(m))
         VERBOSE && println("rlm($name): ", β)
-        @test_nowarn println(m)
+        @test_nowarn show(devnull, m)
         @test isapprox(coef(m1), β; rtol=1e-5)
 
         # make sure that it is not a TableRegressionModel
@@ -45,7 +45,7 @@ est2 = MEstimator(loss2)
 
         # refit
         refit!(m, y; verbose=false, initial_scale=:extrema)
-        @test_nowarn println("$m")
+        @test_nowarn show(devnull, "$m")
         @test all(coef(m) .== β)
 
         # refit

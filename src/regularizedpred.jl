@@ -154,6 +154,9 @@ function postupdate_λ!(r::RidgePred)
     # Update the extended model matrix with the new value
     GG = r.sqrtλ * r.G
     @views r.pred.X[(n + 1):(n + m), :] .= GG
+
+    # Update other fields
+    # TODO: update DensePredQR
     if isa(r.pred, DensePredChol)
         # Recompute the cholesky decomposition
         X = r.pred.X

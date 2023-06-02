@@ -22,9 +22,9 @@ est2 = MEstimator(loss2)
     @test all(isfinite.(coef(m2)))
 
     if name != "L1"
-        @test_nowarn println(m2)
+        @test_nowarn show(devnull, m2)
         # else
-        # @test_warn L1_warning println(m2)
+        # @test_warn L1_warning show(devnull, m2)
     end
 
     VERBOSE && println("\n\t\u25CF Estimator: $(name)")

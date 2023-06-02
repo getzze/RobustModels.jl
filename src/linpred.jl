@@ -50,44 +50,142 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 #    beta0
 #end
 
-"""
-    DensePredQR
 
-A `LinPred` type with a dense, unpivoted QR decomposition of `X`
+##########################################
+######  DensePredQR
+##########################################
 
-# Members
+@static if get_pkg_version(GLM) < v"1.9"
+    @warn(
+        "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
+            "fallback to unpivoted RobustModels.DensePredQR definition. " *
+            "To use pivoted QR, GLM version should be greater than or equal to v1.9."
+    )
 
-- `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
-- `beta0`: base coefficient vector of length `p`
-- `delbeta`: increment to coefficient vector, also of length `p`
-- `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
-- `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
-"""
-DensePredQR
+    using LinearAlgebra: QRCompactWY, QRPivoted, Diagonal, qr!, qr
 
-PRED_QR_WARNING_ISSUED = false
+    """
+        DensePredQR
 
-function qrpred(X::AbstractMatrix, pivot::Bool=false)
-    try
-        return DensePredCG(Matrix(X), pivot)
-    catch e
-        if e isa MethodError
-            # GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined
-            global PRED_QR_WARNING_ISSUED
-            if !PRED_QR_WARNING_ISSUED
-                @warn(
-                    "GLM.DensePredCG(X::AbstractMatrix, pivot::Bool) is not defined, " *
-                        "fallback to unpivoted QR. GLM version should be >= 1.9."
-                )
-                PRED_QR_WARNING_ISSUED = true
+    A `LinPred` type with a dense QR decomposition of `X`
+
+    # Members
+
+    - `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
+    - `beta0`: base coefficient vector of length `p`
+    - `delbeta`: increment to coefficient vector, also of length `p`
+    - `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
+    - `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
+    - `scratchm1`: scratch Matrix{T} of the same size as `X`
+    - `scratchm2`: scratch Matrix{T} of the same size as `X`
+    - `scratchR`: scratch Matrix{T} of the same size as `qr.R`, a square matrix.
+    """
+    mutable struct DensePredQR{T<:BlasReal,Q<:Union{QRCompactWY,QRPivoted}} <: DensePred
+        X::Matrix{T}                  # model matrix
+        beta0::Vector{T}              # base coefficient vector
+        delbeta::Vector{T}            # coefficient increment
+        scratchbeta::Vector{T}
+        qr::Q
+        scratchm1::Matrix{T}
+        scratchm2::Matrix{T}
+        scratchR::Matrix{T}
+
+        function DensePredQR(X::AbstractMatrix, pivot::Bool=false)
+            n, p = size(X)
+            T = typeof(float(zero(eltype(X))))
+
+            if false
+                # if pivot
+                F = pivoted_qr!(copy(X))
+            else
+                if n >= p
+                    F = qr(X)
+                else
+                    # adjoint of X so R is square
+                    # cannot use in-place qr!
+                    F = qr(X)
+                end
             end
-            return DensePredCG(Matrix(X))
-        else
-            rethrow()
+
+            return new{T,typeof(F)}(
+                Matrix{T}(X),
+                zeros(T, p),
+                zeros(T, p),
+                zeros(T, p),
+                F,
+                similar(X, T),
+                similar(X, T),
+                zeros(T, size(F.R)),
+            )
         end
     end
+
+    # GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined
+    function qrpred(X::AbstractMatrix, pivot::Bool=false)
+        return DensePredQR(Matrix(X))
+    end
+
+    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}) is ill-defined
+    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}) where {T<:BlasReal}
+        n, m = size(p.X)
+        if n >= m
+            p.delbeta = p.qr \ r
+        else
+            p.delbeta = p.qr' \ r
+        end
+        return p
+    end
+
+    # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) is not defined
+    function delbeta!(
+        p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}, wt::Vector{T}
+    ) where {T<:BlasReal}
+        rnk = rank(p.qr.R)
+        X = p.X
+        W = Diagonal(wt)
+        sqrtW = Diagonal(sqrt.(wt))
+        scratchm1 = p.scratchm1 = similar(X, T)
+        mul!(scratchm1, sqrtW, X)
+
+        n, m = size(X)
+        if n >= m
+            # W½ X = Q R  , with Q'Q = I
+            # X'WX β = X'y  =>  R'Q'QR β = X'y
+            # => β = R⁻¹ R⁻ᵀ X'y
+            qnr = p.qr = qr(scratchm1)
+            Rinv = p.scratchR = inv(qnr.R)
+
+            scratchm2 = p.scratchm2 = similar(X, T)
+            mul!(scratchm2, W, X)
+            mul!(p.delbeta, transpose(scratchm2), r)
+
+            p.delbeta = Rinv * Rinv' * p.delbeta
+        else
+            # (W½ X)' = Q R  , with Q'Q = I
+            # W½X β = W½y  =>  R'Q' β = y
+            # => β = Q . [R⁻ᵀ y; 0]
+            qnrT = p.qr = qr(scratchm1')
+            RTinv = p.scratchR = inv(qnrT.R)'
+            @assert 1 <= n <= size(p.delbeta, 1)
+            mul!(view(p.delbeta, 1:n), RTinv, r)
+            p.delbeta = zeros(size(p.delbeta))
+            p.delbeta[1:n] .= RTinv * r
+            lmul!(qnrT.Q, p.delbeta)
+        end
+        return p
+    end
+
+
+    ## Use DensePredQR from GLM
+else
+    using GLM: DensePredQR
+    import GLM: qrpred
 end
 
+
+##########################################
+######  [Dense/Sparse]PredCG
+##########################################
 
 """
     DensePredCG
@@ -109,20 +207,8 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
     scratchbeta::Vector{T}
     scratchm1::Matrix{T}
     scratchr1::Vector{T}
-    function DensePredCG{T}(X::Matrix{T}, beta0::Vector{T}) where {T}
-        n, p = size(X)
-        length(beta0) == p || throw(DimensionMismatch("length(β0) ≠ size(X,2)"))
-        return new{T}(
-            X,
-            beta0,
-            zeros(T, p),
-            zeros(T, (p, p)),
-            zeros(T, p),
-            zeros(T, (n, p)),
-            zeros(T, n),
-        )
-    end
-    function DensePredCG{T}(X::Matrix{T}) where {T}
+
+    function DensePredCG(X::Matrix{T}) where {T<:BlasReal}
         n, p = size(X)
         return new{T}(
             X,
@@ -135,10 +221,8 @@ mutable struct DensePredCG{T<:BlasReal} <: DensePred
         )
     end
 end
-DensePredCG(X::Matrix, beta0::Vector) = DensePredCG{eltype(X)}(X, beta0)
-DensePredCG(X::Matrix{T}) where {T} = DensePredCG{T}(X, zeros(T, size(X, 2)))
 function Base.convert(::Type{DensePredCG{T}}, X::Matrix{T}) where {T}
-    return DensePredCG{T}(X, zeros(T, size(X, 2)))
+    return DensePredCG(X)
 end
 
 # Compatibility with cholpred(X, pivot)

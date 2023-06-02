@@ -56,7 +56,18 @@ end
 ## TODO: specialize to make it faster
 StatsAPI.leverage(m::AbstractRobustModel) = diag(projectionmatrix(m))
 
-leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- leverage(m))
+leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- clamp.(leverage(m), 0, 1))
+
+## Throw a MethodError for unspecified `args` to avoid StackOverflowError
+function StatsAPI.fit(
+    ::Type{M},
+    X::AbstractMatrix{<:AbstractFloat},
+    y::AbstractVector{<:AbstractFloat},
+    args...;
+    kwargs...,
+) where {M<:AbstractRobustModel}
+    throw(MethodError(fit, (M, X, y, args...)))
+end
 
 ## Convert to float, optionally drop rows with missing values (and convert to Non-Missing types)
 function StatsAPI.fit(
@@ -86,7 +97,9 @@ function StatsAPI.fit(
         X, y, _ = missing_omit(X, y)
     end
 
-    return fit(M, float(X), float(y), args...; kwargs...)
+    # Make sure X and y have the same float eltype
+    T = promote_type(float(eltype(X)), float(eltype(y)))
+    return fit(M, convert.(T, X), convert.(T, y), args...; kwargs...)
 end
 
 ## Convert from formula-data to modelmatrix-response calling form
@@ -155,6 +168,7 @@ function StatsModels.formula(m::RobustLinearModel)
     end
     return m.formula
 end
+
 
 """
     deviance(m::RobustLinearModel)
@@ -428,7 +442,7 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
         ridgeG::Union{UniformScaling, AbstractArray} = I,
         βprior::AbstractVector = [],
         quantile::Union{Nothing, AbstractFloat} = nothing,
-        pivot::Bool = false,
+        dropcollinear::Bool = false,
         initial_scale::Union{Symbol, Real}=:mad,
         σ0::Union{Nothing, Symbol, Real}=initial_scale,
         initial_coef::AbstractVector=[],
@@ -467,7 +481,8 @@ using a robust estimator.
     Default to `zeros(p)`;
 - `quantile::Union{Nothing, AbstractFloat} = nothing`:
     only for [`GeneralizedQuantileEstimator`](@ref), define the quantile to estimate;
-- `pivot::Bool=false`: use pivoted factorization;
+- `dropcollinear::Bool=false`: controls whether or not a model matrix less-than-full rank is
+    accepted;
 - `contrasts::AbstractDict{Symbol,Any} = Dict{Symbol,Any}()`: a `Dict` mapping term names
     (as `Symbol`s) to term types (e.g. `ContinuousTerm`) or contrasts (e.g., `HelmertCoding()`,
     `SeqDiffCoding(; levels=["a", "b", "c"])`, etc.). If contrasts are not provided for a variable,
@@ -493,7 +508,7 @@ the RobustLinearModel object.
 """
 function StatsAPI.fit(
     ::Type{M},
-    X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+    X::AbstractMatrix{T},
     y::AbstractVector{T},
     est::AbstractMEstimator;
     method::Symbol=:chol,  # :qr, :cg
@@ -508,7 +523,7 @@ function StatsAPI.fit(
     ridgeG::Union{UniformScaling,AbstractArray{<:Real}}=I,
     βprior::AbstractVector{<:Real}=T[],
     quantile::Union{Nothing,AbstractFloat}=nothing,
-    pivot::Bool=false,
+    dropcollinear::Bool=false,
     contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),  # placeholder
     __formula::Union{Nothing,FormulaTerm}=nothing,
     fitargs...,
@@ -539,7 +554,7 @@ function StatsAPI.fit(
     rr = RobustLinResp(est, y, offset, wts)
 
     # Predictor object
-    methods = (:auto, :chol, :cg, :qr)
+    methods = (:auto, :chol, :cholesky, :cg, :qr)
     if method ∉ methods
         @warn("Incorrect method `:$(method)`, should be one of $(methods)")
         method = :auto
@@ -559,22 +574,22 @@ function StatsAPI.fit(
             ridgeG
         end
         if method == :cg
-            cgpred(X, float(ridgeλ), G, βprior, pivot)
+            cgpred(X, float(ridgeλ), G, βprior, dropcollinear)
         elseif method == :qr
-            qrpred(X, float(ridgeλ), G, βprior, pivot)
-        elseif method in (:chol, :auto)
-            cholpred(X, float(ridgeλ), G, βprior, pivot)
+            qrpred(X, float(ridgeλ), G, βprior, dropcollinear)
+        elseif method in (:chol, :cholesky, :auto)
+            cholpred(X, float(ridgeλ), G, βprior, dropcollinear)
         else
             error("method :$method is not allowed, should be in: $methods")
         end
     else
         # No regularization
         if method == :cg
-            cgpred(X, pivot)
+            cgpred(X, dropcollinear)
         elseif method == :qr
-            qrpred(X, pivot)
-        elseif method in (:chol, :auto)
-            cholpred(X, pivot)
+            qrpred(X, dropcollinear)
+        elseif method in (:chol, :cholesky, :auto)
+            cholpred(X, dropcollinear)
         else
             error("method :$method is not allowed, should be in: $methods")
         end
@@ -1350,19 +1365,20 @@ function resampling_best_estimate(
     ## TODO: implement something similar to DetS (not sure it could apply)
     ## Hubert2015 - The DetS and DetMM estimators for multivariate location and scatter
     ## (https://www.sciencedirect.com/science/article/abs/pii/S0167947314002175)
+    M = length(coef(m))
 
     if isnothing(Nsamples)
-        Nsamples = resampling_minN(dof(m), 0.05, propoutliers)
+        Nsamples = resampling_minN(M, 0.05, propoutliers)
     end
     if isnothing(Npoints)
-        Npoints = dof(m)
+        Npoints = M
     end
     Nsubsamples = min(Nsubsamples, Nsamples)
 
 
     verbose && println("Start $(Nsamples) subsamples...")
     σis = zeros(Nsamples)
-    βis = zeros(dof(m), Nsamples)
+    βis = zeros(M, Nsamples)
     for i in 1:Nsamples
         # TODO: to parallelize, make a deepcopy of m
         inds = sample(rng, axes(response(m), 1), Npoints; replace=false, ordered=false)
