@@ -52,7 +52,7 @@ est2 = MEstimator(loss2)
         @test isapprox(coef(m3), coef(m4); rtol=1e-5)
 
         # Test printing the model
-        @test_nowarn println(m3)
+        @test_nowarn show(devnull, m3)
 
         # refit
         refit!(m5; ridgeλ=10, initial_scale=:L1)
