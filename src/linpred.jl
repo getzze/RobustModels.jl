@@ -55,8 +55,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 ######  DensePredQR
 ##########################################
 
-#@static if get_pkg_version(GLM) < v"1.9"
-@static if true
+@static if get_pkg_version(GLM) < v"1.9"
     @warn(
         "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
             "fallback to unpivoted RobustModels.DensePredQR definition. " *
@@ -96,7 +95,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
             T = typeof(float(zero(eltype(X))))
 
             if false
-#            if pivot
+                # if pivot
                 F = pivoted_qr!(copy(X))
             else
                 if n >= p
@@ -108,7 +107,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
                 end
             end
 
-            new{T,typeof(F)}(
+            return new{T,typeof(F)}(
                 Matrix{T}(X),
                 zeros(T, p),
                 zeros(T, p),
@@ -123,11 +122,11 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 
     # GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is not defined
     function qrpred(X::AbstractMatrix, pivot::Bool=false)
-        DensePredQR(Matrix(X))
+        return DensePredQR(Matrix(X))
     end
 
     # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}) is ill-defined
-    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}) where T<:BlasReal
+    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}) where {T<:BlasReal}
         n, m = size(p.X)
         if n >= m
             p.delbeta = p.qr \ r
@@ -138,7 +137,9 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
     end
 
     # GLM.delbeta!(p::DensePredQR{T}, r::Vector{T}, wt::Vector{T}) is not defined
-    function delbeta!(p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}, wt::Vector{T}) where T<:BlasReal
+    function delbeta!(
+        p::DensePredQR{T,<:QRCompactWY}, r::Vector{T}, wt::Vector{T}
+    ) where {T<:BlasReal}
         rnk = rank(p.qr.R)
         X = p.X
         W = Diagonal(wt)
@@ -175,7 +176,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
     end
 
 
-## Use DensePredQR from GLM
+    ## Use DensePredQR from GLM
 else
     using GLM: DensePredQR
     import GLM: qrpred
