@@ -120,7 +120,9 @@ function StatsAPI.fit(
     f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
     # Call the `fit` method with arrays
     pX, py = promote_to_same_float(X, y)
-    return fit(M, pX, py, args...; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...)
+    return fit(
+        M, pX, py, args...; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...
+    )
 end
 
 

@@ -4,10 +4,7 @@
 ##    Missing values
 ################################################
 
-function promote_to_same_float(
-    X::AbstractMatrix,
-    y::AbstractVector,
-)
+function promote_to_same_float(X::AbstractMatrix, y::AbstractVector)
     T = promote_type(float(eltype(X)), float(eltype(y)))
     if !(T <: AbstractFloat)
         msg = "promoting X and y arrays to float types"
