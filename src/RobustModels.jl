@@ -19,8 +19,7 @@ using StatsModels: StatsModels
 
 ## Import to implement new methods
 import Base: show, broadcastable, convert, ==
-import GLM:
-    dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!, cholpred
+import GLM: dispersion, LinPred, DensePred, ModResp, delbeta!, linpred!, installbeta!
 import StatsBase:
     fit,
     fit!,

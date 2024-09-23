@@ -1,3 +1,4 @@
+import GLM: cholpred
 
 
 #################
@@ -55,11 +56,11 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 ######  DensePredQR
 ##########################################
 
-@static if get_pkg_version(GLM) < v"1.9"
+@static if get_pkg_version(GLM) < v"1.10"
     @warn(
         "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
             "fallback to unpivoted RobustModels.DensePredQR definition. " *
-            "To use pivoted QR, GLM version should be greater than or equal to v1.9."
+            "To use pivoted QR, GLM version should be greater than or equal to v1.10."
     )
 
     using LinearAlgebra: QRCompactWY, QRPivoted, Diagonal, qr!, qr
@@ -175,10 +176,10 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
         return p
     end
 
-
-    ## Use DensePredQR from GLM
 else
+    ## Use DensePredQR from GLM
     using GLM: DensePredQR
+    # GLM.DensePredQR(X::AbstractMatrix, pivot::Bool) is defined in #master
     import GLM: qrpred
 end
 
