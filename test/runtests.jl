@@ -1,3 +1,7 @@
+if @isdefined(ARGS)
+    println("Test arguments: $(ARGS)")
+end
+
 using StatsBase
 using StatsModels
 using GLM
@@ -36,7 +40,7 @@ import RobustModels:
 
 # To run test with verbose output use:
 # Pkg.test(RobustModels; test_args=["verbose"])
-VERBOSE = "verbose" in ARGS
+VERBOSE = @isdefined(ARGS) && "verbose" in ARGS
 
 L1_warning = "Warning: coefficient variance is not well defined for L1Estimator.\n"
 
