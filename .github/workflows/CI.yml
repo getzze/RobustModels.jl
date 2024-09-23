@@ -1,7 +1,21 @@
 name: CI
+
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - 'main'
+      - 'release-'
+    tags: '*'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_COLOR: "1"
+
+
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
