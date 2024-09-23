@@ -18,17 +18,16 @@ makedocs(;
         canonical="https://getzze.github.io/RobustModels.jl",
         assets=["assets/favicon.ico"],
     ),
+    #! format: off
     pages=[
-        "Home" => "index.md", 
-        "manual.md", 
-        "examples.md", 
+        "Home" => "index.md",
+        "manual.md",
+        "examples.md",
         "api.md",
     ],
+    #! format: on
     # doctest = :fix,
     debug=false,
 )
 
-deploydocs(; 
-    devbranch="main", 
-    repo="github.com/getzze/RobustModels.jl",
-)
+deploydocs(; devbranch="main", repo="github.com/getzze/RobustModels.jl")
