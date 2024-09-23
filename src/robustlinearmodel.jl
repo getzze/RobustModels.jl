@@ -60,12 +60,13 @@ leverage_weights(m::AbstractRobustModel) = sqrt.(1 .- clamp.(leverage(m), 0, 1))
 
 ## Throw a MethodError for unspecified `args` to avoid StackOverflowError
 function StatsAPI.fit(
-    ::Type{M},
-    X::AbstractMatrix{<:AbstractFloat},
-    y::AbstractVector{<:AbstractFloat},
-    args...;
-    kwargs...,
-) where {M<:AbstractRobustModel}
+    ::Type{M}, X::AbstractMatrix{N1}, y::AbstractVector{N2}, args...; kwargs...
+) where {M<:AbstractRobustModel,N1,N2}
+    if !(N1 <: AbstractFloat)
+        @warn "X eltype needs to be AbstractFloat, not $(N1): $(X)"
+    elseif !(N2 <: AbstractFloat)
+        @warn "y eltype needs to be AbstractFloat, not $(N2): $(y)"
+    end
     throw(MethodError(fit, (M, X, y, args...)))
 end
 
