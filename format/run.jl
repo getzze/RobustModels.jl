@@ -9,7 +9,6 @@ function main()
         dir_perfect = format(
             d;
             style=BlueStyle(),
-            join_lines_based_on_source=true,
             remove_extra_newlines = false,
         )
         perfect = perfect && dir_perfect
