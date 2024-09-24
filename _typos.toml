@@ -1,0 +1,10 @@
+# https://github.com/crate-ci/typos#false-positives
+[default]
+
+[default.extend-identifiers]
+missings = "missings"
+Missings = "Missings"
+Artic = "Artic"
+
+[default.extend-words]
+qest = "qest"

@@ -41,6 +41,24 @@ jobs:
           tool_name: JuliaFormatter
           fail_on_error: true
 
+  typos-check:
+    name: Spell Check with Typos
+    # Run on PRs
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+      - name: Check spelling
+        uses: crate-ci/typos@master
+        with:
+            config: ./_typos.toml
+            write_changes: true
+      - uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: Typos
+          fail_on_error: true
+
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
