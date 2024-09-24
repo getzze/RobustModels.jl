@@ -439,7 +439,7 @@ estimator_high_efficiency_constant(::Type{CauchyLoss}) = 2.385
 estimator_high_breakdown_point_constant(::Type{CauchyLoss}) = 1.468
 
 """
-The non-convex Geman-McClure for strong supression of outliers and does not guarantee a unique solution.
+The non-convex Geman-McClure for strong suppression of outliers and does not guarantee a unique solution.
 For the S-Estimator, it is equivalent to the Cauchy loss.
 ψ(r) = r / (1 + r^2)^2
 """
@@ -469,7 +469,7 @@ estimator_high_breakdown_point_constant(::Type{GemanLoss}) = 0.61200
 
 
 """
-The non-convex Welsch for strong supression of outliers and does not guarantee a unique solution
+The non-convex Welsch for strong suppression of outliers and does not guarantee a unique solution
 ψ(r) = r * exp(-r^2)
 """
 struct WelschLoss <: BoundedLossFunction

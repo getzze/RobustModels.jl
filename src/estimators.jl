@@ -224,7 +224,7 @@ function scale_estimate(est::E, res; kwargs...) where {E<:MEstimator}
     return scale_estimate(est.loss, res; kwargs...)
 end
 
-"`L1Estimator` is a shorthand name for `MEstimator{L1Loss}`. Using exact QuantileRegression should be prefered."
+"`L1Estimator` is a shorthand name for `MEstimator{L1Loss}`. Using exact QuantileRegression should be preferred."
 const L1Estimator = MEstimator{L1Loss}
 
 "`L2Estimator` is a shorthand name for `MEstimator{L2Loss}`, the non-robust OLS."

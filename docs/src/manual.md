@@ -32,7 +32,7 @@ Supported loss functions are:
 - [`CauchyLoss`](@ref): `ρ(r) = log(1+(r/c)²)`, non-convex estimator, that also corresponds to a Student's-t distribution (with fixed degree of freedom). It suppresses outliers more strongly but it is not sure to converge.
 - [`GemanLoss`](@ref): `ρ(r) = ½ (r/c)²/(1 + (r/c)²)`, non-convex and bounded estimator, it suppresses outliers more strongly.
 - [`WelschLoss`](@ref): `ρ(r) = ½ (1 - exp(-(r/c)²))`, non-convex and bounded estimator, it suppresses outliers more strongly.
-- [`TukeyLoss`](@ref): `ρ(r) = if r<c; ⅙(1 - (1-(r/c)²)³) else ⅙ end`, non-convex and bounded estimator, it suppresses outliers more strongly and it is the prefered estimator for most cases.
+- [`TukeyLoss`](@ref): `ρ(r) = if r<c; ⅙(1 - (1-(r/c)²)³) else ⅙ end`, non-convex and bounded estimator, it suppresses outliers more strongly and it is the preferred estimator for most cases.
 - [`YohaiZamarLoss`](@ref): `ρ(r)` is quadratic for `r/c < 2/3` and is bounded to 1; non-convex estimator, it is optimized to have the lowest bias for a given efficiency.
 
 An estimator is constructed from an estimator type and a loss, e.g. `MEstimator{TukeyLoss}()`.

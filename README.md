@@ -61,7 +61,7 @@ julia>] add RobustModels#main;
 
 ## Usage
 
-The prefered way of performing robust regression is by calling the `rlm` function:
+The preferred way of performing robust regression is by calling the `rlm` function:
 
 `m = rlm(X, y, MEstimator{TukeyLoss}(); initial_scale=:mad)`
 
@@ -156,7 +156,7 @@ Several loss functions are implemented:
 - `CauchyLoss`: `ρ(r) = log(1+(r/c)²)`, non-convex estimator, that also corresponds to a Student's-t distribution (with fixed degree of freedom). It suppresses outliers more strongly but it is not sure to converge.
 - `GemanLoss`: `ρ(r) = ½ (r/c)²/(1 + (r/c)²)`, non-convex and bounded estimator, it suppresses outliers more strongly.
 - `WelschLoss`: `ρ(r) = ½ (1 - exp(-(r/c)²))`, non-convex and bounded estimator, it suppresses outliers more strongly.
-- `TukeyLoss`: `ρ(r) = if r<c; ⅙(1 - (1-(r/c)²)³) else ⅙ end`, non-convex and bounded estimator, it suppresses outliers more strongly and it is the prefered estimator for most cases.
+- `TukeyLoss`: `ρ(r) = if r<c; ⅙(1 - (1-(r/c)²)³) else ⅙ end`, non-convex and bounded estimator, it suppresses outliers more strongly and it is the preferred estimator for most cases.
 - `YohaiZamarLoss`: `ρ(r)` is quadratic for `r/c < 2/3` and is bounded to 1; non-convex estimator, it is optimized to have the lowest bias for a given efficiency.
 
 The value of the tuning constants `c` are optimized for each estimator so the M-estimators have a high efficiency of 0.95. However, these estimators have a low breakdown point.
@@ -184,9 +184,9 @@ the two loss functions should be the same but with different tuning constants.
 ### MQuantile-estimators
 
 Using an asymmetric variant of the `L1Estimator`, quantile regression is performed
-(although the `QuantileRegression` solver should be prefered because it gives an exact solution).
-Identically, with an M-estimator using an asymetric version of the loss function,
-a generalization of quantiles is obtained. For instance, using an asymetric `L2Loss` results in _Expectile Regression_.
+(although the `QuantileRegression` solver should be preferred because it gives an exact solution).
+Identically, with an M-estimator using an asymmetric version of the loss function,
+a generalization of quantiles is obtained. For instance, using an asymmetric `L2Loss` results in _Expectile Regression_.
 
 ### Robust Ridge regression
 
@@ -215,7 +215,7 @@ This package derives from the [RobustLeastSquares](https://github.com/FugroRoame
 package for the initial implementation, especially for the Conjugate Gradient
 solver and the definition of the M-Estimator functions.
 
-Credits to the developpers of the [GLM](https://github.com/JuliaStats/GLM.jl)
+Credits to the developers of the [GLM](https://github.com/JuliaStats/GLM.jl)
 and [MixedModels](https://github.com/JuliaStats/MixedModels.jl) packages
 for implementing the Iteratively Reweighted Least Square algorithm.
 
