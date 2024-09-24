@@ -21,7 +21,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 ###
 ### From GLM, for information
 ###
-#"""
+#""":missing_docs
 #    linpred!(out, p::LinPred, f::Real=1.0)
 #Overwrite `out` with the linear predictor from `p` with factor `f`
 #The effective coefficient vector, `p.scratchbeta`, is evaluated as `p.beta0 .+ f * p.delbeta`,
@@ -71,7 +71,7 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
     - `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
     - `beta0`: base coefficient vector of length `p`
     - `delbeta`: increment to coefficient vector, also of length `p`
-    - `scratchbeta`: scratch vector of length `p`, used in `linpred!` method
+    - `scratchbeta`: scratch vector of length `p`, used in [`GLM.linpred!`](@ref) method
     - `qr`: a `QRCompactWY` object created from `X`, with optional row weights.
     - `scratchm1`: scratch Matrix{T} of the same size as `X`
     - `scratchm2`: scratch Matrix{T} of the same size as `X`
@@ -189,6 +189,31 @@ end
 
 
 ##########################################
+######  [Dense/Sparse]PredChol
+##########################################
+
+# Only for documentation
+
+"""
+    SparsePredChol{T,M<:SparseMatrixCSC,C} where {T,C}
+
+A `LinPred` type with a sparse Cholesky factorization of `X'X`.
+No pivot option.
+
+# Members
+
+- `X`: model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
+- `Xt`: transpose of the model matrix.
+- `beta0`: base coefficient vector of length `p`
+- `delbeta`: increment to coefficient vector, also of length `p`
+- `scratchbeta`: scratch vector of length `p`, used in [`GLM.linpred!`](@ref) method
+- `chol`: a sparse `Cholesky` object created from `X'X`, possibly using row weights.
+- `scratch`: scratch SparseMatrixCSC{T} of the same size as `X`
+"""
+GLM.SparsePredChol
+
+
+##########################################
 ######  [Dense/Sparse]PredCG
 ##########################################
 
@@ -202,7 +227,7 @@ A `LinPred` type with Conjugate Gradient and a dense `X`
 - `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
 - `beta0`: base coefficient vector of length `p`
 - `delbeta`: increment to coefficient vector, also of length `p`
-- `scratchbeta`: scratch vector of length `p`, used in [`linpred!`](@ref) method
+- `scratchbeta`: scratch vector of length `p`, used in [`GLM.linpred!`](@ref) method
 """
 mutable struct DensePredCG{T<:BlasReal} <: DensePred
     X::Matrix{T}                  # model matrix
@@ -261,7 +286,7 @@ A `LinPred` type with Conjugate Gradient and a sparse `X`
 - `X`: Model matrix of size `n` × `p` with `n ≥ p`.  Should be full column rank.
 - `beta0`: base coefficient vector of length `p`
 - `delbeta`: increment to coefficient vector, also of length `p`
-- `scratchbeta`: scratch vector of length `p`, used in [`linpred!`](@ref) method
+- `scratchbeta`: scratch vector of length `p`, used in [`GLM.linpred!`](@ref) method
 """
 mutable struct SparsePredCG{T,M<:SparseMatrixCSC} <: LinPred
     X::M                    # model matrix

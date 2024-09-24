@@ -23,8 +23,8 @@ QuantileRegression
 ## Constructors for models
 
 ```@docs
-fit(::Type{M}, ::Union{AbstractMatrix{T},SparseMatrixCSC{T}}, ::AbstractVector{T}, ::AbstractEstimator) where {T<:AbstractFloat, M<:RobustLinearModel}
-fit(::Type{M}, ::Union{AbstractMatrix{T},SparseMatrixCSC{T}}, ::AbstractVector{T}) where {T<:AbstractFloat, M<:QuantileRegression}
+fit(::Type{M}, ::Union{AbstractMatrix{T}}, ::AbstractVector{T}, ::AbstractMEstimator) where {T<:AbstractFloat, M<:RobustLinearModel}
+fit(::Type{M}, ::Union{AbstractMatrix{T}}, ::AbstractVector{T}) where {T<:AbstractFloat, M<:QuantileRegression}
 ```
 
 ```@docs
@@ -37,33 +37,33 @@ refit!
 ## Model methods
 ```@docs
 StatsModels.coef
-StatsModels.coeftable
-StatsModels.coefnames
-StatsModels.responsenames
-StatsBase.confint
+StatsAPI.coeftable
+StatsAPI.coefnames
+StatsModels.responsename
+StatsAPI.confint
 StatsBase.deviance
 StatsBase.nulldeviance
-StatsBase.dof
-StatsBase.dof_residual
+StatsAPI.dof
+StatsAPI.dof_residual
 StatsBase.nobs
 wobs
-StatsBase.isfitted
-StatsBase.islinear
-StatsBase.loglikelihood
-StatsBase.nullloglikelihood
-StatsBase.stderror
+StatsAPI.isfitted
+StatsAPI.islinear
+StatsAPI.loglikelihood
+StatsAPI.nullloglikelihood
+StatsAPI.stderror
 StatsBase.vcov
 StatsBase.weights
 workingweights
-StatsBase.fitted
+StatsAPI.fitted
 StatsBase.predict
 StatsModels.leverage
 leverage_weights
-StatsModels.modelmatrix
+StatsAPI.modelmatrix
 projectionmatrix
-GLM.dispersion(::AbstractRobustModel, ::Bool)
-StatsBase.response
-StatsBase.residuals
+dispersion(::RobustLinearModel, ::Bool)
+StatsAPI.response
+StatsAPI.residuals
 StatsModels.hasintercept
 hasformula
 formula
@@ -71,6 +71,10 @@ scale
 tauscale
 RobustModels.location_variance
 Estimator
+GLM.linpred!
+RobustModels.pirls!
+RobustModels.pirls_Sestimate!
+RobustModels.pirls_τestimate!
 ```
 
 ## Estimators
@@ -88,6 +92,7 @@ RobustModels.QuantileEstimator
 
 ## Loss functions
 ```@docs
+BoundedLossFunction
 L2Loss
 L1Loss
 HuberLoss
@@ -112,7 +117,7 @@ RobustModels.rho
 RobustModels.psi
 RobustModels.psider
 RobustModels.weight
-RobustModels.values
+RobustModels.estimator_values
 RobustModels.estimator_norm
 RobustModels.estimator_bound
 tuning_constant

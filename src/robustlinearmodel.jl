@@ -11,11 +11,14 @@ StatsAPI.dof(m::AbstractRobustModel)::Real = min(wobs(m), length(coef(m)))
 
 StatsAPI.dof_residual(m::AbstractRobustModel)::Real = wobs(m) - dof(m)
 
+"""Indicate if the model is defined from a formula (and dataframe) or from arrays"""
 hasformula(m::AbstractRobustModel) = false
 
+"""The model formula. Throw an error if the model was defined by arrays."""
 StatsModels.formula(m::AbstractRobustModel)::FormulaTerm =
     throw(ArgumentError("model was fitted without a formula"))
 
+"""Indicate if the model has an intercept"""
 function StatsModels.hasintercept(m::AbstractRobustModel)
     return hasformula(m) ? hasintercept(formula(m)) : _hasintercept(modelmatrix(m))
 end
@@ -481,10 +484,11 @@ end
 
 
 """
-    fit(::Type{M},
-        X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
+    fit(
+        ::Type{M},
+        X::AbstractMatrix{T},
         y::AbstractVector{T},
-        est::Estimator;
+        est::AbstractMEstimator;
         method::Symbol       = :auto,  # :chol, :qr, :cg
         dofit::Bool          = true,
         wts::FPVector        = similar(y, 0),
@@ -551,7 +555,7 @@ using a robust estimator.
 - `correct_leverage::Bool=false`: apply the leverage correction weights with
     [`leverage_weights`](@ref).
 - `fitargs...`: other keyword arguments used to control the convergence of the IRLS algorithm
-    (see [`pirls!`](@ref)).
+    (see [`RobustModels.pirls!`](@ref)).
 
 # Output
 

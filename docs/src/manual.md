@@ -55,13 +55,13 @@ For [`GeneralizedQuantileEstimator`](@ref), the quantile should be specified wit
 
 Many of the methods are consistent with [GLM](https://github.com/JuliaStats/GLM.jl).
 - [`nobs`](@ref StatsBase.nobs): number of observations
-- [`dof_residual`](@ref): degrees of freedom for residuals
-- [`dof`](@ref StatsBase.dof): degrees of freedom of the model, defined by `nobs(m) - dof_residual(m)`
+- [`dof_residual`](@ref StatsAPI.dof_residual): degrees of freedom for residuals
+- [`dof`](@ref StatsAPI.dof): degrees of freedom of the model, defined by `nobs(m) - dof_residual(m)`
 - [`coef`](@ref StatsBase.coef): estimate of the coefficients in the model
 - [`predict`](@ref StatsBase.predict) : obtain predicted values of the dependent variable from the fitted model
 - [`deviance`](@ref StatsBase.deviance)/[`nulldeviance`](@ref StatsBase.nulldeviance): measure of the model (null model, respectively) fit
-- [`stderror`](@ref StatsBase.stderror): standard errors of the coefficients
-- [`confint`](@ref StatsBase.confint): confidence intervals for the fitted coefficients
+- [`stderror`](@ref StatsAPI.stderror): standard errors of the coefficients
+- [`confint`](@ref StatsAPI.confint): confidence intervals for the fitted coefficients
 - [`scale`](@ref): the scale estimate from the model
 - [`workingweights`](@ref): the weights for each observation from the robust estimate. Outliers have low weights
 - [`leverage`](@ref StatsBase.leverage): the vector of leverage score for each observation

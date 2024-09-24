@@ -235,8 +235,10 @@ See the documentation for each for more details.
 """
 abstract type AbstractRobustModel{T} <: RegressionModel end
 
+"Robust Response structure"
 abstract type RobustResp{T} <: ModResp end
 
+"Abstract type for predictor with regularization"
 abstract type AbstractRegularizedPred{T} end
 
 Base.broadcastable(m::AbstractEstimator) = Ref(m)
