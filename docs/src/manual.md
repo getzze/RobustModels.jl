@@ -2,9 +2,19 @@
 
 ## Installation
 
-```julia
-Pkg.add("RobustModels")
+The package can be installed with the Julia package manager.
+From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
+
 ```
+pkg> add RobustModels
+```
+
+Or, equivalently, via the `Pkg` API:
+
+```julia
+julia> import Pkg; Pkg.add("RobustModels")
+```
+
 
 ## Fitting robust models
 
@@ -68,5 +78,3 @@ that use the iterative Conjugate Gradient methods, `cg!` and `lsqr!`
 from the [IterativeSolvers package](https://github.com/JuliaLinearAlgebra/IterativeSolvers.jl)
 that is faster and more accurate than Cholesky method for very large matrices.
 The predictor that is used depends on the model matrix type and the `method` argument of the `fit`/`fit!`/`rlm` methods.
-
-

@@ -26,6 +26,7 @@ makedocs(;
         "api.md",
     ],
     #! format: on
+    ## Uncomment the line below to re-generate doctest outputs
     # doctest = :fix,
     debug=false,
 )
