@@ -37,12 +37,12 @@ X            2.02857      0.200679  10.11    0.0005    1.4714     2.58575
 ─────────────────────────────────────────────────────────────────────────
 
 julia> round.(stderror(ols), digits=5)
-2-element Array{Float64,1}:
+2-element Vector{Float64}:
  0.78153
  0.20068
 
 julia> round.(predict(ols), digits=5)
-6-element Array{Float64,1}:
+6-element Vector{Float64}:
   2.09524
   4.12381
   6.15238
@@ -61,7 +61,7 @@ julia> data[5, :Y] = 1; data
    4 │     4      8
    5 │     5      1
    6 │     6     13
- 
+
 julia> rob = rlm(@formula(Y ~ X), data, MMEstimator{TukeyLoss}(); σ0=:mad)
 Robust regression with MM-Estimator(TukeyLoss(1.5476), TukeyLoss(4.685))
 
@@ -76,4 +76,3 @@ X             2.18005     0.14112   15.45    0.0001    1.78824    2.57186
 ─────────────────────────────────────────────────────────────────────────
 
 ```
-

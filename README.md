@@ -44,13 +44,19 @@ This package implements:
 ## Installation
 
 ```julia
-julia>] add RobustModels
+julia>] add RobustModels;
+
+# output
+
 ```
 
 To install the last development version:
 
 ```julia
-julia>] add RobustModels#main
+julia>] add RobustModels#main;
+
+# output
+
 ```
 
 ## Usage
