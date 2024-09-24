@@ -142,7 +142,7 @@ from the location. If `sqr` is `false`, return the standard deviation instead.
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
 function location_variance(
-    r::RobustLinResp{T}, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false,
+    r::RobustLinResp{T}, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false
 ) where {T<:AbstractFloat}
     if dof_residual <= 0
         return convert(T, NaN)

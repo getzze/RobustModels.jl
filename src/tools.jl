@@ -80,7 +80,9 @@ end
 ################################################
 
 const ModelFrameType = Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
-const AllowedExtraArgType = Union{Nothing,Symbol,Union{AbstractVector{<:Real},AbstractVector{Union{Missing,<:Real}}}}
+const AllowedExtraArgType = Union{
+    Nothing,Symbol,Union{AbstractVector{<:Real},AbstractVector{Union{Missing,<:Real}}}
+}
 
 
 """
@@ -111,12 +113,11 @@ Returns a Dict of (key, value) with key, extra arguments used by the model, and 
 given by `kwargs`.
 """
 function filter_model_extra_arguments(
-    ::Type{M},
-    kwargs::Union{Dict{Symbol,Any}, Base.Pairs, NamedTuple},
+    ::Type{M}, kwargs::Union{AbstractDict,NamedTuple}
 ) where {M<:AbstractRobustModel}
     allowed = model_extra_arguments(M)
 
-    extra = Dict{Symbol, AllowedExtraArgType}()
+    extra = Dict{Symbol,AllowedExtraArgType}()
     for (k, val) in pairs(kwargs)
         s = Symbol(k)
         if !(s in allowed)
@@ -212,8 +213,7 @@ function modelframe(
             else
                 val
             end
-        end
-        for (var, val) in pairs(extra_args)
+        end for (var, val) in pairs(extra_args)
     )
 
     return f, y, X, extra_vec

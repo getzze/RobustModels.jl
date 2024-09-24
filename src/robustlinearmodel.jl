@@ -114,17 +114,23 @@ function StatsAPI.fit(
     end
     # drop (X,y) missing rows in extra_args
     if all(nonmissings)
-        extra_args = NamedTuple(var => _missing_omit(val) for (var, val) in pairs(extra_args))
+        extra_args = NamedTuple(
+            var => _missing_omit(val) for (var, val) in pairs(extra_args)
+        )
     else
         rows = findall(nonmissings)
-        extra_args = NamedTuple(var => _missing_omit(view(val, rows)) for (var, val) in pairs(extra_args))
+        extra_args = NamedTuple(
+            var => _missing_omit(view(val, rows)) for (var, val) in pairs(extra_args)
+        )
     end
 
     # Make sure X and y have the same float eltype
     pX, py = promote_to_same_float(X, y)
     # Make sure extra values in keyword argument have the same float eltype
     T = eltype(py)
-    extra_args = NamedTuple(var => convert_vec_to_float(T, val) for (var, val) in pairs(extra_args))
+    extra_args = NamedTuple(
+        var => convert_vec_to_float(T, val) for (var, val) in pairs(extra_args)
+    )
 
     kwargs = (; kwargs..., extra_args...)
     return fit(M, pX, py, args...; kwargs...)
@@ -152,9 +158,7 @@ function StatsAPI.fit(
     extra = NamedTuple(var => convert_vec_to_float(T, val) for (var, val) in pairs(extra))
 
     kwargs = (; kwargs..., extra...)
-    return fit(
-        M, pX, py, args...; contrasts=contrasts, __formula=f, kwargs...
-    )
+    return fit(M, pX, py, args...; contrasts=contrasts, __formula=f, kwargs...)
 end
 
 
