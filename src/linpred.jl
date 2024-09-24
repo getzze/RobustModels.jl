@@ -151,8 +151,8 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
         n, m = size(X)
         if n >= m
             # W½ X = Q R  , with Q'Q = I
-            # X'WX β = X'y  =>  R'Q'QR β = X'y
-            # => β = R⁻¹ R⁻ᵀ X'y
+            # X'WX β = X'Wy  =>  R'Q'QR β = X'Wy
+            # => β = R⁻¹ R⁻ᵀ X'Wy
             qnr = p.qr = qr(scratchm1)
             Rinv = p.scratchR = inv(qnr.R)
 
@@ -163,14 +163,13 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
             p.delbeta = Rinv * Rinv' * p.delbeta
         else
             # (W½ X)' = Q R  , with Q'Q = I
-            # W½X β = W½y  =>  R'Q' β = y
-            # => β = Q . [R⁻ᵀ y; 0]
+            # W½X β = W½y  =>  R'Q' β = W½ y
+            # => β = Q . [R⁻ᵀ W½ y; 0]
             qnrT = p.qr = qr(scratchm1')
             RTinv = p.scratchR = inv(qnrT.R)'
             @assert 1 <= n <= size(p.delbeta, 1)
-            mul!(view(p.delbeta, 1:n), RTinv, r)
             p.delbeta = zeros(size(p.delbeta))
-            p.delbeta[1:n] .= RTinv * r
+            p.delbeta[1:n] .= RTinv * sqrtW * r
             lmul!(qnrT.Q, p.delbeta)
         end
         return p

@@ -6,9 +6,10 @@
 
 StatsAPI.islinear(m::AbstractRobustModel) = true
 
-StatsAPI.dof(m::AbstractRobustModel) = length(coef(m))
+## TODO: use (weighted) matrix rank, with dropcollinear
+StatsAPI.dof(m::AbstractRobustModel)::Real = min(wobs(m), length(coef(m)))
 
-StatsAPI.dof_residual(m::AbstractRobustModel) = wobs(m) - dof(m)
+StatsAPI.dof_residual(m::AbstractRobustModel)::Real = wobs(m) - dof(m)
 
 hasformula(m::AbstractRobustModel) = false
 
@@ -33,14 +34,20 @@ end
 
 function StatsAPI.coeftable(m::AbstractRobustModel; level::Real=0.95)
     cc = coef(m)
+    dr = dof_residual(m)
     se = stderror(m)
     tt = cc ./ se
-    ci = se * quantile(TDist(dof_residual(m)), (1 - level) / 2)
-    p = ccdf.(Ref(FDist(1, dof_residual(m))), abs2.(tt))
+    if dr > 0
+        ci = -se * quantile(TDist(dr), (1 - level) / 2)
+        p = ccdf.(Ref(FDist(1, dr)), abs2.(tt))
+    else
+        ci = [isnan(t) ? NaN : Inf for t in tt]
+        p = [isnan(t) ? NaN : 1.0 for t in tt]
+    end
     levstr = isinteger(level * 100) ? string(Integer(level * 100)) : string(level * 100)
     cn = coefnames(m)
     return CoefTable(
-        hcat(cc, se, tt, p, cc + ci, cc - ci),
+        hcat(cc, se, tt, p, cc - ci, cc + ci),
         ["Coef.", "Std. Error", "t", "Pr(>|t|)", "Lower $(levstr)%", "Upper $(levstr)%"],
         cn,
         4,
@@ -49,8 +56,11 @@ function StatsAPI.coeftable(m::AbstractRobustModel; level::Real=0.95)
 end
 
 function StatsAPI.confint(m::AbstractRobustModel; level::Real=0.95)
-    alpha = quantile(TDist(dof_residual(m)), (1 - level) / 2)
-    return hcat(coef(m), coef(m)) + stderror(m) * alpha * hcat(1.0, -1.0)
+    cc = coef(m)
+    dr = dof_residual(m)
+    alpha = dr > 0 ? -quantile(TDist(dr), (1 - level) / 2) : NaN
+    se = stderror(m)
+    return hcat(cc, cc) + alpha * se * hcat(-1.0, 1.0)
 end
 
 ## TODO: specialize to make it faster
@@ -223,13 +233,13 @@ The robust estimator object used to fit the model.
 Estimator(m::RobustLinearModel) = Estimator(m.resp)
 
 function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:LinPred}
-    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(abs.(diag(vcov(m))))
 end
 
 function StatsAPI.stderror(
     m::RobustLinearModel{T,R,P}
 ) where {T,R,P<:AbstractRegularizedPred}
-    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(diag(vcov(m)))
+    return location_variance(m.resp, dof_residual(m), false) .* sqrt.(abs.(diag(vcov(m))))
 end
 
 StatsAPI.loglikelihood(m::RobustLinearModel) = loglikelihood(m.resp)
@@ -351,7 +361,7 @@ function StatsAPI.stderror(m::RobustLinearModel{T,R,P}) where {T,R,P<:RidgePred}
     Σ = Hermitian(wXt * modelmatrix(m.pred))
     M = vcov(m) * Σ * vcov(m)'
     s = location_variance(m.resp, dof_residual(m), false)
-    return s .* sqrt.(diag(M))
+    return s .* sqrt.(abs.(diag(M)))
 end
 
 ########################################################################
@@ -634,6 +644,22 @@ function StatsAPI.fit(
         __formula=f,
         kwargs...,
     )
+end
+
+
+"""
+    fit(::Type{M}, X, y; kwarg...) where {M<:RobustLinearModel}
+
+Fit a robust model using the `L2Estimator`. It should give the same results as `GLM.lm`.
+
+# Arguments
+
+- `X`: the model matrix (it can be dense or sparse) or a formula
+- `y`: the response vector or a table (dataframe, namedtuple, ...).
+
+"""
+function StatsAPI.fit(::Type{M}, X, y; kwargs...) where {M<:RobustLinearModel}
+    return fit(M, X, y, L2Estimator(); kwargs...)
 end
 
 

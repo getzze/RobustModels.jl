@@ -117,6 +117,11 @@ function GLM.dispersion(
     r::RobustResp, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false, robust::Bool=true
 )
     wrkwt, wrkres, wrkscaledres = r.wrkwt, r.wrkres, r.wrkscaledres
+
+    if dof_residual <= 0
+        return convert(eltype(wrkscaledres), NaN)
+    end
+
     if robust
         s = sum(i -> wrkwt[i] * abs2(wrkscaledres[i]), eachindex(wrkwt, wrkres))
         s *= (r.σ)^2 / dof_residual
@@ -137,15 +142,19 @@ from the location. If `sqr` is `false`, return the standard deviation instead.
 From Maronna et al., Robust Statistics: Theory and Methods, Equation 4.49
 """
 function location_variance(
-    r::RobustLinResp, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false
-)
-    lpsi(x) = psi(r.est, x)
-    lpsider(x) = psider(r.est, x)
+    r::RobustLinResp{T}, dof_residual::Real=(wobs(r) - 1), sqr::Bool=false,
+) where {T<:AbstractFloat}
+    if dof_residual <= 0
+        return convert(T, NaN)
+    end
 
     if isa(r.est, UnionL1)
         @warn "coefficient variance is not well defined for L1Estimator."
-        return Inf
+        return convert(T, NaN)
     end
+
+    lpsi(x) = psi(r.est, x)
+    lpsider(x) = psider(r.est, x)
 
     v = if isempty(r.wts)
         v = mean((lpsi.(r.wrkscaledres)) .^ 2)

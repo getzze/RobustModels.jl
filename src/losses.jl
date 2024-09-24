@@ -57,6 +57,7 @@ function robust_loss(::Type{L}) where {L<:LossFunction}
     return L(estimator_high_breakdown_point_constant(L))
 end
 
+loss(l::LossFunction) = l
 
 rho(l::LossFunction, r) = _rho(l, r / tuning_constant(l))
 psi(l::LossFunction, r) = tuning_constant(l) * _psi(l, r / tuning_constant(l))

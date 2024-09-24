@@ -487,7 +487,7 @@ function GLM.dispersion(m::QuantileRegression)
 end
 
 function StatsAPI.stderror(m::QuantileRegression)
-    return location_variance(m, false) .* sqrt.(diag(vcov(m)))
+    return location_variance(m, false) .* sqrt.(abs.(diag(vcov(m))))
 end
 
 StatsAPI.weights(m::QuantileRegression) = m.wts
