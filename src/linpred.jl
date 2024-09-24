@@ -57,13 +57,9 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
 ##########################################
 
 @static if get_pkg_version(GLM) < v"1.10"
-    @warn(
-        "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
-            "fallback to unpivoted RobustModels.DensePredQR definition. " *
-            "To use pivoted QR, GLM version should be greater than or equal to v1.10."
-    )
-
     using LinearAlgebra: QRCompactWY, QRPivoted, Diagonal, qr!, qr
+
+    QRPIVOTED_WARNING_SHOWN = false
 
     """
         DensePredQR
@@ -92,6 +88,15 @@ leverage_weights(p::LinPred, wt::AbstractVector) = sqrt.(1 .- leverage(p, wt))
         scratchR::Matrix{T}
 
         function DensePredQR(X::AbstractMatrix, pivot::Bool=false)
+            if pivot && !QRPIVOTED_WARNING_SHOWN
+                @warn(
+                    "GLM.DensePredQR(X::AbstractMatrix, pivot::Bool=true) is not defined, " *
+                        "fallback to unpivoted RobustModels.DensePredQR definition. " *
+                        "To use pivoted QR, GLM version should be greater than or equal to v1.10."
+                )
+                QRPIVOTED_WARNING_SHOWN = true
+            end
+
             n, p = size(X)
             T = typeof(float(zero(eltype(X))))
 
