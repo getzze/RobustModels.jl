@@ -17,13 +17,37 @@ env:
 
 
 jobs:
+  format-check:
+    # note: keep in sync with `format/run.jl`
+    name: Style check (Julia ${{ matrix.julia-version }} - ${{ github.event_name }})
+    # Run on push's or non-draft PRs
+    if: (github.event_name == 'push') || (github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        julia-version: [1.6]
+    steps:
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: actions/checkout@v4
+      - name: Instantiate `format` environment and format
+        run: |
+          julia --project=format -e 'using Pkg; Pkg.instantiate()'
+          julia --project=format 'format/run.jl'
+      - uses: reviewdog/action-suggester@v1
+        if: github.event_name == 'pull_request'
+        with:
+          tool_name: JuliaFormatter
+          fail_on_error: true
+
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        version:
+        julia-version:
           - '1.6'
           - '1'  # latest stable 1.x release
           - 'nightly'
@@ -32,10 +56,10 @@ jobs:
         arch:
           - x64
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@latest
         with:
-          version: ${{ matrix.version }}
+          version: ${{ matrix.julia-version }}
           arch: ${{ matrix.arch }}
       - uses: actions/cache@v1
         env:
@@ -57,8 +81,8 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@latest
         with:
           version: '1'
       - name: Install dependencies
