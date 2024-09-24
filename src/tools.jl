@@ -15,6 +15,13 @@ function promote_to_same_float(X::AbstractMatrix, y::AbstractVector)
     return convert.(T, X)::MT, convert.(T, y)::VT
 end
 
+
+function convert_vec_to_float(::Type{T}, v::AbstractVector{<:Real}) where {T<:AbstractFloat}
+    VT = AbstractVector{T}
+    return convert.(T, v)::VT
+end
+
+
 _missing_omit(x::AbstractArray{T}) where {T} = copyto!(similar(x, nonmissingtype(T)), x)
 
 function StatsModels.missing_omit(X::AbstractMatrix, y::AbstractVector)
@@ -73,6 +80,62 @@ end
 ################################################
 
 const ModelFrameType = Tuple{FormulaTerm,<:AbstractVector,<:AbstractMatrix,NamedTuple}
+const AllowedExtraArgType = Union{Nothing,Symbol,Union{AbstractVector{<:Real},AbstractVector{Union{Missing,<:Real}}}}
+
+
+"""
+    model_extra_arguments(::Type{M}) where {M<:AbstractRobustModel}
+
+Get the names of extra array arguments (of the same size than the response ``y``)
+that are used by the model.
+For general AbstractRobustModel, `wts` is a possible keyword argument.
+
+This method should specialize to the different models to include other arguments (offset, invvar...)
+
+Returns an array of extra arguments used by the model.
+"""
+function model_extra_arguments(::Type{M}) where {M<:AbstractRobustModel}
+    return [:wts]
+end
+
+
+"""
+    filter_model_extra_arguments(::Type{M}, kwargs) where {M<:AbstractRobustModel}
+
+Filter the kwargs to keep only the extra arguments used by the model.
+The values are checked to be of type Union{Nothing,Symbol,AbstractVector{<:Real}}.
+
+For general AbstractRobustModel, `wts` keyword argument is fetched from the data table.
+
+Returns a Dict of (key, value) with key, extra arguments used by the model, and value,
+given by `kwargs`.
+"""
+function filter_model_extra_arguments(
+    ::Type{M},
+    kwargs::Union{Dict{Symbol,Any}, Base.Pairs, NamedTuple},
+) where {M<:AbstractRobustModel}
+    allowed = model_extra_arguments(M)
+
+    extra = Dict{Symbol, AllowedExtraArgType}()
+    for (k, val) in pairs(kwargs)
+        s = Symbol(k)
+        if !(s in allowed)
+            continue
+        end
+        if !isa(val, AllowedExtraArgType)
+            msg = (
+                "extra argument does not have a compatible type, should be Nothing, " *
+                "a Symbol or a real array: $(typeof(val))"
+            )
+            @warn(msg)
+            continue
+        end
+        # Add to dict
+        extra[s] = val
+    end
+    return extra
+end
+
 
 """
     modelframe(f::FormulaTerm, data, contrasts::AbstractDict, ::Type{M}; kwargs...) where M
@@ -84,15 +147,17 @@ are extracted from the `data` Table using the formula `f`.
 Adapted from GLM.jl
 """
 function modelframe(
-    f::FormulaTerm, data, contrasts::AbstractDict, dropmissing::Bool, ::Type{M}; kwargs...
+    ::Type{M}, f::FormulaTerm, data, contrasts::AbstractDict, dropmissing::Bool; kwargs...
 )::ModelFrameType where {M<:AbstractRobustModel}
     # Check is a Table
     Tables.istable(data) ||
         throw(ArgumentError("expected data in a Table, got $(typeof(data))"))
     t = Tables.columntable(data)
 
-    # Check columns exist
+    # Get columns
     cols = collect(termvars(f))
+
+    # Check columns exist
     msg = ""
     for col in cols
         msg *= checkcol(t, col)
@@ -101,7 +166,12 @@ function modelframe(
         end
     end
     msg != "" && throw(ArgumentError("Error with formula term names.\n" * msg))
-    for val in Base.values(kwargs)
+
+    # Get extra columns
+    extra_args = filter_model_extra_arguments(M, kwargs)
+
+    # Check extra columns exist
+    for val in values(extra_args)
         if isa(val, Symbol)
             msg = checkcol(t, val)
             msg != "" && throw(ArgumentError("Error with extra column name.\n" * msg))
@@ -132,15 +202,19 @@ function modelframe(
     # response and model matrix
     ## Do not copy the arrays!
     y, X = modelcols(f, t)
-    extra_vec = NamedTuple(var => (
-        if isa(val, Symbol)
-            t[val]
-        elseif isnothing(val)
-            similar(y, 0)
-        else
-            val
+
+    extra_vec = NamedTuple(
+        var => begin
+            if isa(val, Symbol)
+                t[val]
+            elseif isnothing(val)
+                similar(y, 0)
+            else
+                val
+            end
         end
-    ) for (var, val) in pairs(kwargs))
+        for (var, val) in pairs(extra_args)
+    )
 
     return f, y, X, extra_vec
 end

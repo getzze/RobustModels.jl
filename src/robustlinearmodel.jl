@@ -95,6 +95,8 @@ function StatsAPI.fit(
     M1<:Union{Missing,<:Real},
     M2<:Union{Missing,<:Real},
 }
+    extra_args = filter_model_extra_arguments(M, kwargs)
+
     X_ismissing = eltype(X) >: Missing
     y_ismissing = eltype(y) >: Missing
     if any([y_ismissing, X_ismissing])
@@ -105,34 +107,53 @@ function StatsAPI.fit(
             )
             throw(ArgumentError(msg))
         end
-        X, y, _ = missing_omit(X, y)
+        X, y, nonmissings = missing_omit(X, y)
+
+    else
+        nonmissings = trues(size(y))
+    end
+    # drop (X,y) missing rows in extra_args
+    if all(nonmissings)
+        extra_args = NamedTuple(var => _missing_omit(val) for (var, val) in pairs(extra_args))
+    else
+        rows = findall(nonmissings)
+        extra_args = NamedTuple(var => _missing_omit(view(val, rows)) for (var, val) in pairs(extra_args))
     end
 
     # Make sure X and y have the same float eltype
     pX, py = promote_to_same_float(X, y)
+    # Make sure extra values in keyword argument have the same float eltype
+    T = eltype(py)
+    extra_args = NamedTuple(var => convert_vec_to_float(T, val) for (var, val) in pairs(extra_args))
+
+    kwargs = (; kwargs..., extra_args...)
     return fit(M, pX, py, args...; kwargs...)
 end
 
 ## Convert from formula-data to modelmatrix-response calling form
 ## the `fit` method must allow the `wts`, `contrasts` and `__formula` keyword arguments
-## Specialize to allow other keyword arguments (offset, precision...) to be taken from
-## a column of the dataframe.
+## Specialize the `model_extra_arguments` method to allow other keyword arguments
+## (offset, precision...) to be taken from a column of the dataframe.
 function StatsAPI.fit(
     ::Type{M},
     f::FormulaTerm,
     data,
     args...;
     dropmissing::Bool=false,
-    wts::Union{Nothing,Symbol,FPVector}=nothing,
     contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
     kwargs...,
 ) where {M<:AbstractRobustModel}
     # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts)
+    f, y, X, extra = modelframe(M, f, data, contrasts, dropmissing; kwargs...)
     # Call the `fit` method with arrays
     pX, py = promote_to_same_float(X, y)
+    # Make sure extra values in keyword argument have the same float eltype
+    T = eltype(py)
+    extra = NamedTuple(var => convert_vec_to_float(T, val) for (var, val) in pairs(extra))
+
+    kwargs = (; kwargs..., extra...)
     return fit(
-        M, pX, py, args...; wts=extra.wts, contrasts=contrasts, __formula=f, kwargs...
+        M, pX, py, args...; contrasts=contrasts, __formula=f, kwargs...
     )
 end
 
@@ -443,6 +464,19 @@ rlm(X, y, args...; kwargs...) = fit(RobustLinearModel, X, y, args...; kwargs...)
 
 
 """
+    model_extra_arguments(::Type{M}) where {M<:RobustLinearModel}
+
+Get the names of extra array arguments that are used by the model.
+For RobustLinearModel, [:wts, :offset].
+
+Returns an array of extra arguments used by the model.
+"""
+function model_extra_arguments(::Type{M}; kwargs...) where {M<:RobustLinearModel}
+    return [:wts, :offset]
+end
+
+
+"""
     fit(::Type{M},
         X::Union{AbstractMatrix{T},SparseMatrixCSC{T}},
         y::AbstractVector{T},
@@ -615,35 +649,6 @@ function StatsAPI.fit(
     fitargs = update_fields!(m; σ0=σ0, fitargs...)
 
     return dofit ? fit!(m; fitargs...) : m
-end
-
-## Convert from formula-data to modelmatrix-response calling form
-## the `fit` method must allow the `wts`, `offset`, `contrasts` and `__formula` keyword arguments
-function StatsAPI.fit(
-    ::Type{M},
-    f::FormulaTerm,
-    data,
-    args...;
-    dropmissing::Bool=false,
-    wts::Union{Nothing,Symbol,FPVector}=nothing,
-    offset::Union{Nothing,Symbol,FPVector}=nothing,
-    contrasts::AbstractDict{Symbol,Any}=Dict{Symbol,Any}(),
-    kwargs...,
-) where {M<:RobustLinearModel}
-    # Extract arrays from data using formula
-    f, y, X, extra = modelframe(f, data, contrasts, dropmissing, M; wts=wts, offset=offset)
-    # Call the `fit` method with arrays
-    return fit(
-        M,
-        X,
-        y,
-        args...;
-        wts=extra.wts,
-        offset=extra.offset,
-        contrasts=contrasts,
-        __formula=f,
-        kwargs...,
-    )
 end
 
 
