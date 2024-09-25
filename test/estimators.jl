@@ -19,145 +19,147 @@ using RobustModels:
 emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf)[1]
 
 
+@testset "Losses and estimators" begin
 
-@testset "Methods loss functions: $(name)" for name in losses
-    typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
-    l = typeloss()
+    @testset "loss functions: $(name)" for name in losses
+        typeloss = getproperty(RobustModels, Symbol(name * "Loss"))
+        l = typeloss()
 
-    @testset "Methods estimators: $(estimator)" for estimator in (
-        nothing, "M", "S", "MM", "Tau", "GeneralizedQuantile"
-    )
-        # Check LossFunction methods
-        if isnothing(estimator)
-            estimator_name = "Loss function"
-            typest = typeloss
+        @testset "Methods estimators: $(estimator)" for estimator in (
+            nothing, "M", "S", "MM", "Tau", "GeneralizedQuantile"
+        )
+            # Check LossFunction methods
+            if isnothing(estimator)
+                estimator_name = "Loss function"
+                typest = typeloss
 
-            # Check AbstractEstimator methods
-        else
-            estimator_name = "$(estimator) Estimator"
-            T = getproperty(RobustModels, Symbol(estimator * "Estimator"))
-            if estimator in ("S", "MM", "Tau")
-                if !in(name, bounded_losses)
-                    @test_throws TypeError T{typeloss}
-                    continue
+                # Check AbstractEstimator methods
+            else
+                estimator_name = "$(estimator) Estimator"
+                T = getproperty(RobustModels, Symbol(estimator * "Estimator"))
+                if estimator in ("S", "MM", "Tau")
+                    if !in(name, bounded_losses)
+                        @test_throws TypeError T{typeloss}
+                        continue
+                    end
                 end
+                typest = T{typeloss}
             end
-            typest = T{typeloss}
-        end
-        est = typest()
-        @test_nowarn println(est)
+            est = typest()
+            @test_nowarn show(devnull, est)
 
-        if !isnothing(estimator)
-            if estimator == "Tau"
-                #                @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
-                @test isa(loss(est), CompositeLossFunction)
-                @test typeof(first(loss(est))) == typeloss
-                @test typeof(last(loss(est))) == typeloss
-            else
-                @test typeof(loss(est)) == typeloss
-            end
-        end
-
-        @testset "Bounded $(estimator_name): $(name)" begin
-            if name in bounded_losses
-                @test isbounded(est)
-            else
-                @test !isbounded(est)
-            end
-        end
-
-        @testset "Convex $(estimator_name): $(name)" begin
-            if name in convex_losses
-                @test isconvex(est)
-            else
-                @test !isconvex(est)
-            end
-        end
-
-        @testset "$(estimator_name) values: $(name)" begin
-            ρ = rho(est, 1)
-            ψ = psi(est, 1)
-            ψp = psider(est, 1)
-            w = weight(est, 1)
-
-            vals = estimator_values(est, 1)
-            @test length(vals) == 3
-            @test vals[1] ≈ ρ rtol = 1e-6
-            @test vals[2] ≈ ψ rtol = 1e-6
-            @test vals[3] ≈ w rtol = 1e-6
-        end
-
-        # Only for LossFunction
-        if isnothing(estimator)
-            @testset "Loss methods: $(name)" begin
-                @test loss(est) == est
-
-                # estimator_bound
-                if !isconvex(est)
-                    @test isfinite(RobustModels.estimator_bound(est))
+            if !isnothing(estimator)
+                if estimator == "Tau"
+                    #                @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
+                    @test isa(loss(est), CompositeLossFunction)
+                    @test typeof(first(loss(est))) == typeloss
+                    @test typeof(last(loss(est))) == typeloss
                 else
-                    @test !isfinite(RobustModels.estimator_bound(est))
+                    @test typeof(loss(est)) == typeloss
                 end
+            end
 
-                # tuning_constant
-                @test isfinite(RobustModels.tuning_constant(est))
+            @testset "Bounded $(estimator_name): $(name)" begin
+                if name in bounded_losses
+                    @test isbounded(est)
+                else
+                    @test !isbounded(est)
+                end
+            end
 
-                @testset "Estimator norm: $(name)" begin
-                    if !isbounded(est)
-                        @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
+            @testset "Convex $(estimator_name): $(name)" begin
+                if name in convex_losses
+                    @test isconvex(est)
+                else
+                    @test !isconvex(est)
+                end
+            end
+
+            @testset "$(estimator_name) values: $(name)" begin
+                ρ = rho(est, 1)
+                ψ = psi(est, 1)
+                ψp = psider(est, 1)
+                w = weight(est, 1)
+
+                vals = estimator_values(est, 1)
+                @test length(vals) == 3
+                @test vals[1] ≈ ρ rtol = 1e-6
+                @test vals[2] ≈ ψ rtol = 1e-6
+                @test vals[3] ≈ w rtol = 1e-6
+            end
+
+            # Only for LossFunction
+            if isnothing(estimator)
+                @testset "Loss methods: $(name)" begin
+                    @test loss(est) == est
+
+                    # estimator_bound
+                    if !isconvex(est)
+                        @test isfinite(RobustModels.estimator_bound(est))
                     else
-                        @test !isfinite(RobustModels.estimator_norm(est))
+                        @test !isfinite(RobustModels.estimator_bound(est))
                     end
-                end
 
-                if !in(name, ("L2", "L1"))
-                    @testset "Estimator high efficiency: $(name)" begin
-                        vopt = estimator_high_efficiency_constant(typest)
-                        if name != "HardThreshold"
-                            v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
-                            @test isapprox(v, vopt; rtol=1e-3)
+                    # tuning_constant
+                    @test isfinite(RobustModels.tuning_constant(est))
+
+                    @testset "Estimator norm: $(name)" begin
+                        if !isbounded(est)
+                            @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
+                        else
+                            @test !isfinite(RobustModels.estimator_norm(est))
                         end
                     end
-                end
 
-                if isbounded(est)
-                    @testset "Estimator high breakdown point: $(name)" begin
-                        vopt = estimator_high_breakdown_point_constant(typest)
-                        v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
-                        @test isapprox(v, vopt; rtol=1e-3)
+                    if !in(name, ("L2", "L1"))
+                        @testset "Estimator high efficiency: $(name)" begin
+                            vopt = estimator_high_efficiency_constant(typest)
+                            if name != "HardThreshold"
+                                v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
+                                @test isapprox(v, vopt; rtol=1e-3)
+                            end
+                        end
                     end
 
-                    @testset "τ-Estimator high efficiency: $(name)" begin
-                        vopt = estimator_tau_efficient_constant(typest)
-                        if name != "HardThreshold"
-                            v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
+                    if isbounded(est)
+                        @testset "Estimator high breakdown point: $(name)" begin
+                            vopt = estimator_high_breakdown_point_constant(typest)
+                            v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
                             @test isapprox(v, vopt; rtol=1e-3)
+                        end
+
+                        @testset "τ-Estimator high efficiency: $(name)" begin
+                            vopt = estimator_tau_efficient_constant(typest)
+                            if name != "HardThreshold"
+                                v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
+                                @test isapprox(v, vopt; rtol=1e-3)
+                            end
                         end
                     end
                 end
             end
-        end
 
-        if typest <: AbstractQuantileEstimator
-            @testset "MQuantile: $(name)" begin
-                τ = 0.5
-                qest1 = GeneralizedQuantileEstimator(l, τ)
-                qest2 = GeneralizedQuantileEstimator{typeloss}(τ)
-                @test qest1 == qest2
-                if name == "L2"
-                    qest4 = ExpectileEstimator(τ)
-                    @test qest1 == qest4
-                elseif name == "L1"
-                    qest4 = RobustModels.QuantileEstimator(τ)
-                    @test qest1 == qest4
+            if typest <: AbstractQuantileEstimator
+                @testset "MQuantile: $(name)" begin
+                    τ = 0.5
+                    qest1 = GeneralizedQuantileEstimator(l, τ)
+                    qest2 = GeneralizedQuantileEstimator{typeloss}(τ)
+                    @test qest1 == qest2
+                    if name == "L2"
+                        qest4 = ExpectileEstimator(τ)
+                        @test qest1 == qest4
+                    elseif name == "L1"
+                        qest4 = RobustModels.QuantileEstimator(τ)
+                        @test qest1 == qest4
+                    end
+
+                    @testset "Pass through of methods" for fun in (rho, psi, psider, weight)
+                        ρ1 = fun(est, 1)
+                        ρ2 = fun(qest1, 1)
+                        @test ρ1 == ρ2
+                    end
+
                 end
-
-                @testset "Pass through of methods" for fun in (rho, psi, psider, weight)
-                    ρ1 = fun(est, 1)
-                    ρ2 = fun(qest1, 1)
-                    @test ρ1 == ρ2
-                end
-
             end
         end
     end

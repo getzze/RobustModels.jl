@@ -4,7 +4,7 @@ loss1 = RobustModels.L2Loss()
 loss2 = RobustModels.TukeyLoss()
 
 
-@testset "linear: Expectile estimators" begin
+@testset "Expectile estimators" begin
     m = fit(
         RobustLinearModel,
         form,
@@ -91,7 +91,7 @@ loss2 = RobustModels.TukeyLoss()
 end
 
 
-@testset "linear: M-Quantile estimators" begin
+@testset "M-Quantile estimators" begin
     @testset "$(name) estimator" for name in ("Huber", "L1L2", "Fair", "Logcosh", "Arctan") #, "Cauchy", "Geman", "Welsch", "Tukey", "YohaiZamar")
         VERBOSE && println("\n\t\u25CF M-Quantile Estimator: $name")
         loss = getproperty(RobustModels, Symbol(name * "Loss"))()

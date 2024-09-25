@@ -1,6 +1,7 @@
 
 using Tables
 using Missings
+using Suppressor: @capture_err
 
 m1 = fit(LinearModel, form, data)
 λlm = dispersion(m1)
@@ -11,7 +12,7 @@ est1 = MEstimator(loss1)
 est2 = MEstimator(loss2)
 
 
-@testset "linear: L2 estimator" begin
+@testset "Interface" begin
     VERBOSE && println("\n\t\u25CF Estimator: L2")
 
     # OLS
@@ -19,7 +20,7 @@ est2 = MEstimator(loss2)
     VERBOSE && println(" lm              : ", coef(m1))
 
     # Formula, dense and sparse entry  and methods :cg and :chol
-    @testset "$(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
+    @testset "interface: $(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
 
         name = if (A == form)
             "formula"
@@ -152,7 +153,13 @@ est2 = MEstimator(loss2)
                 else
                     b_mod = nothing
                 end
-                @test_throws ArgumentError fit(RobustLinearModel, A, b_mod, est1)
+                output = @capture_err begin
+                    @test_throws ArgumentError fit(RobustLinearModel, A, b_mod, est1)
+                end
+                if VERBOSE && length(output) > 0
+                    println(output)
+                end
+
                 if typemod == "missing"
                     @test_nowarn fit(RobustLinearModel, A, b_mod, est1; dropmissing=true)
                 end
@@ -170,11 +177,17 @@ est2 = MEstimator(loss2)
                         RobustLinearModel, A_mod, b_mod, est1; dropmissing=true
                     )
                 else
-                    @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
-                    @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
-                    @test_throws MethodError fit(RobustLinearModel, A_mod, b_mod, est1)
+                    output = @capture_err begin
+                        @test_throws MethodError fit(RobustLinearModel, A_mod, b, est1)
+                        @test_throws MethodError fit(RobustLinearModel, A, b_mod, est1)
+                        @test_throws MethodError fit(RobustLinearModel, A_mod, b_mod, est1)
+                    end
+                    if VERBOSE && length(output) > 0
+                        println(output)
+                    end
                 end
             end
         end
     end
+
 end

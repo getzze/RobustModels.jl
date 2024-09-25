@@ -1,4 +1,4 @@
-if @isdefined(ARGS)
+if @isdefined(ARGS) && length(ARGS) > 0
     println("Test arguments: $(ARGS)")
 end
 
