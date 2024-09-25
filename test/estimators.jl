@@ -50,7 +50,7 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
 
             if !isnothing(estimator)
                 if estimator == "Tau"
-                    #                @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
+                    # @test isa(loss(est), Tuple{BoundedLossFunction, BoundedLossFunction})
                     @test isa(loss(est), CompositeLossFunction)
                     @test typeof(first(loss(est))) == typeloss
                     @test typeof(last(loss(est))) == typeloss
@@ -104,10 +104,11 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
                     @test isfinite(RobustModels.tuning_constant(est))
 
                     @testset "Estimator norm: $(name)" begin
+                        est_norm = RobustModels.estimator_norm(est)
                         if !isbounded(est)
-                            @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
+                            @test emp_norm(est) ≈ est_norm rtol = 1e-5
                         else
-                            @test !isfinite(RobustModels.estimator_norm(est))
+                            @test !isfinite(est_norm)
                         end
                     end
 
@@ -115,7 +116,9 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
                         @testset "Estimator high efficiency: $(name)" begin
                             vopt = estimator_high_efficiency_constant(typest)
                             if name != "HardThreshold"
-                                v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
+                                v = efficiency_tuning_constant(
+                                    typest; eff=0.95, c0=0.9 * vopt
+                                )
                                 @test isapprox(v, vopt; rtol=1e-3)
                             end
                         end
@@ -124,14 +127,18 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
                     if isbounded(est)
                         @testset "Estimator high breakdown point: $(name)" begin
                             vopt = estimator_high_breakdown_point_constant(typest)
-                            v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
+                            v = breakdown_point_tuning_constant(
+                                typest; bp=0.5, c0=1.1 * vopt
+                            )
                             @test isapprox(v, vopt; rtol=1e-3)
                         end
 
                         @testset "τ-Estimator high efficiency: $(name)" begin
                             vopt = estimator_tau_efficient_constant(typest)
                             if name != "HardThreshold"
-                                v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
+                                v = tau_efficiency_tuning_constant(
+                                    typest; eff=0.95, c0=1.1 * vopt
+                                )
                                 @test isapprox(v, vopt; rtol=1e-3)
                             end
                         end

@@ -65,7 +65,9 @@
 
                     @test_nowarn fit(QuantileRegression, A_missing, b; dropmissing=true)
                     @test_nowarn fit(QuantileRegression, A, b_missing; dropmissing=true)
-                    @test_nowarn fit(QuantileRegression, A_missing, b_missing; dropmissing=true)
+                    @test_nowarn fit(
+                        QuantileRegression, A_missing, b_missing; dropmissing=true
+                    )
                 end
             end
         end

@@ -13,13 +13,17 @@ est2 = MEstimator(loss2)
 
 @testset "Ridge M-estimator " begin
 
+    #! format: off
     @testset "linear: Ridge M-estimator $(lossname)" for lossname in ("L2", "Huber", "Tukey")
+    #! format: on
         typeloss = getproperty(RobustModels, Symbol(lossname * "Loss"))
         l = typeloss()
         est = MEstimator(typeloss())
 
+        #! format: off
         # Formula, dense and sparse entry  and methods :cg and :chol
         @testset "$(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
+        #! format: on
 
             aspace = (method in (:cg, :qr)) ? "  " : "    "
             name = "MEstimator($(typeloss)),\t"
@@ -70,7 +74,9 @@ est2 = MEstimator(loss2)
 
     @testset "linear: Ridge L2 estimator methods" begin
         m2 = fit(RobustLinearModel, form, data, est1; method=:chol, initial_scale=:L1)
-        m3 = fit(RobustLinearModel, form, data, est1; method=:chol, initial_scale=:L1, ridgeλ=1)
+        m3 = fit(
+            RobustLinearModel, form, data, est1; method=:chol, initial_scale=:L1, ridgeλ=1
+        )
 
         @testset "method: $(f)" for f in interface_methods
             # make sure the interfaces for RobustLinearModel are well defined

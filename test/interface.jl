@@ -19,8 +19,10 @@ est2 = MEstimator(loss2)
     VERBOSE && println(m1)
     VERBOSE && println(" lm              : ", coef(m1))
 
+    #! format: off
     # Formula, dense and sparse entry  and methods :cg and :chol
     @testset "interface: $(typeof(A)),\t$(method)" for (A, b) in data_tuples, method in nopen_methods
+    #! format: on
 
         name = if (A == form)
             "formula"

@@ -86,7 +86,9 @@ using RobustModels: mean_and_sem, compatdims
     y3 = reshape(yorig, (1, 3, 102))
     y4 = reshape(yorig, (17, 18, 1))
 
+    #! format: off
     @testset "robust univariate statistics: Array size: $(size(a))" for a in (y, y1, y2, y3, y4)
+    #! format: on
         @testset "dims=$(dims)" for dims in (1, 2, (1,), (1, 2), (3, 1), 4, (:))
             ## Mean
             m = @test_nowarn mean(est, a; dims=dims)
@@ -103,7 +105,9 @@ using RobustModels: mean_and_sem, compatdims
                 s = @test_nowarn func(est, a; dims=dims)
 
                 ## Test `mean_and_<dispersion> == (mean, <dispersion>)`
-                func_tup = getproperty(RobustModels, Symbol("mean_and_" * String(disp_name)))
+                func_tup = getproperty(
+                    RobustModels, Symbol("mean_and_" * String(disp_name))
+                )
                 ms = @test_nowarn func_tup(est, a; dims=dims)
                 @test length(ms) == 2
                 @test ms[1] ≈ m
