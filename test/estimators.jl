@@ -89,34 +89,50 @@ emp_norm(l::LossFunction) = 2 * quadgk(x -> exp(-RobustModels.rho(l, x)), 0, Inf
 
         # Only for LossFunction
         if isnothing(estimator)
-            if !isbounded(est)
-                @testset "Estimator norm: $(name)" begin
-                    @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
-                end
-            end
+            @testset "Loss methods: $(name)" begin
+                @test loss(est) == est
 
-            if !in(name, ("L2", "L1"))
-                @testset "Estimator high efficiency: $(name)" begin
-                    vopt = estimator_high_efficiency_constant(typest)
-                    if name != "HardThreshold"
-                        v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
-                        @test isapprox(v, vopt; rtol=1e-3)
+                # estimator_bound
+                if !isconvex(est)
+                    @test isfinite(RobustModels.estimator_bound(est))
+                else
+                    @test !isfinite(RobustModels.estimator_bound(est))
+                end
+
+                # tuning_constant
+                @test isfinite(RobustModels.tuning_constant(est))
+
+                @testset "Estimator norm: $(name)" begin
+                    if !isbounded(est)
+                        @test emp_norm(est) ≈ RobustModels.estimator_norm(est) rtol = 1e-5
+                    else
+                        @test !isfinite(RobustModels.estimator_norm(est))
                     end
                 end
-            end
 
-            if isbounded(est)
-                @testset "Estimator high breakdown point: $(name)" begin
-                    vopt = estimator_high_breakdown_point_constant(typest)
-                    v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
-                    @test isapprox(v, vopt; rtol=1e-3)
+                if !in(name, ("L2", "L1"))
+                    @testset "Estimator high efficiency: $(name)" begin
+                        vopt = estimator_high_efficiency_constant(typest)
+                        if name != "HardThreshold"
+                            v = efficiency_tuning_constant(typest; eff=0.95, c0=0.9 * vopt)
+                            @test isapprox(v, vopt; rtol=1e-3)
+                        end
+                    end
                 end
 
-                @testset "τ-Estimator high efficiency: $(name)" begin
-                    vopt = estimator_tau_efficient_constant(typest)
-                    if name != "HardThreshold"
-                        v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
+                if isbounded(est)
+                    @testset "Estimator high breakdown point: $(name)" begin
+                        vopt = estimator_high_breakdown_point_constant(typest)
+                        v = breakdown_point_tuning_constant(typest; bp=0.5, c0=1.1 * vopt)
                         @test isapprox(v, vopt; rtol=1e-3)
+                    end
+
+                    @testset "τ-Estimator high efficiency: $(name)" begin
+                        vopt = estimator_tau_efficient_constant(typest)
+                        if name != "HardThreshold"
+                            v = tau_efficiency_tuning_constant(typest; eff=0.95, c0=1.1 * vopt)
+                            @test isapprox(v, vopt; rtol=1e-3)
+                        end
                     end
                 end
             end
