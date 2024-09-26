@@ -1,3 +1,21 @@
+v0.6.0 (2024-09-26)
+-------------------
+Changes:
+
+* add support for QR solver, preview of GLM.jl version 2.
+* add support for the `dropcollinear` keyword argument, following GLM.jl version 1.9.
+  Setting it to `true` improves solving problems where the model matrix is not full rank.
+
+Dependencies and docs:
+
+* minimal Julia version bumped to 1.6
+* use JuliaFormatter.jl
+* add typos checks
+
+Tests:
+
+* improve tests output
+
 v0.5.0 (2023-05-12)
 -------------------
 Breaking changes:
