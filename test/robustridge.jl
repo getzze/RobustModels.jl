@@ -1,4 +1,3 @@
-using Random: MersenneTwister
 using LinearAlgebra: inv, Hermitian, I, tr, diag
 
 seed = 123987

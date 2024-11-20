@@ -8,3 +8,4 @@ Artic = "Artic"
 
 [default.extend-words]
 qest = "qest"
+wrk = "wrk"

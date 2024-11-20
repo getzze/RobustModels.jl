@@ -1,5 +1,4 @@
 
-using Random: MersenneTwister
 
 m1 = fit(LinearModel, form, data)
 
