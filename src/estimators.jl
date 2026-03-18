@@ -247,7 +247,7 @@ The S-estimator is obtained by minimizing the scale estimate:
 \\hat{\\mathbf{\\beta}} = \\underset{\\mathbf{\\beta}}{\\textrm{argmin }} \\hat{\\sigma}^2
 ```
 
-where the robust scale estimate ``\\hat{\\sigma}}`` is solution of:
+where the robust scale estimate ``\\hat{\\sigma}`` is solution of:
 
 
 ```math
@@ -309,7 +309,7 @@ The MM-estimator is obtained using a two-step process:
 # Fields
 - `loss1`: the [`BoundedLossFunction`](@ref) used for the high breakdown point S-estimation.
 - `loss2`: the [`LossFunction`](@ref) used for the efficient M-estimation.
-- `scaleest`: boolean specifying the if the estimation is in the S-estimation step (`true`)
+- `scaleest`: boolean specifying the if the estimation is in the S-estimation step (`true`) \
 or the M-estimation step (`false`).
 
 """

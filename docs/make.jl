@@ -8,6 +8,9 @@ DocMeta.setdocmeta!(
     :(using RobustModels, StatsBase, GLM, StatsAPI);
     recursive=true,
 )
+DocMeta.setdocmeta!(StatsBase, :DocTestSetup, :(using StatsBase); recursive=true)
+DocMeta.setdocmeta!(GLM, :DocTestSetup, :(using GLM, StatsBase); recursive=true)
+DocMeta.setdocmeta!(StatsAPI, :DocTestSetup, :(using StatsAPI); recursive=true)
 
 prettyurls = get(ENV, "CI", "false") == "true"
 

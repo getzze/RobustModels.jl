@@ -197,10 +197,11 @@ function Base.show(io::IO, obj::RobustLinearModel)
     if hasformula(obj)
         msg *= "$(formula(obj))\n\n"
     end
-    msg *= "Coefficients:\n"
-    return println(io, msg, coeftable(obj))
+    msg *= "Coefficients:"
+    println(io, msg)
+    show(io, MIME"text/plain"(), coeftable(obj))
+    return nothing
 end
-
 
 hasformula(m::RobustLinearModel) = isnothing(m.formula) ? false : true
 

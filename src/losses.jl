@@ -492,7 +492,7 @@ estimator_high_breakdown_point_constant(::Type{WelschLoss}) = 0.8165
 
 """
 The non-convex Tukey biweight estimator which completely suppresses the outliers,
-and does not guaranty a unique solution.
+and does not guarantee a unique solution.
 ψ(r) = (abs(r) <= 1) ? r * (1 - r^2)^2 : 0
 """
 struct TukeyLoss <: BoundedLossFunction
